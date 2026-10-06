@@ -93,6 +93,18 @@ export async function POST(
         throw new Error(`Insufficient balance. Available: $${sourceBalance.toFixed(2)}, requested: $${transferAmount.toFixed(2)}`)
       }
 
+      const [destDepositsAgg, destPaymentsAgg] = await Promise.all([
+        tx.expenseAccountDeposits.aggregate({
+          where: { expenseAccountId: destinationAccountId },
+          _sum: { amount: true },
+        }),
+        tx.expenseAccountPayments.aggregate({
+          where: { expenseAccountId: destinationAccountId, status: { in: ['SUBMITTED', 'APPROVED', 'PAID'] } },
+          _sum: { amount: true },
+        }),
+      ])
+      const destBalance = Number(destDepositsAgg._sum.amount ?? 0) - Number(destPaymentsAgg._sum.amount ?? 0)
+
       const now = new Date()
       const effectiveDate = transferDate ? new Date(transferDate) : now
 
@@ -131,10 +143,10 @@ export async function POST(
       })
 
       // Update both account balances
-      await updateExpenseAccountBalanceTx(tx, sourceAccountId)
-      await updateExpenseAccountBalanceTx(tx, destinationAccountId)
+      const sourceBalanceAfter = await updateExpenseAccountBalanceTx(tx, sourceAccountId)
+      const destBalanceAfter = await updateExpenseAccountBalanceTx(tx, destinationAccountId)
 
-      return { sourcePayment, destDeposit }
+      return { sourcePayment, destDeposit, sourceBalanceBefore: sourceBalance, destBalanceBefore: destBalance, sourceBalanceAfter, destBalanceAfter }
     })
 
     // Audit log
@@ -143,6 +155,10 @@ export async function POST(
       action: 'EXPENSE_ACCOUNT_TRANSFER',
       entityType: 'ExpenseAccountTransfer',
       entityId: result.sourcePayment.id,
+      oldValues: {
+        sourceBalance: result.sourceBalanceBefore,
+        destinationBalance: result.destBalanceBefore,
+      },
       newValues: {
         amount: transferAmount,
         sourceAccountId,
@@ -151,6 +167,12 @@ export async function POST(
         destinationAccountName: destAccount.accountName,
         notes: notes.trim(),
         transferredBy: user.id,
+        sourceBalance: result.sourceBalanceAfter,
+        destinationBalance: result.destBalanceAfter,
+      },
+      metadata: {
+        sourceAccountNumber: sourceAccount.accountNumber,
+        destinationAccountNumber: destAccount.accountNumber,
       },
     })
 

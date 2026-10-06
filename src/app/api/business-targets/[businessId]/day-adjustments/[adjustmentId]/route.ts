@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { hasPermission, isSystemAdmin } from '@/lib/permission-utils'
+import { createAuditLog } from '@/lib/audit'
 
 /** DELETE /api/business-targets/[businessId]/day-adjustments/[adjustmentId] — MBM-288 §2.4 */
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ businessId: string; adjustmentId: string }> }) {
@@ -18,17 +19,22 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     if (!existing || existing.businessId !== businessId) {
       return NextResponse.json({ error: 'Adjustment not found' }, { status: 404 })
     }
+    const business = await prisma.businesses.findUnique({ where: { id: businessId }, select: { name: true } })
 
     await prisma.businessTargetDayAdjustment.delete({ where: { id: adjustmentId } })
 
-    await prisma.auditLogs.create({
-      data: {
-        action: 'BUSINESS_TARGET_DAY_ADJUSTED',
-        entityType: 'BusinessTargetDayAdjustment',
-        entityId: existing.id,
-        userId: user.id,
-        details: { businessId, action: 'removed', date: existing.date, adjustmentType: existing.adjustmentType },
-      } as any,
+    await createAuditLog({
+      userId: user.id,
+      action: 'BUSINESS_TARGET_DAY_ADJUSTED',
+      entityType: 'BusinessTargetDayAdjustment',
+      entityId: existing.id,
+      oldValues: {
+        date: existing.date,
+        adjustmentType: existing.adjustmentType,
+        adjustedTargetAmount: existing.adjustedTargetAmount ? Number(existing.adjustedTargetAmount) : null,
+        reason: existing.reason,
+      },
+      metadata: { businessId, businessName: business?.name, action: 'removed' },
     })
 
     return NextResponse.json({ success: true, message: 'Adjustment removed' })

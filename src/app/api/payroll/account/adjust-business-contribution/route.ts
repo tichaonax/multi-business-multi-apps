@@ -124,6 +124,7 @@ export async function POST(request: NextRequest) {
       metadata: {
         businessId,
         businessName: business.name,
+        adjusterName: adjuster,
         deltaAmount: delta,
         reason: reasonText,
         newGlobalBalance: newBalance,

@@ -55,7 +55,14 @@ export type AuditAction =
   | 'CONTRACT_BENEFIT_REMOVED'
   | 'BUSINESS_REACTIVATED'
   | 'BUSINESS_HARD_DELETED'
-  | 'BUSINESS_DEACTIVATED';
+  | 'BUSINESS_DEACTIVATED'
+  | 'BUSINESS_TARGET_ENABLED'
+  | 'BUSINESS_TARGET_DISABLED'
+  | 'BUSINESS_TARGET_BUFFER_CHANGED'
+  | 'BUSINESS_TARGET_COMMITMENT_CHANGED'
+  | 'BUSINESS_TARGET_DAY_ADJUSTED'
+  | 'BUSINESS_TARGET_LINE_OVERRIDDEN'
+  | 'BUSINESS_TARGET_OVERRIDDEN';
 
 export type AuditEntityType =
   | 'User'
@@ -80,7 +87,10 @@ export type AuditEntityType =
   | 'Product'
   | 'Order'
   | 'Contract'
-  | 'ReferenceData';
+  | 'ReferenceData'
+  | 'BusinessTargetConfig'
+  | 'BusinessTargetCommitment'
+  | 'BusinessTargetDayAdjustment';
 
 export interface AuditLogEntry {
   userId: string;

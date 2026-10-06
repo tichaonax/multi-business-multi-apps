@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { hasPermission, isSystemAdmin } from '@/lib/permission-utils'
+import { createAuditLog } from '@/lib/audit'
 
 /** PUT/DELETE /api/business-targets/[businessId]/commitments/[commitmentId] — MBM-288 §2.2 */
 
@@ -19,6 +20,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (!existing || existing.businessId !== businessId) {
       return NextResponse.json({ error: 'Commitment not found' }, { status: 404 })
     }
+    const business = await prisma.businesses.findUnique({ where: { id: businessId }, select: { name: true } })
 
     const payload = await request.json()
     const updateData: any = { updatedBy: user.id }
@@ -47,14 +49,14 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           changedBy: user.id,
         },
       }),
-      prisma.auditLogs.create({
-        data: {
-          action: 'BUSINESS_TARGET_COMMITMENT_CHANGED',
-          entityType: 'BusinessTargetCommitment',
-          entityId: updated.id,
-          userId: user.id,
-          details: { businessId, action: 'updated', before: { label: existing.label, monthlyAmount: Number(existing.monthlyAmount) }, after: { label: updated.label, monthlyAmount: Number(updated.monthlyAmount) } },
-        } as any,
+      createAuditLog({
+        userId: user.id,
+        action: 'BUSINESS_TARGET_COMMITMENT_CHANGED',
+        entityType: 'BusinessTargetCommitment',
+        entityId: updated.id,
+        oldValues: { label: existing.label, monthlyAmount: Number(existing.monthlyAmount) },
+        newValues: { label: updated.label, monthlyAmount: Number(updated.monthlyAmount) },
+        metadata: { businessId, businessName: business?.name, action: 'updated' },
       }),
     ])
 
@@ -79,6 +81,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     if (!existing || existing.businessId !== businessId) {
       return NextResponse.json({ error: 'Commitment not found' }, { status: 404 })
     }
+    const business = await prisma.businesses.findUnique({ where: { id: businessId }, select: { name: true } })
 
     // Soft delete (isActive: false) — matches this app's general preference
     // for deactivation over hard deletes on financial-adjacent records, and
@@ -89,14 +92,13 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       prisma.businessTargetOverrideHistory.create({
         data: { businessId, changeType: 'COMMITMENT_CHANGE', previousValue: Number(existing.monthlyAmount), newValue: 0, reason: `Removed: ${existing.label}`, changedBy: user.id },
       }),
-      prisma.auditLogs.create({
-        data: {
-          action: 'BUSINESS_TARGET_COMMITMENT_CHANGED',
-          entityType: 'BusinessTargetCommitment',
-          entityId: existing.id,
-          userId: user.id,
-          details: { businessId, action: 'removed', label: existing.label, monthlyAmount: Number(existing.monthlyAmount) },
-        } as any,
+      createAuditLog({
+        userId: user.id,
+        action: 'BUSINESS_TARGET_COMMITMENT_CHANGED',
+        entityType: 'BusinessTargetCommitment',
+        entityId: existing.id,
+        oldValues: { label: existing.label, monthlyAmount: Number(existing.monthlyAmount) },
+        metadata: { businessId, businessName: business?.name, action: 'removed' },
       }),
     ])
 

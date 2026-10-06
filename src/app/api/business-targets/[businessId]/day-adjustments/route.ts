@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { hasPermission, isSystemAdmin } from '@/lib/permission-utils'
+import { createAuditLog } from '@/lib/audit'
 
 /**
  * GET/POST /api/business-targets/[businessId]/day-adjustments — MBM-288 §2.4/§3.3.
@@ -48,7 +49,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    const business = await prisma.businesses.findUnique({ where: { id: businessId }, select: { id: true } })
+    const business = await prisma.businesses.findUnique({ where: { id: businessId }, select: { id: true, name: true } })
     if (!business) return NextResponse.json({ error: 'Business not found' }, { status: 404 })
 
     const payload = await request.json()
@@ -81,14 +82,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       },
     })
 
-    await prisma.auditLogs.create({
-      data: {
-        action: 'BUSINESS_TARGET_DAY_ADJUSTED',
-        entityType: 'BusinessTargetDayAdjustment',
-        entityId: adjustment.id,
-        userId: user.id,
-        details: { businessId, date, adjustmentType, adjustedTargetAmount: adjustmentType === 'CLOSED' ? null : Number(adjustedTargetAmount), reason: reason?.trim() || null },
-      } as any,
+    await createAuditLog({
+      userId: user.id,
+      action: 'BUSINESS_TARGET_DAY_ADJUSTED',
+      entityType: 'BusinessTargetDayAdjustment',
+      entityId: adjustment.id,
+      newValues: { date, adjustmentType, adjustedTargetAmount: adjustmentType === 'CLOSED' ? null : Number(adjustedTargetAmount), reason: reason?.trim() || null },
+      metadata: { businessId, businessName: business.name, action: 'created' },
     })
 
     return NextResponse.json({ success: true, data: { ...adjustment, adjustedTargetAmount: adjustment.adjustedTargetAmount ? Number(adjustment.adjustedTargetAmount) : null } }, { status: 201 })

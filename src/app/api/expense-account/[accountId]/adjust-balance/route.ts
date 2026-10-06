@@ -78,7 +78,8 @@ export async function POST(
     }
 
     const reasonText = String(reason).trim()
-    const note = `Manual balance correction by ${user.name || user.email || user.id}: ` +
+    const adjuster = user.name || user.email || user.id
+    const note = `Manual balance correction by ${adjuster}: ` +
       `${currentBalance.toFixed(2)} -> ${target.toFixed(2)}. Reason: ${reasonText}`
 
     const newBalance = await prisma.$transaction(async (tx) => {
@@ -126,6 +127,7 @@ export async function POST(
       metadata: {
         accountNumber: account.accountNumber,
         accountName: account.accountName,
+        adjusterName: adjuster,
         deltaAmount: delta,
         reason: reasonText,
       },

@@ -156,6 +156,7 @@ export async function POST(request: NextRequest) {
       newValues: { cashBalance: updated.cashBalance, ecocashBalance: updated.ecocashBalance },
       metadata: {
         businessName: business.name,
+        adjusterName: adjuster,
         cashDelta,
         ecocashDelta,
         reason: reasonText,

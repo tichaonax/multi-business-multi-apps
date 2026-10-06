@@ -4,6 +4,7 @@ import { getServerUser } from '@/lib/get-server-user'
 import { hasPermission, isSystemAdmin } from '@/lib/permission-utils'
 import { calculateMinimumTarget } from '@/lib/business-targets/calculate-minimum-target'
 import { calculateLineContributions } from '@/lib/business-targets/calculate-line-contributions'
+import { createAuditLog } from '@/lib/audit'
 
 /**
  * GET /api/business-targets/[businessId]
@@ -82,7 +83,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    const business = await prisma.businesses.findUnique({ where: { id: businessId }, select: { id: true } })
+    const business = await prisma.businesses.findUnique({ where: { id: businessId }, select: { id: true, name: true } })
     if (!business) return NextResponse.json({ error: 'Business not found' }, { status: 404 })
 
     const payload = await request.json()
@@ -129,14 +130,14 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         prisma.businessTargetOverrideHistory.create({
           data: { businessId, changeType, previousValue, newValue, changedBy: user.id },
         }),
-        prisma.auditLogs.create({
-          data: {
-            action: changeType === 'ENABLE' ? 'BUSINESS_TARGET_ENABLED' : changeType === 'DISABLE' ? 'BUSINESS_TARGET_DISABLED' : 'BUSINESS_TARGET_BUFFER_CHANGED',
-            entityType: 'BusinessTargetConfig',
-            entityId: config.id,
-            userId: user.id,
-            details: { businessId, previousValue, newValue },
-          } as any,
+        createAuditLog({
+          userId: user.id,
+          action: changeType === 'ENABLE' ? 'BUSINESS_TARGET_ENABLED' : changeType === 'DISABLE' ? 'BUSINESS_TARGET_DISABLED' : 'BUSINESS_TARGET_BUFFER_CHANGED',
+          entityType: 'BusinessTargetConfig',
+          entityId: config.id,
+          oldValues: previousValue !== null ? { bufferValue: previousValue } : undefined,
+          newValues: newValue !== null ? { bufferValue: newValue } : undefined,
+          metadata: { businessId, businessName: business.name },
         }),
       ])
     }

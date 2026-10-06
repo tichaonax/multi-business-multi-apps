@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { hasPermission, isSystemAdmin } from '@/lib/permission-utils'
+import { createAuditLog } from '@/lib/audit'
 
 /**
  * GET/POST /api/business-targets/[businessId]/commitments
@@ -46,7 +47,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    const business = await prisma.businesses.findUnique({ where: { id: businessId }, select: { id: true } })
+    const business = await prisma.businesses.findUnique({ where: { id: businessId }, select: { id: true, name: true } })
     if (!business) return NextResponse.json({ error: 'Business not found' }, { status: 404 })
 
     const payload = await request.json()
@@ -69,14 +70,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       prisma.businessTargetOverrideHistory.create({
         data: { businessId, changeType: 'COMMITMENT_CHANGE', newValue: amount, reason: `Added: ${label.trim()}`, changedBy: user.id },
       }),
-      prisma.auditLogs.create({
-        data: {
-          action: 'BUSINESS_TARGET_COMMITMENT_CHANGED',
-          entityType: 'BusinessTargetCommitment',
-          entityId: commitment.id,
-          userId: user.id,
-          details: { businessId, action: 'created', category, label: label.trim(), monthlyAmount: amount },
-        } as any,
+      createAuditLog({
+        userId: user.id,
+        action: 'BUSINESS_TARGET_COMMITMENT_CHANGED',
+        entityType: 'BusinessTargetCommitment',
+        entityId: commitment.id,
+        newValues: { category, label: label.trim(), monthlyAmount: amount },
+        metadata: { businessId, businessName: business.name, action: 'created' },
       }),
     ])
 

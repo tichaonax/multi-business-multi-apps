@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { hasPermission, isSystemAdmin } from '@/lib/permission-utils'
 import { calculateMinimumTarget } from '@/lib/business-targets/calculate-minimum-target'
+import { createAuditLog } from '@/lib/audit'
 
 const LINES = {
   RENT: { field: 'rentMonthlyOverride', liveKey: 'rentMonthlyLive', changeType: 'RENT_OVERRIDE', label: 'Rent' },
@@ -42,6 +43,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     const config = await prisma.businessTargetConfig.findUnique({ where: { businessId } })
     if (!config) return NextResponse.json({ error: 'Target tracking is not configured for this business yet' }, { status: 404 })
+    const business = await prisma.businesses.findUnique({ where: { id: businessId }, select: { name: true } })
 
     const payload = await request.json()
     const line = payload.line as LineKey
@@ -89,14 +91,14 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
           changedBy: user.id,
         },
       }),
-      prisma.auditLogs.create({
-        data: {
-          action: 'BUSINESS_TARGET_LINE_OVERRIDDEN',
-          entityType: 'BusinessTargetConfig',
-          entityId: updated.id,
-          userId: user.id,
-          details: { businessId, line, previousValue, newValue },
-        } as any,
+      createAuditLog({
+        userId: user.id,
+        action: 'BUSINESS_TARGET_LINE_OVERRIDDEN',
+        entityType: 'BusinessTargetConfig',
+        entityId: updated.id,
+        oldValues: { [line]: previousValue },
+        newValues: { [line]: newValue },
+        metadata: { businessId, businessName: business?.name, line: meta.label },
       }),
     ])
 

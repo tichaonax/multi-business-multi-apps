@@ -19,6 +19,7 @@ import { getServerUser } from '@/lib/get-server-user'
 import { isSystemAdmin } from '@/lib/permission-utils'
 import { getBusinessBalance, processBusinessTransaction } from '@/lib/business-balance-utils'
 import { createAuditLog } from '@/lib/audit'
+import { prisma } from '@/lib/prisma'
 
 export async function POST(
   request: NextRequest,
@@ -65,7 +66,8 @@ export async function POST(
     }
 
     const reasonText = String(reason).trim()
-    const note = `Manual balance correction by ${user.name || user.email || user.id}: ` +
+    const adjuster = user.name || user.email || user.id
+    const note = `Manual balance correction by ${adjuster}: ` +
       `${currentBalance.toFixed(2)} -> ${target.toFixed(2)}. Reason: ${reasonText}`
 
     const result = await processBusinessTransaction({
@@ -82,6 +84,8 @@ export async function POST(
       return NextResponse.json({ error: result.error || 'Failed to adjust balance' }, { status: 400 })
     }
 
+    const business = await prisma.businesses.findUnique({ where: { id: businessId }, select: { name: true } })
+
     await createAuditLog({
       userId: user.id,
       action: 'BUSINESS_ACCOUNT_BALANCE_ADJUSTED',
@@ -90,6 +94,8 @@ export async function POST(
       oldValues: { balance: currentBalance },
       newValues: { balance: result.newBalance },
       metadata: {
+        businessName: business?.name,
+        adjusterName: adjuster,
         deltaAmount: delta,
         reason: reasonText,
       },
