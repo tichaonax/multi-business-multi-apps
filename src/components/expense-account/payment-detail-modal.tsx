@@ -2,8 +2,11 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { formatPhoneNumberForDisplay } from '@/lib/country-codes'
 import { ServiceCategoryPicker } from '@/components/common/service-category-picker'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
+import { useToastContext } from '@/components/ui/toast'
 
 interface PaymentDetail {
   id: string
@@ -111,8 +114,12 @@ export function PaymentDetailModal({
   accountId: string
   paymentId: string
 }) {
+  const router = useRouter()
+  const toast = useToastContext()
+  const { currentBusinessId, switchBusiness } = useBusinessPermissionsContext()
   const [payment, setPayment] = useState<PaymentDetail | null>(null)
   const [loading, setLoading] = useState(false)
+  const [switchingBusiness, setSwitchingBusiness] = useState(false)
   const [editingClassification, setEditingClassification] = useState(false)
   const [editEmoji, setEditEmoji] = useState('')
   const [editServiceType, setEditServiceType] = useState<string | null>(null)
@@ -129,6 +136,30 @@ export function PaymentDetailModal({
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [isOpen, accountId, paymentId])
+
+  // The expense account a payment lives on is NOT necessarily tied to the
+  // app's globally-selected "current business" — a supplier's own record,
+  // though, only exists under its real owning business
+  // (BusinessSuppliers.businessId). /business/suppliers scopes its fetch to
+  // currentBusinessId, so deep-linking there silently shows nothing if the
+  // two differ. Switch first, same established pattern as
+  // warehouse/[batchId]/page.tsx's cross-business navigation.
+  async function handleManageClick(e: React.MouseEvent, url: string) {
+    if (payment?.payeeType !== 'SUPPLIER' || !payment.payeeSupplier?.businessId) return
+    const targetBusinessId = payment.payeeSupplier.businessId
+    if (targetBusinessId === currentBusinessId) return
+    e.preventDefault()
+    setSwitchingBusiness(true)
+    try {
+      await switchBusiness(targetBusinessId)
+      onClose()
+      router.push(url)
+    } catch {
+      toast.error('Could not switch to that supplier\'s business')
+    } finally {
+      setSwitchingBusiness(false)
+    }
+  }
 
   function openClassificationEdit() {
     if (!payment) return
@@ -295,10 +326,10 @@ export function PaymentDetailModal({
                         {manageUrl && (
                           <Link
                             href={manageUrl}
-                            onClick={onClose}
+                            onClick={(e) => { handleManageClick(e, manageUrl); if (!e.defaultPrevented) onClose() }}
                             className="text-xs text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:underline"
                           >
-                            ✏️ View / Edit details
+                            ✏️ {switchingBusiness ? 'Switching business…' : 'View / Edit details'}
                           </Link>
                         )}
                         {canEditClassification && !editingClassification && (
