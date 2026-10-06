@@ -183,7 +183,7 @@ export function PaymentDetailModal({
       onClick={onClose}
     >
       <div
-        className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl border border-border w-full max-w-sm"
+        className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl border border-border w-full max-w-md"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
@@ -221,6 +221,7 @@ export function PaymentDetailModal({
                 const defaultEmoji = badge?.emoji || '👤'
                 const canEditClassification = payment.payeeType === 'PERSON' || (payment.payeeType === 'SUPPLIER' && !!payment.expenseAccountBusinessId)
                 return (
+                  <>
                   <div className="flex gap-3">
                     <span className="text-xs text-gray-400 w-28 shrink-0 pt-0.5">Payee</span>
                     <div className="flex flex-col gap-1 min-w-0">
@@ -271,47 +272,51 @@ export function PaymentDetailModal({
                           </button>
                         )}
                       </div>
-                      {/* Inline classification edit */}
-                      {editingClassification && (
-                        <div className="mt-2 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 space-y-3">
-                          {payment.payeeType === 'PERSON' ? (
-                            <ServiceCategoryPicker
-                              apiEndpoint="/api/contractor-categories"
-                              value={editServiceType}
-                              onChange={(name, emoji) => { setEditServiceType(name || null); setEditEmoji(emoji) }}
-                              stacked
-                            />
-                          ) : (
-                            <div>
-                              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Emoji</label>
-                              <input
-                                type="text"
-                                value={editEmoji}
-                                onChange={(e) => setEditEmoji(e.target.value)}
-                                placeholder="e.g. 🚚"
-                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-900 text-primary focus:outline-none focus:ring-1 focus:ring-blue-500"
-                              />
-                            </div>
-                          )}
-                          <div className="flex gap-2 justify-end">
-                            <button
-                              onClick={() => setEditingClassification(false)}
-                              className="px-3 py-1.5 text-xs bg-gray-100 dark:bg-gray-700 text-primary rounded-md"
-                            >
-                              Cancel
-                            </button>
-                            <button
-                              onClick={saveClassification}
-                              disabled={saving}
-                              className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
-                            >
-                              {saving ? 'Saving…' : 'Save'}
-                            </button>
-                          </div>
-                        </div>
-                      )}
                     </div>
                   </div>
+                  {/* Classification edit — full modal width, not squeezed into
+                      the Payee row's narrow value column (that cramped nesting
+                      was the root cause of the Suggest/Domain/Category picker
+                      looking cut off). */}
+                  {editingClassification && (
+                    <div className="pt-3 border-t border-border space-y-3">
+                      <p className="text-xs font-medium text-gray-500 dark:text-gray-400">🏷️ Set classification</p>
+                      {payment.payeeType === 'PERSON' ? (
+                        <ServiceCategoryPicker
+                          apiEndpoint="/api/contractor-categories"
+                          value={editServiceType}
+                          onChange={(name, emoji) => { setEditServiceType(name || null); setEditEmoji(emoji) }}
+                        />
+                      ) : (
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Emoji</label>
+                          <input
+                            type="text"
+                            value={editEmoji}
+                            onChange={(e) => setEditEmoji(e.target.value)}
+                            placeholder="e.g. 🚚"
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-900 text-primary focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          />
+                        </div>
+                      )}
+                      <div className="flex gap-2 justify-end">
+                        <button
+                          onClick={() => setEditingClassification(false)}
+                          className="px-3 py-1.5 text-xs bg-gray-100 dark:bg-gray-700 text-primary rounded-md"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={saveClassification}
+                          disabled={saving}
+                          className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                        >
+                          {saving ? 'Saving…' : 'Save'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  </>
                 )
               })()}
               {nationalId && <Row label="ID" value={nationalId} />}

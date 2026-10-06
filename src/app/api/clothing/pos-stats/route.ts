@@ -44,6 +44,23 @@ function startOfYearInTZ(now: Date, tz: string): Date {
   return new Date(midnightUTC.getTime() + offsetMins * 60 * 1000)
 }
 
+// Returns the UTC timestamp for midnight of the 1st of `now`'s local
+// calendar month in `tz` — same offset math as startOfDayInTZ/startOfYearInTZ.
+function startOfMonthInTZ(now: Date, tz: string): Date {
+  const [localYear, localMonth] = now.toLocaleDateString('sv', { timeZone: tz }).split('-').map(Number)
+  const midnightUTC = new Date(Date.UTC(localYear, localMonth - 1, 1))
+
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false
+  }).formatToParts(midnightUTC)
+
+  const h = parseInt(parts.find(p => p.type === 'hour')!.value) % 24
+  const min = parseInt(parts.find(p => p.type === 'minute')!.value)
+  const offsetMins = h <= 12 ? -(h * 60 + min) : (24 * 60 - h * 60 - min)
+
+  return new Date(midnightUTC.getTime() + offsetMins * 60 * 1000)
+}
+
 export async function GET(request: NextRequest) {
   try {
     const user = await getServerUser()
@@ -60,6 +77,7 @@ export async function GET(request: NextRequest) {
     const todayEnd      = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000 - 1)
     const yesterdayStart = new Date(todayStart.getTime() - 24 * 60 * 60 * 1000)
     const yearStart     = startOfYearInTZ(now, timezone)
+    const monthStart    = startOfMonthInTZ(now, timezone)
 
     // ── Bale sold counts (today + yesterday) ─────────────────────────────────
     // Note: DB columns are camelCase (no @map) so raw SQL must use quoted identifiers
@@ -192,7 +210,37 @@ export async function GET(request: NextRequest) {
       productYtd[row.product_id] = { soldYtd: Number(row.sold), valueYtd: Number(row.value) }
     }
 
-    return NextResponse.json({ bales, wifi, products, productYtd })
+    // ── Month-to-date sold count + value, per product — the badge's primary
+    // display (YTD moved to hover-only, see productYtd above). Same shape/
+    // exclusions as the YTD query, just scoped to the current calendar month.
+    const mtdRows = await prisma.$queryRaw<
+      { product_id: string; sold: bigint; value: string }[]
+    >`
+      SELECT
+        pv."productId"                                  AS product_id,
+        SUM(boi.quantity)                               AS sold,
+        SUM(boi."totalPrice")                            AS value
+      FROM business_order_items boi
+      JOIN business_orders bo ON boi."orderId" = bo.id
+      JOIN product_variants pv ON boi."productVariantId" = pv.id
+      WHERE bo."businessId" = ${businessId}
+        AND boi."productVariantId" IS NOT NULL
+        AND (boi.attributes->>'baleId') IS NULL
+        AND boi.attributes->>'wifiToken' IS DISTINCT FROM 'true'
+        AND boi.attributes->>'r710Token' IS DISTINCT FROM 'true'
+        AND COALESCE((boi.attributes->>'isBOGOFree')::boolean, false) = false
+        AND bo."createdAt" >= ${monthStart}
+        AND bo."createdAt" <= ${todayEnd}
+        AND bo.status NOT IN ('CANCELLED', 'REFUNDED')
+      GROUP BY pv."productId"
+    `
+
+    const productMtd: Record<string, { soldMtd: number; valueMtd: number }> = {}
+    for (const row of mtdRows) {
+      productMtd[row.product_id] = { soldMtd: Number(row.sold), valueMtd: Number(row.value) }
+    }
+
+    return NextResponse.json({ bales, wifi, products, productYtd, productMtd })
   } catch (error) {
     console.error('[clothing/pos-stats] error:', error)
     return NextResponse.json({ error: 'Failed to load stats' }, { status: 500 })

@@ -72,7 +72,11 @@ export async function sweepOutstandingReceiptReminders(): Promise<{ payments: nu
       const reference = payment.combo_request?.title ?? `payment ${payment.id.slice(0, 8)}`
       const outstandingAmount = expected - receiptTotal
       const groupKey = receiptReminderGroupKey(payment.id)
-      const linkUrl = `/expense-accounts/${payment.expenseAccountId}?openReceiptsForPayment=${payment.id}`
+      // tab=transactions lands reliably for every user type, including
+      // restricted/PERSONAL-grant requesters — the Overview tab shows a
+      // different, TransactionHistory-less view for them, which would
+      // silently swallow the deep-link otherwise.
+      const linkUrl = `/expense-accounts/${payment.expenseAccountId}?tab=transactions&openReceiptsForPayment=${payment.id}`
 
       const payeeNames = [...new Set(payment.expense_payment_receipts.map((r) => resolveReceiptPayeeName(r)).filter((n): n is string => !!n))]
       const payeeNote = payeeNames.length > 0 ? ` Receipted so far to: ${payeeNames.join(', ')}.` : ''

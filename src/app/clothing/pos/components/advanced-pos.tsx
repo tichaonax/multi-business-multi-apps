@@ -208,7 +208,8 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
     wifi: Record<string, { soldToday: number; soldYesterday: number; firstSoldTodayAt: string | null }>
     products: Record<string, { soldToday: number; soldYesterday: number; firstSoldTodayAt: string | null }>
     productYtd: Record<string, { soldYtd: number; valueYtd: number }>
-  }>({ bales: {}, wifi: {}, products: {}, productYtd: {} })
+    productMtd: Record<string, { soldMtd: number; valueMtd: number }>
+  }>({ bales: {}, wifi: {}, products: {}, productYtd: {}, productMtd: {} })
   const [showAddStockPanel, setShowAddStockPanel] = useState(false)
   const [bulkPrintModal, setBulkPrintModal] = useState<{ baleId?: string; qty?: number; templateId?: string } | null>(null)
   const [baleSearch, setBaleSearch] = useState('')
@@ -217,7 +218,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
   // race conditions where the background refresh returns stale data before the DB commits.
   const mergePosStats = (
     prev: typeof posStats,
-    apiData: { bales?: Record<string, any>; wifi?: Record<string, any>; products?: Record<string, any>; productYtd?: Record<string, any> }
+    apiData: { bales?: Record<string, any>; wifi?: Record<string, any>; products?: Record<string, any>; productYtd?: Record<string, any>; productMtd?: Record<string, any> }
   ) => {
     const merge = (prevMap: Record<string, any>, newMap: Record<string, any>) => {
       const result = { ...newMap }
@@ -242,9 +243,10 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
       bales: merge(prev.bales, apiData.bales || {}),
       wifi: merge(prev.wifi, apiData.wifi || {}),
       products: merge(prev.products, apiData.products || {}),
-      // YTD totals aren't part of the optimistic-update race (checkout doesn't
-      // predict them), so just take whatever the latest refresh returned.
+      // YTD/MTD totals aren't part of the optimistic-update race (checkout
+      // doesn't predict them), so just take whatever the latest refresh returned.
       productYtd: apiData.productYtd || prev.productYtd,
+      productMtd: apiData.productMtd || prev.productMtd,
     }
   }
 
@@ -773,7 +775,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
           ])
           if (statsRes.ok) {
             const statsData = await statsRes.json()
-            setPosStats({ bales: statsData.bales || {}, wifi: statsData.wifi || {}, products: statsData.products || {}, productYtd: statsData.productYtd || {} })
+            setPosStats({ bales: statsData.bales || {}, wifi: statsData.wifi || {}, products: statsData.products || {}, productYtd: statsData.productYtd || {}, productMtd: statsData.productMtd || {} })
           }
 
           // Load R710 WiFi tokens — shown in dedicated WiFi tab
@@ -1888,6 +1890,7 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
           wifi: { ...prev.wifi },
           products: { ...prev.products },
           productYtd: prev.productYtd,
+          productMtd: prev.productMtd,
         }
         for (const item of soldCart) {
           if (item.attributes?.baleId) {
@@ -2427,17 +2430,18 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                         </p>
                       )}
                       {canSeeFinancials && (() => {
+                        const mtd = posStats.productMtd[product.id]
                         const ytd = posStats.productYtd[product.id]
-                        if (!ytd || ytd.soldYtd <= 0) return null
+                        if (!mtd || mtd.soldMtd <= 0) return null
                         return (
                           <div className="relative inline-block mt-1">
                             <span className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 whitespace-nowrap cursor-default">
-                              📅 {ytd.soldYtd} sold · ${ytd.valueYtd.toFixed(2)} YTD
+                              📅 {mtd.soldMtd} sold · ${mtd.valueMtd.toFixed(2)} MTD
                             </span>
                             <div className="absolute left-0 top-full mt-1 z-20 hidden group-hover:block w-max max-w-[220px] rounded-md bg-gray-900 dark:bg-black text-white text-xs px-2.5 py-1.5 shadow-lg">
                               <p className="font-medium">{product.name}</p>
-                              <p className="text-gray-300">Year to date: {ytd.soldYtd} sold</p>
-                              <p className="text-gray-300">Total value: ${ytd.valueYtd.toFixed(2)}</p>
+                              <p className="text-gray-300">This month: {mtd.soldMtd} sold · ${mtd.valueMtd.toFixed(2)}</p>
+                              <p className="text-gray-300">Year to date: {ytd ? `${ytd.soldYtd} sold · $${ytd.valueYtd.toFixed(2)}` : '—'}</p>
                             </div>
                           </div>
                         )

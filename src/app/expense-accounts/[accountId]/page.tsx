@@ -2107,7 +2107,7 @@ const canCreatePayees = canChangeCategory // Only owners, managers, and admins c
                   currentBalance={Number(account.balance)}
                 />
 
-                <TransactionHistory accountId={accountId} canEditPayments={canEditPayments} isAdmin={isSystemAdmin} refreshKey={paymentRefreshKey} businessId={account.businessId || currentBusiness?.businessId} businessName={currentBusiness?.businessName ?? ''} onRepeatPayment={!isRestrictedUser ? (id) => { setRepeatPaymentId(id); setShowQuickPaymentModal(true) } : undefined} onDataChanged={() => { refreshBalanceSilent(); setPaymentRefreshKey(k => k + 1) }} />
+                <TransactionHistory accountId={accountId} canEditPayments={canEditPayments} isAdmin={isSystemAdmin} refreshKey={paymentRefreshKey} businessId={account.businessId || currentBusiness?.businessId} businessName={currentBusiness?.businessName ?? ''} onRepeatPayment={!isRestrictedUser ? (id) => { setRepeatPaymentId(id); setShowQuickPaymentModal(true) } : undefined} onDataChanged={() => { refreshBalanceSilent(); setPaymentRefreshKey(k => k + 1) }} autoOpenReceipt={autoOpenReceipt} />
               </div>
             )}
 
