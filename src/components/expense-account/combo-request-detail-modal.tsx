@@ -192,7 +192,10 @@ export function ComboRequestDetailModal({
               <div className="flex flex-wrap gap-3">
                 <div className="flex flex-col">
                   <span className="text-xs text-gray-400">Requested</span>
-                  <span className="text-sm font-semibold text-primary">{fmt(request.requestedAmount)}</span>
+                  <span className="text-sm font-semibold text-primary">
+                    {fmt(request.requestedAmount)}
+                    {request.submittedAt && <span className="text-gray-400 font-normal text-xs"> · {fmtDate(request.submittedAt)}</span>}
+                  </span>
                 </div>
                 {request.approvedAmount !== null && (
                   <div className="flex flex-col">

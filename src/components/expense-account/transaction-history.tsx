@@ -565,6 +565,15 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
   const hasOtherActiveFilters = typeFilter !== defaultType ||
     sourceTypeFilter !== '' || sortOrder !== defaultSortOrder || minAmount !== '' || maxAmount !== ''
 
+  // The server computes each row's running balance by walking back from the
+  // account's true current balance through just the rows it fetched — correct
+  // only when that's a complete, gapless slice of history (the plain
+  // date-range view, page 1). Any other filter (search, type, source type,
+  // amount range) or being past page 1 skips real transactions in between,
+  // so the number would be fabricated — don't show it rather than mislead.
+  const balanceColumnReliable = !search.trim() && typeFilter === defaultType &&
+    sourceTypeFilter === '' && minAmount === '' && maxAmount === '' && page === 0
+
   // When a free-text search matches a real registered payee by name, surface
   // a shortcut to that payee's full cross-account history (Payee Payment
   // History report). The search here is free-text (it also matches notes),
@@ -1139,7 +1148,10 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
                   <th className="px-2 sm:px-4 py-2 sm:py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Amount
                   </th>
-                  <th className="hidden md:table-cell px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  <th
+                    className="hidden md:table-cell px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider"
+                    title={balanceColumnReliable ? undefined : 'Running balance is hidden while a search or filter is narrowing the list — it would skip transactions not shown here'}
+                  >
                     Balance
                   </th>
                 </tr>
@@ -1323,7 +1335,9 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
                       </td>
 
                       <td className="hidden md:table-cell px-4 py-3 whitespace-nowrap text-right text-sm font-medium text-gray-900 dark:text-gray-100">
-                        {formatCurrency(transaction.balanceAfter)}
+                        {balanceColumnReliable
+                          ? formatCurrency(transaction.balanceAfter)
+                          : <span className="text-gray-400 dark:text-gray-500" title="Not shown — this list is filtered, so the running balance can't be trusted">—</span>}
                       </td>
 
                       {/* Action column: Edit (payments) or PDF voucher (batch deposits) — extracted to renderTransactionActions, shared with the mobile card list below */}
