@@ -103,7 +103,10 @@ export async function POST(
           expenseAccountId: accountId,
           payeeType: 'COMBO',
           amount: approvedAmountNum,
-          paymentDate: now,
+          // The requester's original submission date, not the cashier's
+          // approval timestamp — this is what the transaction history shows
+          // as "Requested {date}" (see transaction-history.tsx paidLateNote).
+          paymentDate: comboRequest.submittedAt ?? comboRequest.createdAt,
           status: 'APPROVED',
           paymentType: 'REGULAR',
           paymentChannel: 'CASH',
