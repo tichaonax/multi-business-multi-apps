@@ -279,6 +279,7 @@ export function PaymentDetailModal({
                               apiEndpoint="/api/contractor-categories"
                               value={editServiceType}
                               onChange={(name, emoji) => { setEditServiceType(name || null); setEditEmoji(emoji) }}
+                              stacked
                             />
                           ) : (
                             <div>

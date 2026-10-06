@@ -9,9 +9,16 @@ interface ServiceCategoryPickerProps {
   apiEndpoint: string        // e.g. '/api/payee-categories' or '/api/contractor-categories'
   value: string | null       // current serviceType (category name)
   onChange: (name: string, emoji: string) => void
+  // Tailwind breakpoints are viewport-width based, not container-width based —
+  // a 2-column grid that's fine in a wide modal (e.g. max-w-2xl) truncates
+  // badly in a narrow one (e.g. max-w-sm) even on a large desktop screen,
+  // since the viewport itself is wide. Callers embedding this in a narrow
+  // container should pass stacked to force single-column regardless of
+  // viewport. Default (false) is still responsive for real mobile widths.
+  stacked?: boolean
 }
 
-export function ServiceCategoryPicker({ apiEndpoint, value, onChange }: ServiceCategoryPickerProps) {
+export function ServiceCategoryPicker({ apiEndpoint, value, onChange, stacked = false }: ServiceCategoryPickerProps) {
   const [groups, setGroups] = useState<SCGroup[]>([])
   const [selectedGroupId, setSelectedGroupId] = useState<string>('')
   const [selectedCatId, setSelectedCatId] = useState<string>('')
@@ -77,7 +84,7 @@ export function ServiceCategoryPicker({ apiEndpoint, value, onChange }: ServiceC
   return (
     <>
       {/* Suggest row */}
-      <div className="flex items-center gap-2 mb-2">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-2">
         <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">💡 Suggest:</span>
         <input
           type="text"
@@ -85,7 +92,7 @@ export function ServiceCategoryPicker({ apiEndpoint, value, onChange }: ServiceC
           onChange={e => setSuggestText(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); if (suggestText.trim().length >= 2) setSuggestOpen(true) } }}
           placeholder="Type to find matching categories..."
-          className="flex-1 px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          className="flex-1 min-w-0 px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
         />
         <button
           type="button"
@@ -97,9 +104,11 @@ export function ServiceCategoryPicker({ apiEndpoint, value, onChange }: ServiceC
         </button>
       </div>
 
-      {/* Domain + Category dropdowns */}
-      <div className="grid grid-cols-2 gap-3">
-        <div>
+      {/* Domain + Category dropdowns — single column when stacked (forced,
+          for narrow containers) or on narrow viewports; two columns
+          otherwise, since there's room to show full option text. */}
+      <div className={`grid grid-cols-1 gap-3 ${stacked ? '' : 'sm:grid-cols-2'}`}>
+        <div className="min-w-0">
           <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Domain</label>
           <select
             value={selectedGroupId}
@@ -112,7 +121,7 @@ export function ServiceCategoryPicker({ apiEndpoint, value, onChange }: ServiceC
             ))}
           </select>
         </div>
-        <div>
+        <div className="min-w-0">
           <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Category</label>
           <select
             value={selectedCatId}
