@@ -42,7 +42,18 @@ export function ServiceCategoryPicker({ apiEndpoint, value, onChange, stacked = 
       const cat = g.categories.find(c => c.name === value)
       if (cat) { setSelectedGroupId(g.id); setSelectedCatId(cat.id); return }
     }
+    // value is set but matches nothing in the current category list (e.g.
+    // legacy/seeded data predating this taxonomy, or imported from a source
+    // with different category names) — leave dropdowns unselected rather
+    // than silently showing a false "not set": unmatchedValue below renders
+    // the raw value so it's visibly still there, not lost or hidden.
+    setSelectedGroupId('')
+    setSelectedCatId('')
   }, [value, groups])
+
+  // Only meaningful once categories have loaded — avoids a false-positive
+  // "doesn't match anything" flash while groups is still empty on first render.
+  const unmatchedValue = value && groups.length > 0 && !selectedCatId ? value : null
 
   const selectedGroup = groups.find(g => g.id === selectedGroupId)
 
@@ -103,6 +114,12 @@ export function ServiceCategoryPicker({ apiEndpoint, value, onChange, stacked = 
           Suggest 💡
         </button>
       </div>
+
+      {unmatchedValue && (
+        <p className="text-xs text-amber-600 dark:text-amber-400 mb-2">
+          ⚠️ Current value &ldquo;{unmatchedValue}&rdquo; isn&apos;t in the category list below (likely older data) — pick a replacement, or use Suggest, to update it.
+        </p>
+      )}
 
       {/* Domain + Category dropdowns — single column when stacked (forced,
           for narrow containers) or on narrow viewports; two columns

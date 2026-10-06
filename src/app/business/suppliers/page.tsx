@@ -52,6 +52,10 @@ export default function SuppliersPage() {
   const { data: session } = useSession()
   const router = useRouter()
   const searchParams = useSearchParams()
+  // Set when a caller's edit link (e.g. Payment Details' "View / Edit
+  // details") included ?returnTo= — see closeEditor() below. Same pattern
+  // as grocery/clothing inventory's report-page deep-link-and-return.
+  const editorReturnTo = searchParams.get('returnTo')
   const { currentBusinessId, currentBusiness, loading: businessLoading, hasPermission } = useBusinessPermissionsContext()
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [loading, setLoading] = useState(true)
@@ -188,10 +192,19 @@ export default function SuppliersPage() {
     }
   }
 
-  const handleSave = () => {
+  // Closes the editor. If it was opened via a caller's deep link
+  // (?returnTo=...), navigates back there instead of just closing —
+  // otherwise behaves exactly as before (close modal, stay on this list).
+  const closeEditor = () => {
     setShowEditor(false)
     setSelectedSupplier(null)
+    setViewOnlyMode(false)
+    if (editorReturnTo) router.push(editorReturnTo)
+  }
+
+  const handleSave = () => {
     fetchSuppliers()
+    closeEditor()
   }
 
   if (!session || businessLoading) {
@@ -510,11 +523,7 @@ export default function SuppliersPage() {
           onSave={handleSave}
           viewOnly={viewOnlyMode}
           averageRating={selectedSupplier ? (paymentSummaries[selectedSupplier.id]?.averageRating ?? null) : null}
-          onCancel={() => {
-            setShowEditor(false)
-            setSelectedSupplier(null)
-            setViewOnlyMode(false)
-          }}
+          onCancel={closeEditor}
         />
       )}
 

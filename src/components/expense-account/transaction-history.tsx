@@ -92,6 +92,11 @@ interface TransactionHistoryProps {
   // directly on mount, independent of whether the row is in the currently
   // loaded/filtered transaction list.
   autoOpenReceipt?: { id: string; amount: number; description: string; payee: { type: string; id: string; name: string } | null } | null
+  // Deep-link support: when set (e.g. returning from a contractor/supplier
+  // edit page via its own ?returnTo=), opens PaymentDetailModal for this
+  // payment directly on mount — unlike autoOpenReceipt this needs no
+  // pre-fetched summary, PaymentDetailModal loads its own data from the id.
+  autoOpenPaymentDetailId?: string | null
 }
 
 // Resolves a PAYMENT transaction's real registered payee (not the free-text
@@ -146,7 +151,7 @@ function shortDescription(transaction: Transaction): string {
   return desc
 }
 
-export function TransactionHistory({ accountId, defaultType = '', defaultSortOrder = 'desc', pageLimit, canEditPayments = false, isAdmin = false, initialStartDate, initialEndDate, refreshKey, onDataChanged, businessId, businessName, onRepeatPayment, autoOpenReceipt }: TransactionHistoryProps) {
+export function TransactionHistory({ accountId, defaultType = '', defaultSortOrder = 'desc', pageLimit, canEditPayments = false, isAdmin = false, initialStartDate, initialEndDate, refreshKey, onDataChanged, businessId, businessName, onRepeatPayment, autoOpenReceipt, autoOpenPaymentDetailId }: TransactionHistoryProps) {
   const { data: session } = useSession()
   const currentUserId = (session?.user as any)?.id as string | undefined
   const currentUserName = session?.user?.name ?? 'Staff'
@@ -215,6 +220,17 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
   const [detailPaymentId, setDetailPaymentId] = useState<string | null>(null)
   const [detailDepositId, setDetailDepositId] = useState<string | null>(null)
   const [detailComboRequestId, setDetailComboRequestId] = useState<string | null>(null)
+
+  // Deep-link open — e.g. returning from a contractor/supplier edit page via
+  // its own ?returnTo= link. Only fires once per distinct id so it doesn't
+  // reopen after the user closes it.
+  const autoOpenedPaymentDetailRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!autoOpenPaymentDetailId || autoOpenedPaymentDetailRef.current === autoOpenPaymentDetailId) return
+    autoOpenedPaymentDetailRef.current = autoOpenPaymentDetailId
+    setDetailPaymentId(autoOpenPaymentDetailId)
+  }, [autoOpenPaymentDetailId])
+
   const [editVersion, setEditVersion] = useState(0)
   const [search, setSearch] = useState('')
   const [reversingId, setReversingId] = useState<string | null>(null)

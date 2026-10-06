@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 import { ProtectedRoute } from '@/components/auth/protected-route'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useState, useEffect, useRef } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import Link from 'next/link'
 import { formatPhoneNumberForDisplay } from '@/lib/country-codes'
@@ -50,7 +50,13 @@ interface Person {
 export default function ContractorsPage() {
   const { data: session } = useSession()
   const searchParams = useSearchParams()
+  const router = useRouter()
   const editPersonId = searchParams.get('edit')
+  // Set when a caller's edit link (e.g. Payment Details' "View / Edit
+  // details") included ?returnTo= — see the auto-open effect below and
+  // closeEditModal(). Same pattern as grocery/clothing inventory's
+  // report-page deep-link-and-return (editReturnTo in that file).
+  const editReturnTo = searchParams.get('returnTo')
   const [contractors, setContractors] = useState<Person[]>([])
   const [loading, setLoading] = useState(true)
   const [expenseSummaries, setExpenseSummaries] = useState<Record<string, { totalPaid: number; paymentCount: number }>>({})
@@ -310,10 +316,9 @@ export default function ContractorsPage() {
           serviceType: '',
           emoji: '',
         })
-        setShowEditModal(false)
-        setSelectedContractor(null)
         fetchContractors()
         await customAlert({ title: 'Contractor updated', description: 'Contractor updated successfully!' })
+        closeEditModal()
       } else {
         const error = await response.json()
         await customAlert({ title: 'Failed to update contractor', description: error?.error || 'Unknown error' })
@@ -369,6 +374,15 @@ export default function ContractorsPage() {
       emoji: contractor.emoji || '',
     })
     setShowEditModal(true)
+  }
+
+  // Closes the edit modal. If it was opened via a caller's deep link
+  // (?returnTo=...), navigates back there instead of just closing —
+  // otherwise behaves exactly as before (close modal, stay on this list).
+  function closeEditModal() {
+    setShowEditModal(false)
+    setSelectedContractor(null)
+    if (editReturnTo) router.push(editReturnTo)
   }
 
   // Deep-link support: Payment Details' "View / Edit details" link passes
@@ -778,10 +792,7 @@ export default function ContractorsPage() {
                     <h3 className="text-lg font-medium text-primary">Edit Contractor</h3>
                     <button
                       type="button"
-                      onClick={() => {
-                        setShowEditModal(false)
-                        setSelectedContractor(null)
-                      }}
+                      onClick={closeEditModal}
                       aria-label="Close edit contractor"
                       className="text-gray-400 hover:text-gray-600"
                     >
@@ -878,10 +889,7 @@ export default function ContractorsPage() {
                   <div className="flex justify-end space-x-2 mt-6">
                     <button
                       type="button"
-                      onClick={() => {
-                        setShowEditModal(false)
-                        setSelectedContractor(null)
-                      }}
+                      onClick={closeEditModal}
                       className="btn-secondary"
                       disabled={submitting}
                     >

@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
+import { usePathname } from 'next/navigation'
 import { io, Socket } from 'socket.io-client'
 import { useToastContext } from '@/components/ui/toast'
 
@@ -38,14 +39,23 @@ export function useNotifications() {
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession()
   const toast = useToastContext()
+  const pathname = usePathname()
   const socketRef = useRef<Socket | null>(null)
   const [notifications, setNotifications] = useState<AppNotification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
 
   const userId = (session?.user as any)?.id as string | undefined
+  // Mirrors ConditionalGlobalHeader's own gating — the bell/panel this feeds
+  // is already hidden here, but the provider itself wasn't: a stale/leftover
+  // session cookie can briefly make useSession() report 'authenticated' with
+  // a previous user's identity while sitting on the login screen (e.g. right
+  // after a forced-logout redirect, before the cookie is fully cleared), and
+  // the socket handler's toast.push() renders on top of the login form
+  // regardless — toasts aren't route-gated the way the header is.
+  const isAuthPage = !!pathname?.startsWith('/auth')
 
   const refresh = useCallback(async () => {
-    if (!userId) return
+    if (!userId || isAuthPage) return
     try {
       const res = await fetch('/api/notifications', { credentials: 'include' })
       if (res.ok) {
@@ -56,23 +66,23 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     } catch {
       // silently fail
     }
-  }, [userId])
+  }, [userId, isAuthPage])
 
   // Load notifications on auth + poll every 30s as socket fallback
   useEffect(() => {
-    if (status === 'authenticated' && userId) {
+    if (status === 'authenticated' && userId && !isAuthPage) {
       refresh()
       const interval = setInterval(refresh, 30000)
       return () => clearInterval(interval)
-    } else if (status === 'unauthenticated') {
+    } else if (status === 'unauthenticated' || isAuthPage) {
       setNotifications([])
       setUnreadCount(0)
     }
-  }, [status, userId, refresh])
+  }, [status, userId, isAuthPage, refresh])
 
   // Socket.io connection
   useEffect(() => {
-    if (status !== 'authenticated' || !userId) return
+    if (status !== 'authenticated' || !userId || isAuthPage) return
 
     const socket = io(window.location.origin, {
       transports: ['websocket', 'polling'],
@@ -101,7 +111,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       socket.disconnect()
       socketRef.current = null
     }
-  }, [status, userId]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [status, userId, isAuthPage]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const markRead = useCallback(async (id: string) => {
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n))

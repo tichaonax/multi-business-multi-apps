@@ -52,7 +52,12 @@ function resolvePayeeHistoryUrl(payment: PaymentDetail): string | null {
   }
 }
 
-function resolveManageUrl(payment: PaymentDetail): string | null {
+// returnTo: pre-encoded URL back to this exact Payment Details modal — the
+// destination page reads it as ?returnTo= and navigates back there on
+// close/save instead of its own default list view. Same established pattern
+// as grocery/clothing inventory's report-page deep-link-and-return (see
+// src/app/grocery/inventory/page.tsx's editReturnTo).
+function resolveManageUrl(payment: PaymentDetail, returnTo: string): string | null {
   switch (payment.payeeType) {
     // Deep-link straight to this specific record — /contractors reads
     // ?edit=, /business/suppliers already supported ?supplierId= for the
@@ -60,9 +65,9 @@ function resolveManageUrl(payment: PaymentDetail): string | null {
     // pointed at /supplier-payments, which is a payment-REQUEST workflow
     // page with no supplier-editing UI at all — wrong destination, not a
     // caching issue.
-    case 'PERSON':   return payment.payeePerson ? `/contractors?edit=${payment.payeePerson.id}` : '/contractors'
+    case 'PERSON':   return payment.payeePerson ? `/contractors?edit=${payment.payeePerson.id}&returnTo=${returnTo}` : '/contractors'
     case 'EMPLOYEE': return '/employees'
-    case 'SUPPLIER': return payment.payeeSupplier ? `/business/suppliers?supplierId=${payment.payeeSupplier.id}` : null
+    case 'SUPPLIER': return payment.payeeSupplier ? `/business/suppliers?supplierId=${payment.payeeSupplier.id}&returnTo=${returnTo}` : null
     default:         return null
   }
 }
@@ -275,7 +280,10 @@ export function PaymentDetailModal({
               {payment.paymentType !== 'TRANSFER_OUT' && (() => {
                 const badge = PAYEE_TYPE_BADGE[payment.payeeType]
                 const historyUrl = resolvePayeeHistoryUrl(payment)
-                const manageUrl = resolveManageUrl(payment)
+                // Reopens this exact Payment Details modal when the user
+                // navigates back from editing the payee's full record.
+                const returnTo = encodeURIComponent(`/expense-accounts/${accountId}?tab=transactions&openPaymentDetail=${paymentId}`)
+                const manageUrl = resolveManageUrl(payment, returnTo)
                 const payeeEmoji = payment.payeePerson?.emoji || payment.payeeSupplier?.emoji || null
                 const defaultEmoji = badge?.emoji || '👤'
                 const canEditClassification = payment.payeeType === 'PERSON' || (payment.payeeType === 'SUPPLIER' && !!payment.payeeSupplier?.businessId)
