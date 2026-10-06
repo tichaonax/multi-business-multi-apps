@@ -6,6 +6,7 @@ export const dynamic = 'force-dynamic';
 import { ProtectedRoute } from '@/components/auth/protected-route'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { useState, useEffect, useRef } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import Link from 'next/link'
 import { formatPhoneNumberForDisplay } from '@/lib/country-codes'
@@ -48,6 +49,8 @@ interface Person {
 
 export default function ContractorsPage() {
   const { data: session } = useSession()
+  const searchParams = useSearchParams()
+  const editPersonId = searchParams.get('edit')
   const [contractors, setContractors] = useState<Person[]>([])
   const [loading, setLoading] = useState(true)
   const [expenseSummaries, setExpenseSummaries] = useState<Record<string, { totalPaid: number; paymentCount: number }>>({})
@@ -367,6 +370,20 @@ export default function ContractorsPage() {
     })
     setShowEditModal(true)
   }
+
+  // Deep-link support: Payment Details' "View / Edit details" link passes
+  // ?edit=<personId> so it opens straight into that contractor's edit form
+  // instead of dumping the user on the plain list to search manually.
+  const autoOpenedEditRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!editPersonId || contractors.length === 0) return
+    if (autoOpenedEditRef.current === editPersonId) return
+    const match = contractors.find(c => c.id === editPersonId)
+    if (match) {
+      autoOpenedEditRef.current = editPersonId
+      handleEditClick(match)
+    }
+  }, [editPersonId, contractors])
 
   const handleRemoveFromProject = async (projectContractorId: string, projectName: string) => {
     const ok = await confirm({

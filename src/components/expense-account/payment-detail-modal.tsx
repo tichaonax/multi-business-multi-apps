@@ -51,9 +51,15 @@ function resolvePayeeHistoryUrl(payment: PaymentDetail): string | null {
 
 function resolveManageUrl(payment: PaymentDetail): string | null {
   switch (payment.payeeType) {
-    case 'PERSON':   return '/contractors'
+    // Deep-link straight to this specific record — /contractors reads
+    // ?edit=, /business/suppliers already supported ?supplierId= for the
+    // payment-queue flow (reused here, same pattern). Previously SUPPLIER
+    // pointed at /supplier-payments, which is a payment-REQUEST workflow
+    // page with no supplier-editing UI at all — wrong destination, not a
+    // caching issue.
+    case 'PERSON':   return payment.payeePerson ? `/contractors?edit=${payment.payeePerson.id}` : '/contractors'
     case 'EMPLOYEE': return '/employees'
-    case 'SUPPLIER': return '/supplier-payments'
+    case 'SUPPLIER': return payment.payeeSupplier ? `/business/suppliers?supplierId=${payment.payeeSupplier.id}` : null
     default:         return null
   }
 }
@@ -112,6 +118,7 @@ export function PaymentDetailModal({
   const [editServiceType, setEditServiceType] = useState<string | null>(null)
   const [editSupplierType, setEditSupplierType] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [classificationError, setClassificationError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!isOpen || !accountId || !paymentId) { setPayment(null); setEditingClassification(false); return }
@@ -128,20 +135,30 @@ export function PaymentDetailModal({
     setEditEmoji(payment.payeePerson?.emoji || payment.payeeSupplier?.emoji || '')
     setEditServiceType(payment.payeePerson?.serviceType || null)
     setEditSupplierType(payment.payeeSupplier?.supplierType || null)
+    setClassificationError(null)
     setEditingClassification(true)
   }
 
   async function saveClassification() {
     if (!payment) return
     setSaving(true)
+    setClassificationError(null)
     try {
       if (payment.payeeType === 'PERSON' && payment.payeePerson) {
-        await fetch(`/api/persons/${payment.payeePerson.id}`, {
-          method: 'PUT',
+        // PATCH (not PUT) — PUT on this route is a full-replace requiring
+        // fullName/phone/nationalId and 400s without them; PATCH only
+        // touches the fields sent.
+        const res = await fetch(`/api/persons/${payment.payeePerson.id}`, {
+          method: 'PATCH',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ serviceType: editServiceType, emoji: editEmoji }),
         })
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}))
+          setClassificationError(err.error || 'Failed to save classification')
+          return
+        }
         setPayment((prev) => prev ? {
           ...prev,
           payeePerson: prev.payeePerson ? { ...prev.payeePerson, emoji: editEmoji || undefined, serviceType: editServiceType } : null,
@@ -151,12 +168,17 @@ export function PaymentDetailModal({
         // not the expense account's — a supplier can be classified even when
         // the expense account paying them isn't tied to any business (e.g. a
         // personal account paying a business-registered fuel supplier).
-        await fetch(`/api/business/${payment.payeeSupplier.businessId}/suppliers/${payment.payeeSupplier.id}`, {
+        const res = await fetch(`/api/business/${payment.payeeSupplier.businessId}/suppliers/${payment.payeeSupplier.id}`, {
           method: 'PUT',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ supplierType: editSupplierType, emoji: editEmoji }),
         })
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}))
+          setClassificationError(err.error || 'Failed to save classification')
+          return
+        }
         setPayment((prev) => prev ? {
           ...prev,
           payeeSupplier: prev.payeeSupplier ? { ...prev.payeeSupplier, emoji: editEmoji || undefined, supplierType: editSupplierType } : null,
@@ -164,7 +186,7 @@ export function PaymentDetailModal({
       }
       setEditingClassification(false)
     } catch {
-      // silent
+      setClassificationError('Failed to save classification — check your connection and try again')
     } finally {
       setSaving(false)
     }
@@ -250,6 +272,16 @@ export function PaymentDetailModal({
                           </span>
                         )}
                       </div>
+                      {/* Current classification — always visible, not just
+                          an edit link, so a mismatch is obvious at a glance. */}
+                      {canEditClassification && !editingClassification && (
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          Classification:{' '}
+                          {(payment.payeeType === 'PERSON' ? payment.payeePerson?.serviceType : payment.payeeSupplier?.supplierType)
+                            ? <span className="text-primary font-medium">{payment.payeeType === 'PERSON' ? payment.payeePerson?.serviceType : payment.payeeSupplier?.supplierType}</span>
+                            : <span className="italic">not set</span>}
+                        </p>
+                      )}
                       <div className="flex items-center gap-3 flex-wrap">
                         {historyUrl && (
                           <Link
@@ -299,6 +331,9 @@ export function PaymentDetailModal({
                           value={editSupplierType}
                           onChange={(name, emoji) => { setEditSupplierType(name || null); setEditEmoji(emoji) }}
                         />
+                      )}
+                      {classificationError && (
+                        <p className="text-xs text-red-500">⚠️ {classificationError}</p>
                       )}
                       <div className="flex gap-2 justify-end">
                         <button
