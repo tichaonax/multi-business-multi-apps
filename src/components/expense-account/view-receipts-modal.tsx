@@ -214,6 +214,20 @@ export function ViewReceiptsModal({
   const fmt = (n: number) => `$${Number(n).toFixed(2)}`
   const fmtDate = (s: string) => new Date(s).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' })
 
+  // Each receipt carries its own independent payee — a request funded once
+  // can still be spent across several real vendors. The header must say so
+  // instead of asserting the whole amount went to the payment's single
+  // payee (which is only accurate before any receipts exist, or when every
+  // receipt happens to share one payee).
+  const receiptsWithPayee = receipts.filter(r => r.payeeName)
+  const distinctReceiptPayees = [...new Set(receiptsWithPayee.map(r => r.payeeName))]
+  const headerPayeeLabel =
+    receiptsWithPayee.length === 0
+      ? currentPayee?.name ?? null // no itemized receipts yet — the payment's own payee is all there is
+      : distinctReceiptPayees.length === 1
+        ? distinctReceiptPayees[0]
+        : `Multiple payees (${distinctReceiptPayees.length})`
+
   return (
     <>
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -226,9 +240,9 @@ export function ViewReceiptsModal({
                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
                   {paymentDescription} — {fmt(paymentAmount)}
                 </p>
-                {currentPayee && (
+                {headerPayeeLabel && (
                   <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
-                    Payee: {currentPayee.name}
+                    Payee: {headerPayeeLabel}
                   </p>
                 )}
               </div>

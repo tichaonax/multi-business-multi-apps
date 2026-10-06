@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
-import { emitNotification } from '@/lib/notifications/notification-emitter'
+import { emitNotification, clearGroupedNotifications } from '@/lib/notifications/notification-emitter'
 import { isAccountCashier } from '@/lib/expense-account/receipt-review-access'
+import { reconciliationStatus } from '@/lib/expense-account/receipt-reconciliation-status'
+import { receiptReminderGroupKey } from '@/lib/expense-account/receipt-review-notify'
 import { createAuditLog } from '@/lib/audit'
 
 /**
@@ -54,6 +56,18 @@ export async function POST(
     })
 
     const receiptTotal = payment.expense_payment_receipts.reduce((sum, r) => sum + Number(r.amount), 0)
+
+    // Fully reconciled (approved + totals match) — stop reminding everyone
+    // about it. No per-user iteration needed: one deleteMany on groupKey
+    // clears it for the requester and every cashier who had a copy.
+    const newStatus = reconciliationStatus({
+      expectedAmount: Number(payment.receipt_review.expectedAmount),
+      receiptTotal,
+      reviewStatus: 'APPROVED',
+    })
+    if (newStatus === 'FULLY_RECEIPTED') {
+      await clearGroupedNotifications(receiptReminderGroupKey(paymentId))
+    }
 
     await createAuditLog({
       userId: user.id,

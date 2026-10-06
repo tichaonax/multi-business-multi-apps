@@ -4,6 +4,7 @@ import { getEffectivePermissions } from '@/lib/permission-utils'
 import { getServerUser } from '@/lib/get-server-user'
 import { isAccountCashier } from '@/lib/expense-account/receipt-review-access'
 import { checkReceiptLimit } from '@/lib/expense-account/receipt-limit'
+import { RECEIPT_DESCRIPTION_MIN_LENGTH } from '@/lib/expense-account/receipt-validation'
 import { createAuditLog } from '@/lib/audit'
 
 const EDITABLE_FIELDS = ['receiptDate', 'amount', 'description', 'receiptNumber', 'imageId', 'notes', 'categoryId', 'subcategoryId', 'comboItemId'] as const
@@ -58,12 +59,18 @@ export async function PUT(
       return NextResponse.json({ error: 'This receipt has already been approved by the cashier and can no longer be edited' }, { status: 403 })
     }
 
+    if ('description' in body && String(body.description ?? '').trim().length < RECEIPT_DESCRIPTION_MIN_LENGTH) {
+      return NextResponse.json({ error: `Description must be at least ${RECEIPT_DESCRIPTION_MIN_LENGTH} characters` }, { status: 400 })
+    }
+
     const oldValues: Record<string, unknown> = {}
     const data: Record<string, unknown> = {}
     for (const field of EDITABLE_FIELDS) {
       if (field in body) {
         oldValues[field] = (receipt as any)[field]
-        data[field] = field === 'receiptDate' ? new Date(body[field]) : body[field]
+        data[field] = field === 'receiptDate' ? new Date(body[field])
+          : field === 'description' ? String(body[field]).trim()
+          : body[field]
       }
     }
 

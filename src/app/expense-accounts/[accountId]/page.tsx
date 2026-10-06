@@ -1194,6 +1194,7 @@ export default function ExpenseAccountDetailPage() {
   const urlStartDate = searchParams.get('startDate') ?? ''
   const urlEndDate   = searchParams.get('endDate')   ?? ''
   const urlType      = searchParams.get('type')      ?? ''  // 'PAYMENT' | 'DEPOSIT' | ''
+  const urlOpenReceiptsPaymentId = searchParams.get('openReceiptsForPayment') ?? ''
 
   const [account, setAccount] = useState<ExpenseAccount | null>(null)
   const [depositsCount, setDepositsCount] = useState<number | null>(null)
@@ -1202,6 +1203,29 @@ export default function ExpenseAccountDetailPage() {
   const [countsError, setCountsError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState(urlTab || 'overview')
+  // Deep-link support: a reminder notification links to
+  // ?tab=transactions&openReceiptsForPayment={paymentId} to open that
+  // payment's Receipts modal directly instead of landing on a plain list.
+  const [autoOpenReceipt, setAutoOpenReceipt] = useState<{ id: string; amount: number; description: string; payee: { type: string; id: string; name: string } | null } | null>(null)
+  useEffect(() => {
+    if (!urlOpenReceiptsPaymentId || !accountId) return
+    fetch(`/api/expense-account/${accountId}/payments/${urlOpenReceiptsPaymentId}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(result => {
+        const p = result?.data?.payment
+        if (!p) return
+        const payee =
+          p.payeeUser ? { type: 'USER', id: p.payeeUser.id, name: p.payeeUser.name } :
+          p.payeeEmployee ? { type: 'EMPLOYEE', id: p.payeeEmployee.id, name: p.payeeEmployee.fullName } :
+          p.payeePerson ? { type: 'PERSON', id: p.payeePerson.id, name: p.payeePerson.fullName } :
+          p.payeeBusiness ? { type: 'BUSINESS', id: p.payeeBusiness.id, name: p.payeeBusiness.name } :
+          p.payeeSupplier ? { type: 'SUPPLIER', id: p.payeeSupplier.id, name: p.payeeSupplier.name } :
+          null
+        setAutoOpenReceipt({ id: p.id, amount: p.amount, description: p.notes || 'Payment', payee })
+      })
+      .catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlOpenReceiptsPaymentId, accountId])
   const tabScrollRef = useRef<HTMLDivElement>(null)
   const [tabScroll, setTabScroll] = useState({ canScrollLeft: false, canScrollRight: false })
   const [showDepositModal, setShowDepositModal] = useState(false)
@@ -2174,6 +2198,7 @@ const canCreatePayees = canChangeCategory // Only owners, managers, and admins c
                   businessId={account.businessId || currentBusiness?.businessId}
                   businessName={currentBusiness?.businessName ?? ''}
                   onRepeatPayment={!isRestrictedUser ? (id) => { setRepeatPaymentId(id); setShowQuickPaymentModal(true) } : undefined}
+                  autoOpenReceipt={autoOpenReceipt}
                 />
               </div>
             )}

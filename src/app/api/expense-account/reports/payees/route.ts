@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { getEffectivePermissions } from '@/lib/permission-utils'
+import { getPayeeAttributedAmounts } from '@/lib/expense-account/receipt-payee-attribution'
 
 /**
  * GET /api/expense-account/reports/payees
@@ -27,7 +28,9 @@ export async function GET(request: NextRequest) {
     const payeeType = searchParams.get('payeeType') || 'ALL'
 
     const where: any = { status: { not: 'REJECTED' } }
-    if (payeeType !== 'ALL') where.payeeType = payeeType
+    // Not filtered by payeeType here anymore — a COMBO payment's own
+    // receipts can resolve to any payee type, so every payment in range
+    // must be fetched and attribution filtered afterward (see below).
     if (startDate || endDate) {
       where.paymentDate = {}
       if (startDate) where.paymentDate.gte = new Date(startDate)
@@ -39,74 +42,43 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const payments = await prisma.expenseAccountPayments.findMany({
-      where,
-      select: {
-        id: true,
-        amount: true,
-        payeeType: true,
-        payeeUserId: true,
-        payeeEmployeeId: true,
-        payeePersonId: true,
-        payeeBusinessId: true,
-        payeeSupplierId: true,
-        payeeUser: { select: { id: true, name: true } },
-        payeeEmployee: { select: { id: true, fullName: true } },
-        payeePerson: { select: { id: true, fullName: true } },
-        payeeBusiness: { select: { id: true, name: true } },
-        payeeSupplier: { select: { id: true, name: true } },
-      },
-    })
+    const payments = await prisma.expenseAccountPayments.findMany({ where, select: { id: true } })
+    const attributed = await getPayeeAttributedAmounts(payments.map((p) => p.id))
 
-    // Aggregate by payee
+    // Aggregate by payee — from each payment's receipt-level attribution
+    // (falls back to the payment's own payee when it has no itemized
+    // receipts yet), not the payment's single payee field.
     const payeeMap = new Map<string, any>()
     const typeMap = new Map<string, { payeeType: string; totalAmount: number; paymentCount: number }>()
 
     let totalPaid = 0
 
-    payments.forEach((p) => {
-      let payeeId: string | null = null
-      let payeeName: string = 'Unknown'
+    for (const payees of attributed.values()) {
+      for (const payee of payees) {
+        if (!payee.payeeType) continue
+        if (payeeType !== 'ALL' && payee.payeeType !== payeeType) continue
 
-      if (p.payeeType === 'USER' && p.payeeUser) {
-        payeeId = p.payeeUser.id
-        payeeName = p.payeeUser.name
-      } else if (p.payeeType === 'EMPLOYEE' && p.payeeEmployee) {
-        payeeId = p.payeeEmployee.id
-        payeeName = p.payeeEmployee.fullName
-      } else if (p.payeeType === 'PERSON' && p.payeePerson) {
-        payeeId = p.payeePerson.id
-        payeeName = p.payeePerson.fullName
-      } else if (p.payeeType === 'BUSINESS' && p.payeeBusiness) {
-        payeeId = p.payeeBusiness.id
-        payeeName = p.payeeBusiness.name
-      } else if (p.payeeType === 'SUPPLIER' && p.payeeSupplier) {
-        payeeId = p.payeeSupplier.id
-        payeeName = p.payeeSupplier.name
-      } else {
-        return
+        const amount = payee.amount
+        totalPaid += amount
+
+        // FREEFORM payees have no stable id — key by name instead so repeat
+        // receipts to the same one-off vendor still group together.
+        const key = payee.payeeId ? `${payee.payeeType}-${payee.payeeId}` : `${payee.payeeType}-${payee.payeeName}`
+        if (!payeeMap.has(key)) {
+          payeeMap.set(key, { payeeType: payee.payeeType, payeeId: payee.payeeId, payeeName: payee.payeeName || 'Unknown', totalAmount: 0, paymentCount: 0 })
+        }
+        const entry = payeeMap.get(key)!
+        entry.totalAmount += amount
+        entry.paymentCount++
+
+        if (!typeMap.has(payee.payeeType)) {
+          typeMap.set(payee.payeeType, { payeeType: payee.payeeType, totalAmount: 0, paymentCount: 0 })
+        }
+        const typeEntry = typeMap.get(payee.payeeType)!
+        typeEntry.totalAmount += amount
+        typeEntry.paymentCount++
       }
-
-      const amount = Number(p.amount)
-      totalPaid += amount
-
-      // Per-payee
-      const key = `${p.payeeType}-${payeeId}`
-      if (!payeeMap.has(key)) {
-        payeeMap.set(key, { payeeType: p.payeeType, payeeId, payeeName, totalAmount: 0, paymentCount: 0 })
-      }
-      const entry = payeeMap.get(key)!
-      entry.totalAmount += amount
-      entry.paymentCount++
-
-      // Per-type
-      if (!typeMap.has(p.payeeType)) {
-        typeMap.set(p.payeeType, { payeeType: p.payeeType, totalAmount: 0, paymentCount: 0 })
-      }
-      const typeEntry = typeMap.get(p.payeeType)!
-      typeEntry.totalAmount += amount
-      typeEntry.paymentCount++
-    })
+    }
 
     const byPayee = Array.from(payeeMap.values()).sort((a, b) => b.totalAmount - a.totalAmount)
     const byPayeeType = Array.from(typeMap.values()).sort((a, b) => b.totalAmount - a.totalAmount)

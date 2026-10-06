@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { CreateIndividualPayeeModal } from './create-individual-payee-modal'
 import { CreateContractorPayeeModal } from './create-contractor-payee-modal'
 import { CategoryPicker, type CategoryRef } from './category-picker'
+import { RECEIPT_DESCRIPTION_MIN_LENGTH as DESCRIPTION_MIN_LENGTH } from '@/lib/expense-account/receipt-validation'
 
 interface PayeeRef {
   type: string
@@ -269,6 +270,10 @@ export function AddReceiptModal({ paymentId, paymentPayee, onClose, onSuccess, e
   // button (not itself a form submit) can trigger the same save logic.
   async function submitReceipt() {
     if (!amount || isNaN(parseFloat(amount))) { setError('Amount is required'); return }
+    if (description.trim().length < DESCRIPTION_MIN_LENGTH) {
+      setError(`Description must be at least ${DESCRIPTION_MIN_LENGTH} characters`)
+      return
+    }
     if (payeeMismatch && updatePaymentPayee === null) {
       setError('Please confirm whether to update the payment payee')
       return
@@ -279,7 +284,7 @@ export function AddReceiptModal({ paymentId, paymentPayee, onClose, onSuccess, e
       const body: Record<string, unknown> = {
         receiptDate,
         amount: parseFloat(amount),
-        description: description || undefined,
+        description: description.trim(),
         notes: notes || undefined,
         receiptNumber: receiptNumber || undefined,
         imageId: imageId || undefined,
@@ -645,15 +650,20 @@ export function AddReceiptModal({ paymentId, paymentPayee, onClose, onSuccess, e
 
               {/* Description */}
               <div>
-                <label className="block text-sm font-medium mb-1">Description</label>
+                <label className="block text-sm font-medium mb-1">Description <span className="text-red-500">*</span></label>
                 <input
                   type="text"
                   value={description}
                   onChange={e => setDescription(e.target.value)}
                   className="input w-full px-3 py-2"
-                  placeholder="What was purchased"
+                  placeholder="What was purchased — at least 15 characters"
+                  minLength={DESCRIPTION_MIN_LENGTH}
+                  required
                   disabled={submitting}
                 />
+                <p className={`text-xs mt-1 ${description.trim().length > 0 && description.trim().length < DESCRIPTION_MIN_LENGTH ? 'text-red-500' : 'text-gray-400'}`}>
+                  {description.trim().length}/{DESCRIPTION_MIN_LENGTH} characters minimum
+                </p>
               </div>
 
               {/* Attachment */}

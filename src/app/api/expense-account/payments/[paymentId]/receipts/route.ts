@@ -5,6 +5,7 @@ import { getServerUser } from '@/lib/get-server-user'
 import { isAccountCashier } from '@/lib/expense-account/receipt-review-access'
 import { checkReceiptLimit } from '@/lib/expense-account/receipt-limit'
 import { reconciliationStatus } from '@/lib/expense-account/receipt-reconciliation-status'
+import { RECEIPT_DESCRIPTION_MIN_LENGTH } from '@/lib/expense-account/receipt-validation'
 import { createAuditLog } from '@/lib/audit'
 
 function resolvePayeeName(receipt: {
@@ -250,6 +251,9 @@ export async function POST(
     if (!receiptDate || amount === undefined || amount === null) {
       return NextResponse.json({ error: 'receiptDate and amount are required' }, { status: 400 })
     }
+    if (!description || String(description).trim().length < RECEIPT_DESCRIPTION_MIN_LENGTH) {
+      return NextResponse.json({ error: `Description must be at least ${RECEIPT_DESCRIPTION_MIN_LENGTH} characters` }, { status: 400 })
+    }
 
     // MBM-286: real-time over-limit enforcement — reject by default; a
     // cashier/admin may override with a reason, audit-logged. Payments with
@@ -279,7 +283,7 @@ export async function POST(
           expensePaymentId: paymentId,
           receiptDate: new Date(receiptDate),
           amount,
-          description: description ?? null,
+          description: String(description).trim(),
           receiptNumber: receiptNumber ?? null,
           imageId: imageId ?? null,
           payeeType: payeeType ?? null,

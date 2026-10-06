@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getEffectivePermissions } from '@/lib/permission-utils'
 import { getServerUser } from '@/lib/get-server-user'
 import type { ReceiptReconciliationStatus } from '@/lib/expense-account/receipt-reconciliation-status'
+import { getPayeeAttributedAmounts } from '@/lib/expense-account/receipt-payee-attribution'
 
 /**
  * GET /api/expense-account/reports/missing-receipts
@@ -75,11 +76,6 @@ export async function GET(request: NextRequest) {
         notes: true,
         category: { select: { name: true, emoji: true } },
         subcategory: { select: { name: true } },
-        payeeUser: { select: { id: true, name: true } },
-        payeeEmployee: { select: { id: true, fullName: true } },
-        payeePerson: { select: { id: true, fullName: true } },
-        payeeBusiness: { select: { id: true, name: true } },
-        payeeSupplier: { select: { id: true, name: true } },
         expenseAccount: { select: { accountName: true, business: { select: { name: true } } } },
         creator: { select: { name: true } },
         receipt_review: { select: { status: true, expectedAmount: true } },
@@ -88,6 +84,14 @@ export async function GET(request: NextRequest) {
       orderBy: [{ paidAt: 'desc' }, { paymentDate: 'desc' }],
     })
 
+    // Per-payment payee breakdown from actual receipts (falls back to the
+    // payment's own single payee when it has no itemized receipts yet) —
+    // the outstanding/missing portion has no payee of its own (nobody's
+    // named on a receipt that doesn't exist), so it's never attributed to
+    // just one recipient for a split request; "payees" below instead shows
+    // who HAS been receipted so far, if anyone.
+    const attributed = await getPayeeAttributedAmounts(payments.map(p => p.id))
+
     const rows = payments
       .map(p => {
         const amount = Number(p.amount)
@@ -95,13 +99,10 @@ export async function GET(request: NextRequest) {
         const expected = p.receipt_review ? Number(p.receipt_review.expectedAmount) : amount
         const status = computeStatus(expected, receiptTotal, p.receipt_review?.status ?? null)
 
-        const payeeRef =
-          p.payeeUser ? { type: 'USER', id: p.payeeUser.id, name: p.payeeUser.name } :
-          p.payeeEmployee ? { type: 'EMPLOYEE', id: p.payeeEmployee.id, name: p.payeeEmployee.fullName } :
-          p.payeePerson ? { type: 'PERSON', id: p.payeePerson.id, name: p.payeePerson.fullName } :
-          p.payeeBusiness ? { type: 'BUSINESS', id: p.payeeBusiness.id, name: p.payeeBusiness.name } :
-          p.payeeSupplier ? { type: 'SUPPLIER', id: p.payeeSupplier.id, name: p.payeeSupplier.name } :
-          null
+        const attributedPayees = (attributed.get(p.id) ?? []).map(a => ({ type: a.payeeType, id: a.payeeId, name: a.payeeName, amount: a.amount }))
+        // Single-payee case keeps the old simple `payeeRef` shape for
+        // existing consumers; split payments carry no single payeeRef.
+        const payeeRef = attributedPayees.length === 1 ? attributedPayees[0] : null
 
         const date = (p.paidAt ?? p.paymentDate).toISOString()
         const daysSincePaid = Math.floor((Date.now() - new Date(date).getTime()) / (24 * 60 * 60 * 1000))
@@ -111,8 +112,9 @@ export async function GET(request: NextRequest) {
           date,
           business: p.expenseAccount.business?.name ?? null,
           account: p.expenseAccount.accountName,
-          payee: payeeRef?.name ?? null,
+          payee: payeeRef?.name ?? (attributedPayees.length > 1 ? `Multiple payees (${attributedPayees.length})` : null),
           payeeRef,
+          payees: attributedPayees,
           category: p.category ? `${p.category.emoji ?? ''} ${p.category.name}`.trim() : null,
           subcategory: p.subcategory?.name ?? null,
           amount,

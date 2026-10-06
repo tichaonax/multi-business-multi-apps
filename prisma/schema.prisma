@@ -3809,22 +3809,29 @@ model Users {
 }
 
 model AppNotification {
-  id        String    @id @default(cuid())
-  userId    String
-  type      String // PAYMENT_SUBMITTED | PAYMENT_APPROVED | PAYMENT_REJECTED | PAYMENT_PAID | PETTY_CASH_APPROVED | PETTY_CASH_REJECTED | BATCH_READY
-  title     String
-  message   String
-  linkUrl   String?
-  metadata  Json?
-  isRead    Boolean   @default(false)
-  readAt    DateTime?
-  createdAt DateTime  @default(now())
-  expiresAt DateTime?
+  id              String    @id @default(cuid())
+  userId          String
+  type            String // PAYMENT_SUBMITTED | PAYMENT_APPROVED | PAYMENT_REJECTED | PAYMENT_PAID | PETTY_CASH_APPROVED | PETTY_CASH_REJECTED | BATCH_READY
+  title           String
+  message         String
+  linkUrl         String?
+  metadata        Json?
+  isRead          Boolean   @default(false)
+  readAt          DateTime?
+  createdAt       DateTime  @default(now())
+  expiresAt       DateTime?
+  // Recurring reminders (e.g. daily outstanding-receipt nudges) upsert onto
+  // the same row by groupKey instead of creating a new one each time, so
+  // repeats collapse into one refreshed, still-unread notification.
+  groupKey        String?
+  occurrenceCount Int       @default(1)
+  lastOccurredAt  DateTime?
 
   user Users @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, isRead])
   @@index([userId, createdAt])
+  @@index([userId, groupKey])
   @@map("app_notifications")
 }
 

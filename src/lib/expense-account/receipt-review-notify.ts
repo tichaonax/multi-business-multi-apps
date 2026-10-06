@@ -1,28 +1,36 @@
 import { prisma } from '@/lib/prisma'
-import { emitNotification } from '@/lib/notifications/notification-emitter'
-import { isAccountCashier } from './receipt-review-access'
+import { emitGroupedNotification } from '@/lib/notifications/notification-emitter'
+import { reconciliationStatus } from './receipt-reconciliation-status'
+import { resolveReceiptPayeeName } from './receipt-payee-attribution'
 
-const ESCALATION_DAYS = 7
-const LOOKBACK_DAYS = 60 // don't scan forever-old outstanding advances
-const REQUESTER_REMINDER_THROTTLE_HOURS = 24 // plan Decision #4 — once/day even across multiple logins
+// Cashiers aren't pulled in from day one — the requester gets a grace period
+// to submit receipts before it becomes the cashiers' problem too.
+const CASHIER_GRACE_DAYS = 5
 
-// Lazy, request-triggered check (no cron infrastructure in this app — mirrors
-// src/lib/vehicle-service/notify.ts's checkAndEscalateStaleJobs). Called from
-// GET /api/notifications so it runs "each time they login" per plan Decision #7,
-// scoped to whichever user is currently loading their notifications.
-export async function checkAndNotifyOutstandingReceipts(userId: string): Promise<void> {
+export function receiptReminderGroupKey(paymentId: string): string {
+  return `receipt-reminder:${paymentId}`
+}
+
+/**
+ * Sweeps every ExpensePaymentReceiptReviews that isn't fully reconciled and
+ * sends/refreshes a daily reminder to the requester (from day one) and to
+ * every FULL-grant cashier on the account (starting 5 days after the review
+ * was created, i.e. 5 days after funds were disbursed). Uses
+ * emitGroupedNotification so repeated daily runs for the same payment
+ * refresh one notification row per recipient instead of piling up a new one
+ * every day. Called both by the nightly cron
+ * (receipt-reminder-scheduler.ts) and lazily from GET /api/notifications for
+ * immediacy — safe to call repeatedly, it's idempotent per day via the
+ * upsert.
+ */
+export async function sweepOutstandingReceiptReminders(): Promise<{ payments: number; requesterReminders: number; cashierReminders: number }> {
   try {
-    const lookback = new Date(Date.now() - LOOKBACK_DAYS * 24 * 60 * 60 * 1000)
-
     const outstanding = await prisma.expensePaymentReceiptReviews.findMany({
-      where: {
-        status: { in: ['PENDING', 'SUBMITTED'] },
-        createdAt: { gt: lookback },
-      },
+      where: { status: { in: ['PENDING', 'SUBMITTED'] } },
       select: {
-        id: true,
         expensePaymentId: true,
         expectedAmount: true,
+        status: true,
         createdAt: true,
         expensePayment: {
           select: {
@@ -30,72 +38,110 @@ export async function checkAndNotifyOutstandingReceipts(userId: string): Promise
             createdBy: true,
             payeeUserId: true,
             expenseAccountId: true,
-            paidAt: true,
-            combo_request: { select: { createdBy: true, title: true } },
+            creator: { select: { id: true, name: true } },
+            combo_request: { select: { createdBy: true, title: true, creator: { select: { name: true } } } },
+            expense_payment_receipts: {
+              select: {
+                amount: true,
+                payeeType: true,
+                payeeName: true,
+                payeePerson: { select: { fullName: true } },
+                payeeBusiness: { select: { name: true } },
+                payeeSupplier: { select: { name: true } },
+              },
+            },
           },
         },
       },
     })
-    if (outstanding.length === 0) return
+
+    let requesterReminders = 0
+    let cashierReminders = 0
 
     for (const review of outstanding) {
       const payment = review.expensePayment
-      const requesterId = payment.combo_request?.createdBy ?? payment.createdBy ?? payment.payeeUserId
-      const disbursedAt = payment.paidAt ?? review.createdAt
-      const daysSince = (Date.now() - disbursedAt.getTime()) / (24 * 60 * 60 * 1000)
-      const title = payment.combo_request?.title ?? 'an advance'
+      const receiptTotal = payment.expense_payment_receipts.reduce((sum, r) => sum + Number(r.amount), 0)
       const expected = Number(review.expectedAmount)
+      const status = reconciliationStatus({ expectedAmount: expected, receiptTotal, reviewStatus: review.status })
+      if (status === 'FULLY_RECEIPTED') continue // shouldn't occur for PENDING/SUBMITTED, guard anyway
 
-      // Requester's own daily reminder — only act if it's THIS user's outstanding item.
-      if (requesterId === userId) {
-        const throttleWindow = new Date(Date.now() - REQUESTER_REMINDER_THROTTLE_HOURS * 60 * 60 * 1000)
-        const recentReminder = await prisma.appNotification.findFirst({
-          where: {
-            userId,
-            type: 'RECEIPT_REMINDER',
-            createdAt: { gt: throttleWindow },
-            metadata: { path: ['paymentId'], equals: payment.id },
-          },
-          select: { id: true },
-        })
-        if (!recentReminder) {
-          await emitNotification({
-            userIds: [userId],
-            type: 'RECEIPT_REMINDER',
-            title: 'Receipts still outstanding',
-            message: `You still need to add receipts for $${expected.toFixed(2)} from "${title}".`,
-            linkUrl: `/expense-accounts/${payment.expenseAccountId}`,
-            metadata: { paymentId: payment.id, accountId: payment.expenseAccountId },
-          })
-        }
+      const requesterId = payment.combo_request?.createdBy ?? payment.createdBy ?? payment.payeeUserId
+      if (!requesterId) continue
+
+      const requesterName = payment.combo_request ? payment.combo_request.creator?.name : payment.creator?.name
+      const reference = payment.combo_request?.title ?? `payment ${payment.id.slice(0, 8)}`
+      const outstandingAmount = expected - receiptTotal
+      const groupKey = receiptReminderGroupKey(payment.id)
+      const linkUrl = `/expense-accounts/${payment.expenseAccountId}?openReceiptsForPayment=${payment.id}`
+
+      const payeeNames = [...new Set(payment.expense_payment_receipts.map((r) => resolveReceiptPayeeName(r)).filter((n): n is string => !!n))]
+      const payeeNote = payeeNames.length > 0 ? ` Receipted so far to: ${payeeNames.join(', ')}.` : ''
+
+      const title = `Receipt reconciliation needed — ${reference}`
+      const message =
+        `"${reference}" requested by ${requesterName ?? 'Unknown'}. ` +
+        `Amount provided: $${expected.toFixed(2)}, receipts so far: $${receiptTotal.toFixed(2)}, outstanding: $${outstandingAmount.toFixed(2)}.` +
+        payeeNote
+
+      const metadata = {
+        paymentId: payment.id,
+        accountId: payment.expenseAccountId,
+        requesterId,
+        requesterName,
+        reference,
+        expected,
+        receiptTotal,
+        outstanding: outstandingAmount,
       }
 
-      // 7-day cashier escalation — only act if THIS user is a cashier for the
-      // account, and only once ever per payment (no time window — existence check).
-      if (daysSince >= ESCALATION_DAYS) {
-        const alreadyEscalated = await prisma.appNotification.findFirst({
-          where: {
-            type: 'RECEIPT_ESCALATION',
-            metadata: { path: ['paymentId'], equals: payment.id },
-          },
-          select: { id: true },
+      // Requester — reminded from day one.
+      await emitGroupedNotification({
+        userId: requesterId,
+        type: 'RECEIPT_REMINDER',
+        title,
+        message,
+        linkUrl,
+        metadata,
+        groupKey,
+      })
+      requesterReminders++
+
+      // Cashiers — only once the review has sat unresolved for 5+ days.
+      const ageDays = (Date.now() - review.createdAt.getTime()) / (24 * 60 * 60 * 1000)
+      if (ageDays >= CASHIER_GRACE_DAYS) {
+        const grants = await prisma.expenseAccountGrants.findMany({
+          where: { expenseAccountId: payment.expenseAccountId, permissionLevel: 'FULL' },
+          select: { userId: true },
         })
-        if (!alreadyEscalated) {
-          const isCashier = await isAccountCashier(userId, false, payment.expenseAccountId)
-          if (isCashier) {
-            await emitNotification({
-              userIds: [userId],
-              type: 'RECEIPT_ESCALATION',
-              title: 'Receipts overdue — 7+ days',
-              message: `Receipts for "${title}" ($${expected.toFixed(2)}) are still outstanding after ${Math.floor(daysSince)} days.`,
-              linkUrl: `/expense-accounts/${payment.expenseAccountId}`,
-              metadata: { paymentId: payment.id, accountId: payment.expenseAccountId },
-            })
-          }
+        for (const grant of grants) {
+          if (grant.userId === requesterId) continue // already reminded above
+          await emitGroupedNotification({
+            userId: grant.userId,
+            type: 'RECEIPT_REMINDER',
+            title,
+            message,
+            linkUrl,
+            metadata,
+            groupKey,
+          })
+          cashierReminders++
         }
       }
     }
+
+    return { payments: outstanding.length, requesterReminders, cashierReminders }
   } catch (err) {
-    console.error('[receipt-review-notify] checkAndNotifyOutstandingReceipts failed:', err)
+    console.error('[receipt-review-notify] sweepOutstandingReceiptReminders failed:', err)
+    return { payments: 0, requesterReminders: 0, cashierReminders: 0 }
   }
+}
+
+let lastLazySweepAt = 0
+const MIN_LAZY_SWEEP_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes — the nightly cron is the primary driver; this just catches new discrepancies sooner between runs, so it doesn't need to re-scan on every single notification-panel load.
+
+/** Lazy trigger for GET /api/notifications — same upsert logic as the cron sweep, throttled so it isn't a full system-wide scan on every page load. */
+export async function sweepOutstandingReceiptRemindersThrottled(): Promise<void> {
+  if (Date.now() - lastLazySweepAt < MIN_LAZY_SWEEP_INTERVAL_MS) return
+  lastLazySweepAt = Date.now()
+  await sweepOutstandingReceiptReminders()
 }

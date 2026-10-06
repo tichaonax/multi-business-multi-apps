@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
-import { checkAndNotifyOutstandingReceipts } from '@/lib/expense-account/receipt-review-notify'
+import { sweepOutstandingReceiptRemindersThrottled } from '@/lib/expense-account/receipt-review-notify'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,9 +26,10 @@ export async function GET() {
       },
     }).catch(() => {})
 
-    // MBM-271: outstanding advance-receipt reminders/escalation — lazy check,
-    // runs whenever this user loads their notifications (fire-and-forget).
-    checkAndNotifyOutstandingReceipts(user.id).catch(() => {})
+    // MBM-271: outstanding advance-receipt reminders — lazy, throttled
+    // system-wide sweep so a new discrepancy doesn't wait for the nightly
+    // cron (fire-and-forget).
+    sweepOutstandingReceiptRemindersThrottled().catch(() => {})
 
     const [notifications, unreadCount] = await Promise.all([
       prisma.appNotification.findMany({

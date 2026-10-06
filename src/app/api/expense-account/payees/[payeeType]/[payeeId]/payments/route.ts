@@ -139,129 +139,154 @@ export async function GET(
       )
     }
 
-    // Fetch total count
-    const totalCount = await prisma.expenseAccountPayments.count({
-      where: payeeFilter,
-    })
+    // Receipt-level attribution only applies to PERSON/BUSINESS/SUPPLIER —
+    // ExpensePaymentReceipts has no payeeUserId/payeeEmployeeId, so USER and
+    // EMPLOYEE payees keep the original payment-level-only query below
+    // (their payments are never COMBO/split-attributed).
+    type NormalizedEntry = {
+      id: string
+      amount: number
+      paymentDate: string
+      category: { id: string; name: string; emoji: string } | null
+      receiptNumber: string | null
+      receiptUrl: string | null
+      notes: string | null
+      status: string
+      expenseAccount: { id: string; accountName: string; accountNumber: string }
+      createdBy: { id: string; name: string; email: string } | null
+      submittedBy: { id: string; name: string; email: string } | null
+      createdAt: string
+    }
 
-    // Fetch payments
-    const payments = await prisma.expenseAccountPayments.findMany({
-      where: payeeFilter,
-      include: {
-        expenseAccount: {
-          select: {
-            id: true,
-            accountName: true,
-            accountNumber: true,
+    let allEntries: NormalizedEntry[]
+
+    if (payeeType === 'PERSON' || payeeType === 'CONTRACTOR' || payeeType === 'BUSINESS' || payeeType === 'SUPPLIER') {
+      const receiptPayeeField = payeeType === 'BUSINESS' ? 'payeeBusinessId' : payeeType === 'SUPPLIER' ? 'payeeSupplierId' : 'payeePersonId'
+      const receiptPayeeType = payeeType === 'CONTRACTOR' ? 'PERSON' : payeeType
+
+      const receiptWhere: any = {
+        payeeType: receiptPayeeType,
+        [receiptPayeeField]: payeeId,
+        expensePayment: {
+          status: { not: 'REJECTED' },
+          ...(accountId ? { expenseAccountId: accountId } : {}),
+        },
+      }
+      if (Object.keys(dateFilter).length > 0) receiptWhere.receiptDate = dateFilter
+
+      const receipts = await prisma.expensePaymentReceipts.findMany({
+        where: receiptWhere,
+        select: {
+          id: true, amount: true, receiptDate: true, receiptNumber: true, notes: true, description: true, createdAt: true,
+          category: { select: { id: true, name: true, emoji: true } },
+          creator: { select: { id: true, name: true, email: true } },
+          expensePayment: {
+            select: {
+              status: true,
+              expenseAccount: { select: { id: true, accountName: true, accountNumber: true } },
+              category: { select: { id: true, name: true, emoji: true } },
+            },
           },
         },
-        category: {
-          select: {
-            id: true,
-            name: true,
-            emoji: true,
-          },
-        },
-        payeeUser: {
-          select: { id: true, name: true, email: true },
-        },
-        payeeEmployee: {
-          select: { id: true, fullName: true, employeeNumber: true },
-        },
-        payeePerson: {
-          select: { id: true, fullName: true, nationalId: true },
-        },
-        payeeBusiness: {
-          select: { id: true, name: true, type: true },
-        },
-        payeeSupplier: {
-          select: { id: true, name: true },
-        },
-        creator: {
-          select: { id: true, name: true, email: true },
-        },
-        submitter: {
-          select: { id: true, name: true, email: true },
-        },
-      },
-      orderBy: { paymentDate: 'desc' },
-      skip: offset,
-      take: limit,
-    })
+        orderBy: { receiptDate: 'desc' },
+      })
 
-    // Calculate total paid
-    const totalPaidResult = await prisma.expenseAccountPayments.aggregate({
-      where: payeeFilter,
-      _sum: { amount: true },
-    })
+      // Payments with this payee directly, but with NO itemized receipts at
+      // all — the fallback case (full amount attributed to the payment-level
+      // payee, same as the behavior before receipts existed for it).
+      const fallbackPayments = await prisma.expenseAccountPayments.findMany({
+        where: { ...payeeFilter, expense_payment_receipts: { none: {} } },
+        include: {
+          expenseAccount: { select: { id: true, accountName: true, accountNumber: true } },
+          category: { select: { id: true, name: true, emoji: true } },
+          creator: { select: { id: true, name: true, email: true } },
+          submitter: { select: { id: true, name: true, email: true } },
+        },
+        orderBy: { paymentDate: 'desc' },
+      })
 
-    const totalPaid = Number(totalPaidResult._sum.amount || 0)
+      const fromReceipts: NormalizedEntry[] = receipts.map((r) => ({
+        id: r.id,
+        amount: Number(r.amount),
+        paymentDate: r.receiptDate.toISOString(),
+        category: r.category ?? r.expensePayment.category,
+        receiptNumber: r.receiptNumber,
+        receiptUrl: null,
+        notes: r.notes ?? r.description,
+        status: r.expensePayment.status,
+        expenseAccount: r.expensePayment.expenseAccount,
+        createdBy: r.creator,
+        submittedBy: null,
+        createdAt: r.createdAt.toISOString(),
+      }))
+      const fromFallback: NormalizedEntry[] = fallbackPayments.map((p) => ({
+        id: p.id,
+        amount: Number(p.amount),
+        paymentDate: p.paymentDate.toISOString(),
+        category: p.category,
+        receiptNumber: p.receiptNumber,
+        receiptUrl: (p as any).receiptUrl ?? null,
+        notes: p.notes,
+        status: p.status,
+        expenseAccount: p.expenseAccount,
+        createdBy: p.creator,
+        submittedBy: p.submitter,
+        createdAt: p.createdAt.toISOString(),
+      }))
+
+      allEntries = [...fromReceipts, ...fromFallback].sort((a, b) => new Date(b.paymentDate).getTime() - new Date(a.paymentDate).getTime())
+    } else {
+      const payments = await prisma.expenseAccountPayments.findMany({
+        where: payeeFilter,
+        include: {
+          expenseAccount: { select: { id: true, accountName: true, accountNumber: true } },
+          category: { select: { id: true, name: true, emoji: true } },
+          creator: { select: { id: true, name: true, email: true } },
+          submitter: { select: { id: true, name: true, email: true } },
+        },
+        orderBy: { paymentDate: 'desc' },
+      })
+      allEntries = payments.map((p) => ({
+        id: p.id,
+        amount: Number(p.amount),
+        paymentDate: p.paymentDate.toISOString(),
+        category: p.category,
+        receiptNumber: p.receiptNumber,
+        receiptUrl: (p as any).receiptUrl ?? null,
+        notes: p.notes,
+        status: p.status,
+        expenseAccount: p.expenseAccount,
+        createdBy: p.creator,
+        submittedBy: p.submitter,
+        createdAt: p.createdAt.toISOString(),
+      }))
+    }
+
+    const totalCount = allEntries.length
+    const totalPaid = allEntries.reduce((sum, e) => sum + e.amount, 0)
+    const payments = allEntries.slice(offset, offset + limit)
 
     // Group payments by account
     const accountMap = new Map<string, any>()
 
-    payments.forEach((payment) => {
-      const accountId = payment.expenseAccount.id
-      if (!accountMap.has(accountId)) {
-        accountMap.set(accountId, {
-          accountId,
-          accountName: payment.expenseAccount.accountName,
-          accountNumber: payment.expenseAccount.accountNumber,
+    allEntries.forEach((entry) => {
+      const accId = entry.expenseAccount.id
+      if (!accountMap.has(accId)) {
+        accountMap.set(accId, {
+          accountId: accId,
+          accountName: entry.expenseAccount.accountName,
+          accountNumber: entry.expenseAccount.accountNumber,
           totalPaid: 0,
           paymentCount: 0,
-          payments: [],
         })
       }
-
-      const accountData = accountMap.get(accountId)
-      accountData.totalPaid += Number(payment.amount)
+      const accountData = accountMap.get(accId)
+      accountData.totalPaid += entry.amount
       accountData.paymentCount += 1
-      accountData.payments.push({
-        id: payment.id,
-        amount: Number(payment.amount),
-        paymentDate: payment.paymentDate.toISOString(),
-        category: payment.category,
-        receiptNumber: payment.receiptNumber,
-        receiptUrl: payment.receiptUrl,
-        notes: payment.notes,
-        status: payment.status,
-        createdBy: payment.creator,
-        submittedBy: payment.submitter,
-        createdAt: payment.createdAt.toISOString(),
-      })
     })
 
-    // Get unique account count
     const accountsCount = accountMap.size
-
-    // Get aggregate totals by account (for full dataset, not just current page)
-    const accountAggregates = await prisma.expenseAccountPayments.groupBy({
-      by: ['expenseAccountId'],
-      where: payeeFilter,
-      _sum: { amount: true },
-      _count: { id: true },
-    })
-
-    // Fetch account details for aggregates
-    const accountIds = accountAggregates.map((agg) => agg.expenseAccountId)
-    const accounts = await prisma.expenseAccounts.findMany({
-      where: { id: { in: accountIds } },
-      select: { id: true, accountName: true, accountNumber: true },
-    })
-
-    const accountLookup = new Map(accounts.map((acc) => [acc.id, acc]))
-
-    const accountBreakdown = accountAggregates.map((agg) => {
-      const account = accountLookup.get(agg.expenseAccountId)
-      return {
-        accountId: agg.expenseAccountId,
-        accountName: account?.accountName || 'Unknown Account',
-        accountNumber: account?.accountNumber || 'N/A',
-        totalPaid: Number(agg._sum.amount || 0),
-        paymentCount: agg._count.id,
-        // Don't include full payment list in account breakdown (it's paginated)
-      }
-    })
+    const accountBreakdown = Array.from(accountMap.values())
 
     return NextResponse.json({
       success: true,
@@ -280,20 +305,7 @@ export async function GET(
         paymentCount: totalCount,
         accountsCount,
         accountBreakdown,
-        payments: payments.map((p) => ({
-          id: p.id,
-          amount: Number(p.amount),
-          paymentDate: p.paymentDate.toISOString(),
-          category: p.category,
-          receiptNumber: p.receiptNumber,
-          receiptUrl: p.receiptUrl,
-          notes: p.notes,
-          status: p.status,
-          expenseAccount: p.expenseAccount,
-          createdBy: p.creator,
-          submittedBy: p.submitter,
-          createdAt: p.createdAt.toISOString(),
-        })),
+        payments,
         pagination: {
           total: totalCount,
           limit,
