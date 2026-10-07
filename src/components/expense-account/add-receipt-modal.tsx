@@ -92,6 +92,16 @@ interface AddReceiptModalProps {
   // item (informational only, never a per-item amount cap — see
   // combo-request-detail.tsx's "Add Receipt" action on each item).
   comboItemId?: string
+  // Total payment amount + what's been receipted so far, regardless of
+  // whether this payment has advance (review) tracking — shown as a
+  // generic "payment amount / remaining to attribute" preview when `review`
+  // isn't present (review already covers this for advance payments).
+  paymentAmount?: number
+  receiptsTotalSoFar?: number
+  // Most recently added entry on this payment — offers a one-click way to
+  // add a second expense type to the same physical receipt (same date and,
+  // when present, same receipt number) without retyping either.
+  lastReceipt?: { receiptDate: string; receiptNumber: string | null } | null
 }
 
 function payeeRefFromReceipt(r: EditReceiptData): PayeeRef | null {
@@ -133,7 +143,7 @@ function saveLastPayee(p: PayeeRef) {
   } catch {}
 }
 
-export function AddReceiptModal({ paymentId, paymentPayee, onClose, onSuccess, editReceipt, review, comboItemId }: AddReceiptModalProps) {
+export function AddReceiptModal({ paymentId, paymentPayee, onClose, onSuccess, editReceipt, review, comboItemId, paymentAmount, receiptsTotalSoFar, lastReceipt }: AddReceiptModalProps) {
   const router = useRouter()
   const today = new Date().toISOString().slice(0, 10)
   const isEditing = !!editReceipt
@@ -196,6 +206,26 @@ export function AddReceiptModal({ paymentId, paymentPayee, onClose, onSuccess, e
   const [fuelType, setFuelType] = useState('DIESEL')
   const [vehicleMileage, setVehicleMileage] = useState('')
   const [driverId, setDriverId] = useState('')
+  // MBM-302: the highest mileage reading recorded anywhere for the selected
+  // vehicle — prefills the Mileage field and enforces it can't go backwards
+  // (same-day repeats are fine: more than one service can happen before the
+  // odometer itself changes).
+  const [lastKnownMileage, setLastKnownMileage] = useState<number | null>(null)
+
+  useEffect(() => {
+    if (!vehicleId) { setLastKnownMileage(null); return }
+    fetch(`/api/vehicles/${vehicleId}/last-mileage`, { credentials: 'include' })
+      .then(res => res.json())
+      .then(json => {
+        const mileage = json?.data?.mileage
+        setLastKnownMileage(typeof mileage === 'number' ? mileage : null)
+        // Only prefill an empty field — never overwrite a value the user
+        // typed, a restored draft, or a hydrated existing link.
+        if (typeof mileage === 'number' && !vehicleMileage) setVehicleMileage(String(mileage))
+      })
+      .catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vehicleId])
 
   useEffect(() => {
     if (!vehicleSectionOpen || vehicles.length > 0) return
@@ -312,16 +342,21 @@ export function AddReceiptModal({ paymentId, paymentPayee, onClose, onSuccess, e
     }
   }
 
-  // MBM-286: live "requested / receipted so far / remaining" — sourced from
-  // the review data the parent already loaded, updated instantly as the
-  // amount field changes so the operator sees the effect before saving.
-  // Excludes this receipt's own current amount when editing, so the preview
-  // doesn't double-count against itself.
+  // MBM-286 (advance tracking) + general case: live "expected / attributed
+  // so far / remaining" — updated instantly as the amount field changes so
+  // the operator sees the effect before saving. Excludes this receipt's own
+  // current amount when editing, so the preview doesn't double-count
+  // against itself. For an advance payment `review` already carries this;
+  // for a regular payment, the payment's own amount is the baseline instead
+  // so the preview isn't advance-tracking-only.
   const parsedAmount = parseFloat(amount) || 0
   const excludingOwnAmount = isEditing ? parsedAmount - (editReceipt?.amount ?? 0) : parsedAmount
-  const projectedTotal = review ? review.receiptTotal + excludingOwnAmount : 0
-  const projectedRemaining = review ? review.expectedAmount - projectedTotal : 0
-  const isOverLimitPreview = !!review && projectedRemaining < -0.004
+  const baselineExpected = review ? review.expectedAmount : (paymentAmount ?? null)
+  const baselineReceiptTotal = review ? review.receiptTotal : (receiptsTotalSoFar ?? 0)
+  const hasBaseline = baselineExpected != null
+  const projectedTotal = hasBaseline ? baselineReceiptTotal + excludingOwnAmount : 0
+  const projectedRemaining = hasBaseline ? baselineExpected - projectedTotal : 0
+  const isOverLimitPreview = hasBaseline && projectedRemaining < -0.004
 
   const [overLimitError, setOverLimitError] = useState<{ message: string; excessAmount: number } | null>(null)
   const [overrideReason, setOverrideReason] = useState('')
@@ -445,6 +480,10 @@ export function AddReceiptModal({ paymentId, paymentPayee, onClose, onSuccess, e
       setError('Fuel quantity and fuel type are required for a fuel expense')
       return
     }
+    if (vehicleId && vehicleMileage && lastKnownMileage != null && parseInt(vehicleMileage, 10) < lastKnownMileage) {
+      setError(`Mileage can't be less than the last recorded reading (${lastKnownMileage})`)
+      return
+    }
     setError(null)
     setSubmitting(true)
     try {
@@ -528,21 +567,24 @@ export function AddReceiptModal({ paymentId, paymentPayee, onClose, onSuccess, e
                 </div>
               )}
 
-              {/* MBM-286: live requested / receipted / remaining balance —
-                  updates as the Amount field changes, before saving. */}
-              {review && (
+              {/* Live expected/attributed/remaining balance — updates as the
+                  Amount field changes, before saving. Uses the advance's own
+                  expected amount (MBM-286) when this payment has review
+                  tracking, otherwise falls back to the payment's own amount
+                  so the preview isn't advance-tracking-only. */}
+              {hasBaseline && (
                 <div className={`p-3 rounded-lg text-sm space-y-1 border ${
                   isOverLimitPreview
                     ? 'bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800'
                     : 'bg-gray-50 border-gray-200 dark:bg-gray-700/40 dark:border-gray-700'
                 }`}>
                   <div className="flex justify-between">
-                    <span className="text-gray-500 dark:text-gray-400">💰 Requested</span>
-                    <span className="font-medium text-gray-900 dark:text-gray-100">${review.expectedAmount.toFixed(2)}</span>
+                    <span className="text-gray-500 dark:text-gray-400">{review ? '💰 Requested' : '💰 Payment Amount'}</span>
+                    <span className="font-medium text-gray-900 dark:text-gray-100">${baselineExpected!.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-500 dark:text-gray-400">🧾 Receipted so far</span>
-                    <span className="font-medium text-gray-900 dark:text-gray-100">${review.receiptTotal.toFixed(2)}</span>
+                    <span className="text-gray-500 dark:text-gray-400">{review ? '🧾 Receipted so far' : '🧾 Attributed so far'}</span>
+                    <span className="font-medium text-gray-900 dark:text-gray-100">${baselineReceiptTotal.toFixed(2)}</span>
                   </div>
                   {parsedAmount > 0 ? (
                     <div className="flex justify-between font-medium pt-1 border-t border-gray-200 dark:border-gray-600">
@@ -558,8 +600,8 @@ export function AddReceiptModal({ paymentId, paymentPayee, onClose, onSuccess, e
                   ) : (
                     <div className="flex justify-between pt-1 border-t border-gray-200 dark:border-gray-600">
                       <span className="text-gray-500 dark:text-gray-400">Remaining</span>
-                      <span className={review.remaining < 0 ? 'text-red-600 dark:text-red-400' : 'text-green-700 dark:text-green-400'}>
-                        ${review.remaining.toFixed(2)}
+                      <span className={(baselineExpected! - baselineReceiptTotal) < 0 ? 'text-red-600 dark:text-red-400' : 'text-green-700 dark:text-green-400'}>
+                        ${(baselineExpected! - baselineReceiptTotal).toFixed(2)}
                       </span>
                     </div>
                   )}
@@ -901,13 +943,18 @@ export function AddReceiptModal({ paymentId, paymentPayee, onClose, onSuccess, e
                             <label className="block text-xs font-medium mb-1 text-gray-500 dark:text-gray-400">Mileage (optional)</label>
                             <input
                               type="number"
-                              min="0"
+                              min={lastKnownMileage ?? 0}
                               value={vehicleMileage}
                               onChange={e => setVehicleMileage(e.target.value)}
                               className="input w-full px-3 py-2 text-sm"
                               placeholder="Odometer reading"
                               disabled={submitting}
                             />
+                            {lastKnownMileage != null && (
+                              <p className={`text-xs mt-1 ${vehicleMileage && parseInt(vehicleMileage, 10) < lastKnownMileage ? 'text-red-500' : 'text-gray-400'}`}>
+                                Last recorded: {lastKnownMileage} — can repeat (same-day service) but not go lower
+                              </p>
+                            )}
                           </div>
                           <div>
                             <label className="block text-xs font-medium mb-1 text-gray-500 dark:text-gray-400">Driver (optional)</label>
@@ -938,6 +985,24 @@ export function AddReceiptModal({ paymentId, paymentPayee, onClose, onSuccess, e
                   placeholder="Optional — as printed on the receipt"
                   disabled={submitting}
                 />
+                {/* One physical receipt often covers several expense types
+                    (e.g. fuel + oil on the same slip) — reuses the last
+                    entry's date and, when set, its receipt number, so the
+                    second entry doesn't need either retyped. Works the same
+                    whether or not a number was entered: a blank number just
+                    carries forward as blank. */}
+                {!isEditing && lastReceipt && (receiptNumber !== (lastReceipt.receiptNumber ?? '') || receiptDate !== lastReceipt.receiptDate.slice(0, 10)) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setReceiptDate(lastReceipt.receiptDate.slice(0, 10))
+                      setReceiptNumber(lastReceipt.receiptNumber ?? '')
+                    }}
+                    className="mt-1 text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                  >
+                    + Add another expense to the last receipt ({lastReceipt.receiptNumber ? `#${lastReceipt.receiptNumber}` : 'no number'}, {lastReceipt.receiptDate.slice(0, 10)})
+                  </button>
+                )}
               </div>
 
               {/* Description */}

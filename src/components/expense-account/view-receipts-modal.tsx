@@ -216,6 +216,17 @@ export function ViewReceiptsModal({
   const fmt = (n: number) => `$${Number(n).toFixed(2)}`
   const fmtDate = (s: string) => new Date(s).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' })
 
+  // Always-available total (independent of advance/review tracking) — lets
+  // Add Receipt show "payment amount / remaining to attribute" even for a
+  // plain, non-advance payment.
+  const receiptsTotalSoFar = receipts.reduce((sum, r) => sum + Number(r.amount), 0)
+  // Most recently added entry — powers the "add another expense to the same
+  // physical receipt" quick-fill in Add Receipt (copies date + receipt
+  // number forward so a second expense type doesn't need either retyped).
+  const lastReceipt = receipts.length > 0
+    ? [...receipts].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0]
+    : null
+
   // Each receipt carries its own independent payee — a request funded once
   // can still be spent across several real vendors. The header must say so
   // instead of asserting the whole amount went to the payment's single
@@ -251,7 +262,7 @@ export function ViewReceiptsModal({
               <button onClick={onClose} className="text-gray-400 hover:text-gray-600 ml-4">✕</button>
             </div>
 
-            {review && (
+            {review ? (
               <div className="mt-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-700/40 text-xs space-y-1">
                 {review.reconciliationStatus && (
                   <div className="font-semibold text-gray-800 dark:text-gray-100">{review.reconciliationStatus}</div>
@@ -273,6 +284,25 @@ export function ViewReceiptsModal({
                 {review.reviewedAt && (
                   <p className="text-gray-400">Approved by {review.reviewedByName} on {fmtDate(review.reviewedAt)}{review.reviewNote ? ` — "${review.reviewNote}"` : ''}</p>
                 )}
+              </div>
+            ) : (
+              // No advance/expected-amount tracking on this payment — still
+              // show how much of the payment amount has been attributed to
+              // receipts so far, and what's left un-allocated.
+              <div className="mt-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-700/40 text-xs space-y-1">
+                <div className="flex justify-between font-medium">
+                  <span className="text-gray-700 dark:text-gray-200">🧾 Attributed to receipts</span>
+                  <span className={
+                    (paymentAmount - receiptsTotalSoFar) < -0.01 ? 'text-red-600 dark:text-red-400'
+                      : (paymentAmount - receiptsTotalSoFar) > 0.01 ? 'text-amber-600 dark:text-amber-400'
+                      : 'text-green-600 dark:text-green-400'
+                  }>
+                    Remaining: {fmt(paymentAmount - receiptsTotalSoFar)}
+                  </span>
+                </div>
+                <div className="flex justify-between text-gray-500 dark:text-gray-400">
+                  <span>{fmt(receiptsTotalSoFar)} of {fmt(paymentAmount)}</span>
+                </div>
               </div>
             )}
           </div>
@@ -411,6 +441,9 @@ export function ViewReceiptsModal({
           paymentPayee={presetComboItemId ? (presetPayee ?? currentPayee) : currentPayee}
           comboItemId={presetComboItemId}
           review={review}
+          paymentAmount={paymentAmount}
+          receiptsTotalSoFar={receiptsTotalSoFar}
+          lastReceipt={lastReceipt}
           onClose={() => (presetComboItemId ? onClose() : setShowAddModal(false))}
           onSuccess={() => {
             setShowAddModal(false)
@@ -426,6 +459,8 @@ export function ViewReceiptsModal({
           paymentId={paymentId}
           paymentPayee={currentPayee}
           editReceipt={editingReceipt}
+          paymentAmount={paymentAmount}
+          receiptsTotalSoFar={receiptsTotalSoFar}
           onClose={() => setEditingReceipt(null)}
           onSuccess={() => {
             setEditingReceipt(null)

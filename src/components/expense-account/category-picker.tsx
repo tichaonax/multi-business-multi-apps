@@ -23,6 +23,17 @@ interface CategoryPickerProps {
   disabled?: boolean
 }
 
+interface CategorySuggestion {
+  categoryId: string
+  categoryName: string
+  categoryEmoji: string | null
+  subcategoryId: string
+  subcategoryName: string
+  subcategoryEmoji: string | null
+  domainName: string
+  domainEmoji: string | null
+}
+
 /**
  * MBM-286: searchable, reusable expense/payment-type picker for receipt
  * entry — same combo-box UX as the payee picker in add-receipt-modal.tsx,
@@ -42,6 +53,51 @@ export function CategoryPicker({ value, onChange, disabled }: CategoryPickerProp
   const [createError, setCreateError] = useState<string | null>(null)
   const [pendingSubcategoryFor, setPendingSubcategoryFor] = useState<FlatCategory | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+
+  // Suggest — same /api/expense-categories/suggest taxonomy search already
+  // used by edit-payment-modal.tsx's classification Suggest, reused as-is
+  // (same ExpenseCategories/ExpenseSubcategories data) rather than building
+  // a second implementation. Matches across category + subcategory + domain
+  // name text (not just this picker's own category-name-only search), so a
+  // phrase like "diesel for delivery truck" can surface "Fuel & Energy"
+  // even though neither word appears in that category's own name.
+  const [suggestQuery, setSuggestQuery] = useState('')
+  const [suggestOpen, setSuggestOpen] = useState(false)
+  const [suggestLoading, setSuggestLoading] = useState(false)
+  const [suggestions, setSuggestions] = useState<CategorySuggestion[]>([])
+
+  async function handleSuggest() {
+    const q = suggestQuery.trim()
+    if (q.length < 2) return
+    setSuggestLoading(true)
+    setSuggestions([])
+    setSuggestOpen(true)
+    try {
+      const res = await fetch(`/api/expense-categories/suggest?q=${encodeURIComponent(q)}`, { credentials: 'include' })
+      if (res.ok) {
+        const data = await res.json()
+        setSuggestions((data.suggestions ?? []).map((s: any) => ({
+          categoryId: s.categoryId, categoryName: s.categoryName, categoryEmoji: s.categoryEmoji,
+          subcategoryId: s.subcategoryId, subcategoryName: s.subcategoryName, subcategoryEmoji: s.subcategoryEmoji,
+          domainName: s.domainName, domainEmoji: s.domainEmoji,
+        })))
+      }
+    } catch { /* non-fatal — suggestions list just stays empty */ }
+    finally { setSuggestLoading(false) }
+  }
+
+  function applySuggestion(s: CategorySuggestion) {
+    onChange({
+      categoryId: s.categoryId,
+      categoryName: `${s.categoryEmoji ?? ''} ${s.categoryName}`.trim(),
+      subcategoryId: s.subcategoryId,
+      subcategoryName: s.subcategoryName,
+    })
+    setSuggestOpen(false)
+    setSuggestQuery('')
+    setChanging(false)
+    setQuery('')
+  }
 
   useEffect(() => {
     fetch('/api/expense-categories', { credentials: 'include' })
@@ -167,6 +223,25 @@ export function CategoryPicker({ value, onChange, disabled }: CategoryPickerProp
             placeholder={loading ? 'Loading types…' : 'Type to search expense types…'}
             disabled={disabled || loading}
           />
+          <div className="flex gap-2 mt-2">
+            <input
+              type="text"
+              value={suggestQuery}
+              onChange={e => setSuggestQuery(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); if (suggestQuery.trim().length >= 2) handleSuggest() } }}
+              placeholder="Describe the expense to suggest a type…"
+              className="flex-1 min-w-0 px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              disabled={disabled}
+            />
+            <button
+              type="button"
+              onClick={handleSuggest}
+              disabled={disabled || suggestLoading || suggestQuery.trim().length < 2}
+              className="px-3 py-1.5 text-xs font-medium border border-amber-400 text-amber-700 dark:text-amber-300 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-900/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+            >
+              {suggestLoading ? '⏳' : '💡 Suggest'}
+            </button>
+          </div>
           <div className="absolute left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-10 max-h-48 overflow-y-auto">
             {filtered.map(c => (
               <button
@@ -200,6 +275,64 @@ export function CategoryPicker({ value, onChange, disabled }: CategoryPickerProp
                 {createError && <p className="text-xs text-red-500 mt-1">{createError}</p>}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Suggest results overlay */}
+      {suggestOpen && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-black/50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+              <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">💡 Suggested Expense Types</h3>
+              <button
+                type="button"
+                onClick={() => setSuggestOpen(false)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-xl leading-none"
+              >
+                ×
+              </button>
+            </div>
+            <div className="p-4">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                Based on: <span className="font-medium text-gray-700 dark:text-gray-300">&ldquo;{suggestQuery.trim()}&rdquo;</span>
+              </p>
+              {suggestLoading && (
+                <p className="text-sm text-gray-400 dark:text-gray-500 py-4 text-center">Searching taxonomy…</p>
+              )}
+              {!suggestLoading && suggestions.length === 0 && (
+                <p className="text-sm text-gray-400 dark:text-gray-500 py-4 text-center">No matches found — please select manually.</p>
+              )}
+              {!suggestLoading && suggestions.length > 0 && (
+                <ul className="space-y-2 max-h-80 overflow-y-auto">
+                  {suggestions.map((s, i) => (
+                    <li key={`${s.subcategoryId}-${i}`}>
+                      <button
+                        type="button"
+                        onClick={() => applySuggestion(s)}
+                        className="w-full text-left px-3 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                      >
+                        <div className="text-xs text-gray-500 dark:text-gray-400 mb-0.5">
+                          {s.domainEmoji} {s.domainName} › {s.categoryEmoji} {s.categoryName}
+                        </div>
+                        <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                          {s.subcategoryEmoji} {s.subcategoryName}
+                        </div>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setSuggestOpen(false)}
+                className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}
