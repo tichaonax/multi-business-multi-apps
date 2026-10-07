@@ -11,7 +11,7 @@
 
 DO $$
 DECLARE
-  canonical_id uuid;
+  canonical_id text;
 BEGIN
   SELECT cr.id INTO canonical_id
   FROM chat_rooms cr
