@@ -8025,6 +8025,11 @@ model ComboPaymentRequestItems {
   paidAmount      Decimal?  @db.Decimal(12, 2)
   receiptNumber   String?
   notes           String?
+  // MBM-303: non-null = "no receipt for this item, here's why" — the item
+  // counts as accounted for without a matching ExpensePaymentReceipts sum.
+  // No separate boolean/markedBy/markedAt — who/when is already captured by
+  // the audit log entry the PATCH route that sets this writes.
+  noReceiptReason String?
   sortOrder       Int       @default(0)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @default(now()) @updatedAt

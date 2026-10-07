@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { getEffectivePermissions } from '@/lib/permission-utils'
 import { canUserViewAccount } from '@/lib/expense-account-access'
+import { comboItemReceiptedAmount, comboItemTargetAmount, isComboItemAccountedFor } from '@/lib/expense-account/combo-item-reconciliation'
 
 async function getComboRequest(requestId: string, accountId: string) {
   return prisma.comboPaymentRequests.findFirst({
@@ -30,6 +31,10 @@ async function getComboRequest(requestId: string, accountId: string) {
               payeeBusiness: { select: { id: true, name: true } },
               payeeSupplier: { select: { id: true, name: true, phone: true, contactPerson: true } },
               category:      { select: { id: true, domainId: true } },
+              // MBM-303: sum of receipts already tagged to this item (see
+              // "Add Receipt" / comboItemId), mapped down to receiptedAmount
+              // below rather than exposing raw receipt rows here.
+              receipts:      { select: { amount: true } },
             },
           },
         },
@@ -86,7 +91,38 @@ export async function GET(
     const canEditRequest = (comboRequest.createdBy === user.id || user.role === 'admin') &&
       ['DRAFT', 'SUBMITTED'].includes(comboRequest.status)
 
-    return NextResponse.json({ success: true, data: { ...comboRequest, canApprove, canReturn, canRequestSettle, canConfirmSettle, remainingBalance, canEditRequest } })
+    // MBM-303: fold each item's raw receipts down to receiptedAmount +
+    // accountedFor — the detail page shows this directly, no client-side
+    // summing needed.
+    const sectionsWithReconciliation = comboRequest.sections.map(section => ({
+      ...section,
+      items: section.items.map(item => {
+        const itemForCalc = {
+          id: item.id,
+          description: item.description,
+          approvedAmount: item.approvedAmount !== null ? Number(item.approvedAmount) : null,
+          estimatedAmount: item.estimatedAmount !== null ? Number(item.estimatedAmount) : null,
+          noReceiptReason: item.noReceiptReason,
+          receipts: item.receipts.map(r => ({ amount: Number(r.amount) })),
+        }
+        const { receipts, ...itemWithoutReceipts } = item
+        return {
+          ...itemWithoutReceipts,
+          receiptedAmount: comboItemReceiptedAmount(itemForCalc),
+          targetAmount: comboItemTargetAmount(itemForCalc),
+          accountedFor: isComboItemAccountedFor(itemForCalc),
+        }
+      }),
+    }))
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        ...comboRequest,
+        sections: sectionsWithReconciliation,
+        canApprove, canReturn, canRequestSettle, canConfirmSettle, remainingBalance, canEditRequest,
+      },
+    })
   } catch (error) {
     console.error('Error fetching combo request:', error)
     return NextResponse.json({ error: 'Failed to fetch combo request' }, { status: 500 })

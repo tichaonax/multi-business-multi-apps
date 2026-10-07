@@ -87,6 +87,13 @@ const REPORT_CARDS = [
     description: 'Worklist of payments with no receipts, or receipts that don\'t cover the full amount, for a given date range — including payments the Receipts Report can\'t show.',
     color: 'amber',
   },
+  {
+    href: '/expense-accounts/reports/combo-missing-receipts',
+    emoji: '🚩',
+    title: 'Combo Requests Missing Receipts',
+    description: 'Funded combo requests with planned items that have neither a receipt nor a "no receipt" explanation — the item-level view the generic Missing Receipts report can\'t show.',
+    color: 'red',
+  },
 ]
 
 const COLOR_MAP: Record<string, string> = {

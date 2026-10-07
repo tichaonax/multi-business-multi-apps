@@ -39,6 +39,11 @@ interface ComboItem {
   paidAmount: number | null
   receiptNumber: string | null
   notes: string | null
+  // MBM-303: server-computed accountability — see combo-item-reconciliation.ts
+  noReceiptReason: string | null
+  receiptedAmount: number
+  targetAmount: number
+  accountedFor: boolean
   sortOrder: number
   payeeType: string | null
   payeePersonId?: string | null
@@ -154,6 +159,9 @@ export function ComboRequestDetail({ accountId, requestId }: ComboRequestDetailP
   const [showApproveModal, setShowApproveModal] = useState(false)
   const [markPaidItem, setMarkPaidItem] = useState<ComboItem | null>(null)
   const [receiptItem, setReceiptItem] = useState<ComboItem | null>(null) // MBM-286: item-level "Add Receipt"
+  const [noReceiptItem, setNoReceiptItem] = useState<ComboItem | null>(null) // MBM-303: item-level "No Receipt" explanation
+  const [noReceiptText, setNoReceiptText] = useState('')
+  const [noReceiptSubmitting, setNoReceiptSubmitting] = useState(false)
   const [showReceipts, setShowReceipts] = useState(false) // MBM-286: request-level "Manage Receipts"
   const [showVoucherModal, setShowVoucherModal] = useState(false)
   const [accountInfo, setAccountInfo] = useState<{ accountName: string; accountNumber: string } | null>(null)
@@ -372,6 +380,29 @@ export function ComboRequestDetail({ accountId, requestId }: ComboRequestDetailP
       toast.error('Failed to confirm settlement')
     } finally {
       setSettleSubmitting(false)
+    }
+  }
+
+  // MBM-303: mark/clear an item's "no receipt" explanation — item accounts
+  // for itself without a matching receipt total once this is set.
+  async function submitNoReceipt(itemId: string, reason: string | null) {
+    setNoReceiptSubmitting(true)
+    try {
+      const res = await fetch(`/api/expense-account/${accountId}/combo-requests/${requestId}/items/${itemId}/no-receipt`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ reason }),
+      })
+      const data = await res.json()
+      if (!res.ok) { toast.error(data.error || 'Failed to update item'); return }
+      setNoReceiptItem(null)
+      setNoReceiptText('')
+      loadRequest()
+    } catch {
+      toast.error('Failed to update item')
+    } finally {
+      setNoReceiptSubmitting(false)
     }
   }
 
@@ -832,13 +863,27 @@ export function ComboRequestDetail({ accountId, requestId }: ComboRequestDetailP
                     className={`px-5 py-3 flex items-start gap-4 ${isNotFunded ? 'opacity-60 bg-red-50 dark:bg-red-900/20' : ''}`}
                   >
                     {/* Status indicator */}
-                    <div className="shrink-0 mt-0.5">
+                    <div className="shrink-0 mt-0.5 flex flex-col items-start gap-1">
                       {isNotFunded ? (
                         <span className="text-xs bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 px-1.5 py-0.5 rounded">Not Funded</span>
                       ) : isFundedAndPaid ? (
                         <span className="text-xs bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 px-1.5 py-0.5 rounded">Paid</span>
                       ) : (
                         <span className="text-xs bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400 px-1.5 py-0.5 rounded">Pending</span>
+                      )}
+                      {/* MBM-303: whether this item has a matching receipt
+                          total or a "no receipt" explanation — the gate the
+                          cashier's final receipt approval enforces. */}
+                      {!isNotFunded && (
+                        item.accountedFor ? (
+                          <span className="text-xs bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400 px-1.5 py-0.5 rounded" title={item.noReceiptReason ?? undefined}>
+                            ✅ Accounted
+                          </span>
+                        ) : (
+                          <span className="text-xs bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400 px-1.5 py-0.5 rounded">
+                            ⚠️ Needs receipt
+                          </span>
+                        )
                       )}
                     </div>
 
@@ -854,6 +899,9 @@ export function ComboRequestDetail({ accountId, requestId }: ComboRequestDetailP
                         {item.paidAt && <span>Paid {fmtDate(item.paidAt)}</span>}
                         {item.notes && <span className="italic">{item.notes}</span>}
                       </div>
+                      {item.noReceiptReason && (
+                        <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5 italic">🚫 No receipt — {item.noReceiptReason}</p>
+                      )}
                     </div>
 
                     {/* Amounts */}
@@ -866,6 +914,9 @@ export function ComboRequestDetail({ accountId, requestId }: ComboRequestDetailP
                       )}
                       {item.paidAmount !== null && (
                         <div className="text-xs text-emerald-600 dark:text-emerald-400">Paid: {fmt(item.paidAmount)}</div>
+                      )}
+                      {item.receiptedAmount > 0 && (
+                        <div className="text-xs text-teal-600 dark:text-teal-400">Receipted: {fmt(item.receiptedAmount)}</div>
                       )}
                     </div>
 
@@ -889,6 +940,17 @@ export function ComboRequestDetail({ accountId, requestId }: ComboRequestDetailP
                           className="text-xs text-teal-600 dark:text-teal-400 hover:text-teal-800 dark:hover:text-teal-300 border border-teal-200 dark:border-teal-700 hover:border-teal-400 dark:hover:border-teal-500 px-2 py-1 rounded transition-colors"
                         >
                           🧾 Add Receipt
+                        </button>
+                      )}
+                      {/* MBM-303: only the requester (or admin) marks/clears
+                          a "no receipt" explanation — same authority as who
+                          can submit receipts for this request. */}
+                      {canMarkPaid && !isNotFunded && (
+                        <button
+                          onClick={() => { setNoReceiptItem(item); setNoReceiptText(item.noReceiptReason ?? '') }}
+                          className="text-xs text-amber-600 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-300 border border-amber-200 dark:border-amber-700 hover:border-amber-400 dark:hover:border-amber-500 px-2 py-1 rounded transition-colors"
+                        >
+                          {item.noReceiptReason ? '🚫 Edit No-Receipt' : '🚫 No Receipt'}
                         </button>
                       )}
                     </div>
@@ -936,6 +998,59 @@ export function ComboRequestDetail({ accountId, requestId }: ComboRequestDetailP
           sections={request.sections}
           availableBalance={availableBalance}
         />
+      )}
+
+      {/* MBM-303: "No Receipt" explanation prompt — inline rather than a
+          separate modal file, since it's a single required text field. */}
+      {noReceiptItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">No Receipt</h2>
+              <button onClick={() => { setNoReceiptItem(null); setNoReceiptText('') }} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">×</button>
+            </div>
+            <div className="px-6 py-4 space-y-3">
+              <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{noReceiptItem.description}</p>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Why isn't there a receipt for this? <span className="text-red-500">*</span></label>
+                <textarea
+                  value={noReceiptText}
+                  onChange={e => setNoReceiptText(e.target.value)}
+                  placeholder="e.g. Informal vendor, no receipt given"
+                  rows={3}
+                  autoFocus
+                  className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 text-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-amber-500 resize-none"
+                />
+              </div>
+            </div>
+            <div className="flex justify-between gap-3 px-6 py-4 border-t border-gray-200 dark:border-gray-700">
+              {noReceiptItem.noReceiptReason && (
+                <button
+                  onClick={() => submitNoReceipt(noReceiptItem.id, null)}
+                  disabled={noReceiptSubmitting}
+                  className="px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 disabled:opacity-50 transition-colors"
+                >
+                  Clear mark
+                </button>
+              )}
+              <div className="flex gap-3 ml-auto">
+                <button
+                  onClick={() => { setNoReceiptItem(null); setNoReceiptText('') }}
+                  className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => submitNoReceipt(noReceiptItem.id, noReceiptText.trim())}
+                  disabled={noReceiptSubmitting || noReceiptText.trim().length === 0}
+                  className="px-4 py-2 text-sm font-medium text-amber-700 dark:text-amber-300 border border-amber-400 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-900/40 disabled:opacity-50 transition-colors"
+                >
+                  {noReceiptSubmitting ? 'Saving…' : 'Save'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Mark paid modal */}

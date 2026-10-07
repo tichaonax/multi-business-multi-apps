@@ -6,6 +6,7 @@ import { isAccountCashier } from '@/lib/expense-account/receipt-review-access'
 import { reconciliationStatus } from '@/lib/expense-account/receipt-reconciliation-status'
 import { receiptReminderGroupKey } from '@/lib/expense-account/receipt-review-notify'
 import { createAuditLog } from '@/lib/audit'
+import { comboItemReceiptedAmount, comboItemTargetAmount, isComboItemAccountedFor } from '@/lib/expense-account/combo-item-reconciliation'
 
 /**
  * POST /api/expense-account/payments/[paymentId]/receipts/approve
@@ -33,6 +34,7 @@ export async function POST(
         payeeUserId: true,
         expense_payment_receipts: { select: { amount: true } },
         receipt_review: { select: { id: true, status: true, expectedAmount: true } },
+        combo_request: { select: { id: true } },
       },
     })
     if (!payment) return NextResponse.json({ error: 'Payment not found' }, { status: 404 })
@@ -47,6 +49,43 @@ export async function POST(
 
     if (payment.receipt_review.status === 'PENDING') {
       return NextResponse.json({ error: 'Receipts have not been submitted yet' }, { status: 400 })
+    }
+
+    // MBM-303: a combo request's linked payment can't be signed off while
+    // any of its planned items has neither a matching receipt total nor a
+    // "no receipt" explanation — the whole point of itemized planning is
+    // knowing how every dollar was spent. Every other payment type is
+    // unaffected (no combo_request → this block is skipped entirely).
+    if (payment.combo_request) {
+      const items = await prisma.comboPaymentRequestItems.findMany({
+        where: { requestId: payment.combo_request.id },
+        select: {
+          id: true, description: true, approvedAmount: true, estimatedAmount: true, noReceiptReason: true,
+          receipts: { select: { amount: true } },
+        },
+      })
+      const unaccounted = items
+        .map(item => {
+          const itemForCalc = {
+            id: item.id,
+            description: item.description,
+            approvedAmount: item.approvedAmount !== null ? Number(item.approvedAmount) : null,
+            estimatedAmount: item.estimatedAmount !== null ? Number(item.estimatedAmount) : null,
+            noReceiptReason: item.noReceiptReason,
+            receipts: item.receipts.map(r => ({ amount: Number(r.amount) })),
+          }
+          return { ...itemForCalc, accountedFor: isComboItemAccountedFor(itemForCalc) }
+        })
+        .filter(item => !item.accountedFor)
+
+      if (unaccounted.length > 0) {
+        const list = unaccounted
+          .map(item => `${item.description} ($${comboItemTargetAmount(item).toFixed(2)}${comboItemReceiptedAmount(item) > 0 ? `, $${comboItemReceiptedAmount(item).toFixed(2)} receipted` : ''})`)
+          .join(', ')
+        return NextResponse.json({
+          error: `${unaccounted.length} item${unaccounted.length === 1 ? '' : 's'} still need${unaccounted.length === 1 ? 's' : ''} a receipt or explanation before this request can be approved: ${list}.`,
+        }, { status: 400 })
+      }
     }
 
     const now = new Date()

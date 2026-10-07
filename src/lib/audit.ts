@@ -69,7 +69,9 @@ export type AuditAction =
   | 'CONTRACTOR_LOGIN_REVOKED'
   | 'VEHICLE_LICENSE_CREATED'
   | 'VEHICLE_LICENSE_UPDATED'
-  | 'VEHICLE_LICENSE_DEACTIVATED';
+  | 'VEHICLE_LICENSE_DEACTIVATED'
+  | 'COMBO_ITEM_NO_RECEIPT_MARKED'
+  | 'COMBO_ITEM_NO_RECEIPT_CLEARED';
 
 export type AuditEntityType =
   | 'User'
@@ -98,7 +100,8 @@ export type AuditEntityType =
   | 'BusinessTargetConfig'
   | 'BusinessTargetCommitment'
   | 'BusinessTargetDayAdjustment'
-  | 'VehicleLicense';
+  | 'VehicleLicense'
+  | 'ComboPaymentRequestItem';
 
 export interface AuditLogEntry {
   userId: string;
