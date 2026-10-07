@@ -141,27 +141,27 @@ function SearchableSelect({
   }
 
   return (
-    <div ref={containerRef} className="relative">
+    <div ref={containerRef} className="relative min-w-0">
       <button
         type="button"
         onClick={() => {
           setIsOpen(!isOpen)
           if (!isOpen) setTimeout(() => inputRef.current?.focus(), 0)
         }}
-        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-left flex items-center justify-between bg-white dark:bg-gray-800 text-sm"
+        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-left flex items-center justify-between gap-2 bg-white dark:bg-gray-800 text-sm"
       >
-        <span className={selected ? 'text-primary' : 'text-secondary'}>
+        <span className={`truncate ${selected ? 'text-primary' : 'text-secondary'}`}>
           {selected ? selected.label : placeholder}
         </span>
         <svg
-          className={`w-4 h-4 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+          className={`w-4 h-4 text-gray-400 transition-transform flex-shrink-0 ${isOpen ? 'rotate-180' : ''}`}
           fill="none" stroke="currentColor" viewBox="0 0 24 24"
         >
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
       </button>
       {isOpen && (
-        <div className="absolute z-50 mt-1 w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg max-h-56 overflow-hidden">
+        <div className="absolute z-50 mt-1 w-full max-w-[calc(100vw-2rem)] bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg max-h-56 overflow-hidden">
           <div className="p-2 border-b border-gray-200 dark:border-gray-700">
             <input
               ref={inputRef}
@@ -827,20 +827,31 @@ export function EditPaymentModal({
     <>
       <ModalPortal>
       <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-hidden">
-        <div className="bg-white dark:bg-gray-900 rounded-lg p-6 w-full max-w-4xl min-w-0 shadow-2xl border border-gray-200 dark:border-gray-700 max-h-[90vh] overflow-hidden overflow-x-hidden flex flex-col">
-          <div className="flex items-center justify-between mb-4 shrink-0">
+        <div className="bg-white dark:bg-gray-900 rounded-lg p-5 w-full max-w-4xl min-w-0 shadow-2xl border border-gray-200 dark:border-gray-700 max-h-[90vh] overflow-hidden overflow-x-hidden flex flex-col">
+          <div className="flex items-center justify-between gap-3 mb-3 shrink-0 flex-wrap">
             <h2 className="text-xl font-bold text-primary">Edit Payment</h2>
-            <button
-              onClick={onClose}
-              className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+            <div className="flex items-center gap-2">
+              {!loading && withinWindow && (
+                <button
+                  onClick={handleSave}
+                  disabled={saving || loading || loadingMid || loadingSub}
+                  className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                >
+                  {saving ? 'Saving...' : loading ? 'Loading...' : isDownwardChange && isBalanceAffecting ? 'Save & Adjust Balance' : 'Save Changes'}
+                </button>
+              )}
+              <button
+                onClick={onClose}
+                className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 shrink-0"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
           </div>
 
-          <div className="overflow-y-auto flex-1 min-h-0">
+          <div className="overflow-y-auto overflow-x-hidden flex-1 min-h-0">
           {loading ? (
             <div className="space-y-3">
               {[1, 2, 3, 4, 5].map(i => (
@@ -859,7 +870,14 @@ export function EditPaymentModal({
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 min-w-0">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 min-w-0 [&>*]:min-w-0">
+              {/* [&>*]:min-w-0 above — grid items default to min-width:auto
+                  (won't shrink below their content's natural size), so a
+                  long label (e.g. a SearchableSelect's selected category
+                  text) in a half-width cell can force the whole grid, and
+                  the modal, wider than intended. This is the actual fix for
+                  that; the truncate/overflow-x-hidden additions elsewhere
+                  are backup. */}
 
               {/* ── Payee — full width, always visible ───────────────────── */}
               <div className="md:col-span-2">

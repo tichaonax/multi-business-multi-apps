@@ -123,7 +123,7 @@ export function LineItemsInput({ domainId, value, onChange, totalAmount }: LineI
         {/* Row 1: emoji + name (own row on mobile so the category dropdown
             has real width to render in), amount + add wrap to a second row
             on narrow screens instead of squeezing the name field to nothing */}
-        <div className="flex flex-col sm:flex-row gap-2 sm:items-start">
+        <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 sm:items-start min-w-0">
         <div className="flex gap-2 items-start flex-1 min-w-0">
           {/* Emoji — auto-suggested as name is typed */}
           <input
