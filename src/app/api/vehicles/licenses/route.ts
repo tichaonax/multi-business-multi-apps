@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { randomBytes } from 'crypto'
 import { getServerUser } from '@/lib/get-server-user'
 import { createAuditLog } from '@/lib/audit'
+import { clearVehicleLicenseReminder } from '@/lib/vehicles/license-reminder-notify'
 
 const CreateLicenseSchema = z.object({
   vehicleId: z.string().min(1, 'Vehicle ID is required'),
@@ -349,6 +350,12 @@ export async function PUT(request: NextRequest) {
       },
     }).catch((e) => console.error('Failed to write audit log for vehicle license update', e))
 
+    // MBM-304: clear any outstanding expiry reminder immediately rather
+    // than waiting for the next sweep to simply stop refreshing it — if
+    // this edit didn't actually resolve it (still within the warning
+    // window), the next throttled/nightly sweep recreates it within minutes.
+    clearVehicleLicenseReminder(license.id).catch(() => {})
+
     return NextResponse.json({ success: true, data: normalizedUpdated, message: 'Vehicle license updated successfully' })
 
   } catch (error) {
@@ -439,6 +446,8 @@ export async function DELETE(request: NextRequest) {
           licenseNumber: original?.licenseNumber,
         },
       }).catch((e) => console.error('Failed to write audit log for vehicle license deactivation', e))
+      // MBM-304: a deactivated license no longer needs a reminder.
+      clearVehicleLicenseReminder(rec.id).catch(() => {})
     }
 
     return NextResponse.json({ success: true, message: `${deactivatedIds.length} license(s) deactivated successfully`, deactivatedIds })

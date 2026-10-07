@@ -881,28 +881,34 @@ export async function createCleanBackup(
     where: { OR: [{ businessId: { in: businessIds } }, { businessId: null }] }
   })
 
+  // Every vehicle sub-table below reaches its business scope only through
+  // the parent vehicle's businessId — same relation `vehicles` itself is
+  // scoped by (line ~863), which already includes `businessId: null`
+  // (shared/unassigned vehicles, the norm for vehicles created against a
+  // userId instead of a business). These queries were missing that OR
+  // branch: a vehicle with a null businessId can never match `{ in:
+  // businessIds }`, so every one of its licenses, maintenance records,
+  // trips, exemptions, etc. was silently excluded from every backup ever
+  // taken — confirmed against a real production backup (10 vehicles
+  // present, 0 licenses, despite a known-existing license record).
+  const vehicleBusinessScope = { OR: [{ businessId: { in: businessIds } }, { businessId: null }] }
+
   businessData.vehicleLicenses = await prisma.vehicleLicenses.findMany({
     where: {
-      vehicles: {
-        businessId: { in: businessIds }
-      }
+      vehicles: vehicleBusinessScope
     }
   })
 
   businessData.vehicleMaintenanceRecords = await prisma.vehicleMaintenanceRecords.findMany({
     where: {
-      vehicles: {
-        businessId: { in: businessIds }
-      }
+      vehicles: vehicleBusinessScope
     }
   })
 
   businessData.vehicleMaintenanceServices = await prisma.vehicleMaintenanceServices.findMany({
     where: {
       vehicle_maintenance_records: {
-        vehicles: {
-          businessId: { in: businessIds }
-        }
+        vehicles: vehicleBusinessScope
       }
     }
   })
@@ -911,9 +917,7 @@ export async function createCleanBackup(
     where: {
       vehicle_maintenance_services: {
         vehicle_maintenance_records: {
-          vehicles: {
-            businessId: { in: businessIds }
-          }
+          vehicles: vehicleBusinessScope
         }
       }
     }
@@ -921,35 +925,29 @@ export async function createCleanBackup(
 
   businessData.vehicleTrips = await prisma.vehicleTrips.findMany({
     where: {
-      vehicles: {
-        businessId: { in: businessIds }
-      }
+      vehicles: vehicleBusinessScope
     }
   })
 
   businessData.vehicleReimbursements = await prisma.vehicleReimbursements.findMany({
     where: {
-      vehicles: {
-        businessId: { in: businessIds }
-      }
+      vehicles: vehicleBusinessScope
     }
   })
 
   businessData.driverAuthorizations = await prisma.driverAuthorizations.findMany({
     where: {
-      vehicles: {
-        businessId: { in: businessIds }
-      }
+      vehicles: vehicleBusinessScope
     }
   })
 
   // Vehicle Renewal Receipts & Exemptions
   businessData.vehicleRenewalReceipts = await prisma.vehicleRenewalReceipts.findMany({
-    where: { vehicles: { businessId: { in: businessIds } } }
+    where: { vehicles: vehicleBusinessScope }
   })
 
   businessData.vehicleExemptions = await prisma.vehicleExemptions.findMany({
-    where: { vehicles: { businessId: { in: businessIds } } }
+    where: { vehicles: vehicleBusinessScope }
   })
 
   // Issuing Authorities — global lookup table, no business scope

@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 import { hasPermission, hasPermissionInAnyBusiness, isSystemAdmin } from '@/lib/permission-utils'
 import { getServerUser } from '@/lib/get-server-user'
+import { getVehicleLicenseAlerts, getDriverLicenseAlerts } from '@/lib/vehicles/license-compliance'
 
 const ReportQuerySchema = z.object({
   reportType: z.enum([
@@ -584,40 +585,16 @@ async function generateMaintenanceScheduleReport(vehicleId?: string) {
 
 // Compliance Alerts Report
 async function generateComplianceAlertsReport(vehicleId?: string, driverId?: string) {
-  const vehicleFilter: any = {}
-  if (vehicleId) vehicleFilter.id = vehicleId
-
   const driverFilter: any = {}
   if (driverId) driverFilter.id = driverId
 
-  const [expiringLicenses, expiringDriverLicenses, inactiveAuthorizations] = await Promise.all([
-    // Vehicle licenses expiring in 60 days
-    prisma.vehicleLicenses.findMany({
-      where: {
-        // relation name is 'vehicles' on VehicleLicense
-        vehicles: vehicleFilter,
-        isActive: true,
-        expiryDate: {
-          gte: new Date(),
-          lte: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000)
-        }
-      },
-      include: {
-          vehicles: { select: { licensePlate: true, make: true, model: true } }
-      }
-    }),
-    // Driver licenses expiring in 60 days (only for licenses that have expiry dates)
-    prisma.vehicleDrivers.findMany({
-      where: {
-        ...driverFilter,
-        isActive: true,
-        AND: [
-          { licenseExpiry: { not: null } },
-          { licenseExpiry: { gte: new Date() } },
-          { licenseExpiry: { lte: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000) } }
-        ]
-      }
-    }),
+  // MBM-304: vehicle + driver license alerts now come from the shared
+  // getVehicleLicenseAlerts/getDriverLicenseAlerts (license-compliance.ts) —
+  // no lower bound on expiryDate, so an already-overdue license (the whole
+  // point of this report) no longer silently vanishes the moment it passes.
+  const [vehicleAlerts, driverAlerts, inactiveAuthorizations] = await Promise.all([
+    getVehicleLicenseAlerts(vehicleId),
+    getDriverLicenseAlerts(driverId),
     // Expired or inactive driver authorizations
     prisma.driverAuthorizations.findMany({
       where: {
@@ -640,12 +617,30 @@ async function generateComplianceAlertsReport(vehicleId?: string, driverId?: str
     })
   ])
 
-  // remap legacy keys
-  const remapExpiringLicenses = expiringLicenses.map(e => ({ ...e, vehicle: (e as any).vehicles }))
   const remapInactiveAuths = inactiveAuthorizations.map(a => ({ ...a, driver: (a as any).vehicle_drivers, vehicle: (a as any).vehicles }))
 
+  // Shape expected by the existing /vehicles Overview tab consumer
+  // (fetchComplianceAlerts in src/app/vehicles/page.tsx): each entry needs
+  // id, expiryDate, and a nested vehicle{licensePlate, make, model}.
+  const remapExpiringLicenses = vehicleAlerts.map(a => ({
+    id: a.id,
+    licenseType: a.licenseType,
+    licenseNumber: a.licenseNumber,
+    expiryDate: a.expiryDate,
+    urgency: a.urgency,
+    vehicle: { licensePlate: a.vehicleLicensePlate, make: a.vehicleMake, model: a.vehicleModel },
+  }))
+
+  const expiringDriverLicenses = driverAlerts.map(a => ({
+    id: a.id,
+    fullName: a.fullName,
+    licenseExpiry: a.licenseExpiry,
+    daysUntilExpiry: a.daysUntilExpiry,
+    urgency: a.urgency,
+  }))
+
   // Vehicle license breakdown by type
-  const licenseByType = expiringLicenses.reduce((acc, license) => {
+  const licenseByType = vehicleAlerts.reduce((acc, license) => {
     const type = license.licenseType || 'UNKNOWN'
     if (!acc[type]) {
       acc[type] = { count: 0, licenses: [] }
@@ -654,23 +649,16 @@ async function generateComplianceAlertsReport(vehicleId?: string, driverId?: str
     acc[type].licenses.push({
       id: license.id,
       licenseNumber: license.licenseNumber,
-      vehicleLicensePlate: (license as any).vehicles?.licensePlate,
-      expiryDate: license.expiryDate
+      vehicleLicensePlate: license.vehicleLicensePlate,
+      expiryDate: license.expiryDate,
+      urgency: license.urgency,
     })
     return acc
   }, {} as Record<string, { count: number; licenses: any[] }>)
 
-  // Driver license expiry breakdown
-  const driverLicensesByUrgency = expiringDriverLicenses.reduce((acc, driver) => {
-    if (!driver.licenseExpiry) return acc
-
-    const daysUntilExpiry = Math.floor((new Date(driver.licenseExpiry).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
-
-    let urgency: string
-    if (daysUntilExpiry <= 7) urgency = 'CRITICAL'
-    else if (daysUntilExpiry <= 30) urgency = 'HIGH'
-    else urgency = 'MEDIUM'
-
+  // Driver license expiry breakdown — OVERDUE now a real bucket, not silently dropped
+  const driverLicensesByUrgency = driverAlerts.reduce((acc, driver) => {
+    const urgency = driver.urgency
     if (!acc[urgency]) {
       acc[urgency] = { count: 0, drivers: [] }
     }
@@ -678,9 +666,8 @@ async function generateComplianceAlertsReport(vehicleId?: string, driverId?: str
     acc[urgency].drivers.push({
       id: driver.id,
       fullName: driver.fullName,
-      licenseNumber: driver.licenseNumber,
       licenseExpiry: driver.licenseExpiry,
-      daysUntilExpiry
+      daysUntilExpiry: driver.daysUntilExpiry
     })
     return acc
   }, {} as Record<string, { count: number; drivers: any[] }>)

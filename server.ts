@@ -18,6 +18,7 @@ import { startAutoGenerateScheduler } from './src/lib/r710/auto-generate-schedul
 import { startBusinessTargetRecalculationScheduler } from './src/lib/business-targets/recalculate-all-targets-scheduler'
 import { startComboRequestExpiryScheduler } from './src/lib/expense-account/combo-request-expiry-scheduler'
 import { startReceiptReminderScheduler } from './src/lib/expense-account/receipt-reminder-scheduler'
+import { startVehicleLicenseReminderScheduler } from './src/lib/vehicles/license-reminder-scheduler'
 import { startBackgroundJobs } from './src/lib/background-jobs'
 import { join as joinPath } from 'path'
 
@@ -102,6 +103,9 @@ app.prepare().then(() => {
 
   // Outstanding receipt-reconciliation daily reminders.
   startReceiptReminderScheduler()
+
+  // MBM-304: overdue/expiring vehicle & driver license reminders.
+  startVehicleLicenseReminderScheduler()
 
   // Print-worker health check, WiFi token sanitization, R710/ESP32 client
   // sync — relocated from the removed legacy sync engine (all opt-in, off

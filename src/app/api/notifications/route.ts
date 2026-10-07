@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { sweepOutstandingReceiptRemindersThrottled } from '@/lib/expense-account/receipt-review-notify'
+import { sweepVehicleLicenseRemindersThrottled } from '@/lib/vehicles/license-reminder-notify'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,6 +31,10 @@ export async function GET() {
     // system-wide sweep so a new discrepancy doesn't wait for the nightly
     // cron (fire-and-forget).
     sweepOutstandingReceiptRemindersThrottled().catch(() => {})
+
+    // MBM-304: overdue/expiring vehicle & driver license reminders — same
+    // lazy throttled pattern.
+    sweepVehicleLicenseRemindersThrottled().catch(() => {})
 
     const [notifications, unreadCount] = await Promise.all([
       prisma.appNotification.findMany({

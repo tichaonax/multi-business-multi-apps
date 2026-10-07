@@ -49,6 +49,8 @@ export type NotificationType =
   | 'RECEIPT_ESCALATION'
   | 'PRICE_CHANGED'
   | 'ALLOCATION_SKIPPED'
+  | 'VEHICLE_LICENSE_EXPIRING'
+  | 'VEHICLE_LICENSE_OVERDUE'
 
 export interface NotificationPayload {
   userIds: string[]
