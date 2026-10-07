@@ -48,6 +48,7 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url)
+    const id = searchParams.get('id')
     const vehicleId = searchParams.get('vehicleId')
     const serviceType = searchParams.get('serviceType')
     const isScheduledService = searchParams.get('isScheduledService')
@@ -62,6 +63,9 @@ export async function GET(request: NextRequest) {
 
     const where: any = {}
 
+    if (id) {
+      where.id = id
+    }
     if (vehicleId) {
       where.vehicleId = vehicleId
     }

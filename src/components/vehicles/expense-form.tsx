@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { DateInput } from '@/components/ui/date-input'
-import { CreateExpenseData, Vehicle, VehicleTrip } from '@/types/vehicle'
+import { CreateExpenseData, Vehicle, VehicleTrip, VehicleExpense } from '@/types/vehicle'
 import { useToastContext } from '@/components/ui/toast'
 import fetchWithValidation from '@/lib/fetchWithValidation'
 
@@ -10,9 +10,13 @@ interface ExpenseFormProps {
   onSuccess?: () => void
   onCancel?: () => void
   tripId?: string
+  // MBM-302: editing an existing (often auto-created by the receipt flow)
+  // record instead of creating a new one — same PUT-vs-POST pattern as
+  // maintenance-form.tsx's `maintenance` prop.
+  expense?: VehicleExpense
 }
 
-export function ExpenseForm({ onSuccess, onCancel, tripId }: ExpenseFormProps) {
+export function ExpenseForm({ onSuccess, onCancel, tripId, expense }: ExpenseFormProps) {
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
   const [trips, setTrips] = useState<VehicleTrip[]>([])
   const toast = useToastContext()
@@ -21,21 +25,21 @@ export function ExpenseForm({ onSuccess, onCancel, tripId }: ExpenseFormProps) {
   const [loadingData, setLoadingData] = useState(true)
 
   const [formData, setFormData] = useState<CreateExpenseData>({
-    vehicleId: '',
-    tripId: tripId || '',
-    businessId: '',
-    expenseType: 'FUEL',
-    expenseCategory: '',
-    amount: 0,
-    currency: 'USD',
-    expenseDate: new Date().toISOString().slice(0, 10),
-    isBusinessDeductible: true,
-    receiptUrl: '',
-    vendorName: '',
-    description: '',
-    mileageAtExpense: 0,
-    fuelQuantity: 0,
-    fuelType: 'GASOLINE'
+    vehicleId: expense?.vehicleId || '',
+    tripId: expense?.tripId || tripId || '',
+    businessId: expense?.businessId || '',
+    expenseType: expense?.expenseType || 'FUEL',
+    expenseCategory: expense?.expenseCategory || '',
+    amount: expense?.amount || 0,
+    currency: expense?.currency || 'USD',
+    expenseDate: expense?.expenseDate ? new Date(expense.expenseDate).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10),
+    isBusinessDeductible: expense?.isBusinessDeductible ?? true,
+    receiptUrl: expense?.receiptUrl || '',
+    vendorName: expense?.vendorName || '',
+    description: expense?.description || '',
+    mileageAtExpense: expense?.mileageAtExpense || 0,
+    fuelQuantity: expense?.fuelQuantity || 0,
+    fuelType: expense?.fuelType || 'GASOLINE'
   })
 
   // Fetch vehicles and trips on component mount
@@ -98,13 +102,15 @@ export function ExpenseForm({ onSuccess, onCancel, tripId }: ExpenseFormProps) {
     setError('')
 
     try {
+      const payload = expense ? { ...formData, id: expense.id } : formData
+
       const body = await fetchWithValidation('/api/vehicles/expenses', {
-        method: 'POST',
+        method: expense ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(payload)
       })
 
-      const successMsg = body?.message || 'Expense recorded'
+      const successMsg = body?.message || (expense ? 'Expense updated' : 'Expense recorded')
       try { toast.push(successMsg) } catch (e) { /* noop */ }
       if (onSuccess) onSuccess()
     } catch (err) {
@@ -134,7 +140,7 @@ export function ExpenseForm({ onSuccess, onCancel, tripId }: ExpenseFormProps) {
   return (
     <div className="card p-6 max-w-full overflow-x-hidden">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-semibold text-gray-900">Record Vehicle Expense</h2>
+        <h2 className="text-xl font-semibold text-gray-900">{expense ? 'Edit Vehicle Expense' : 'Record Vehicle Expense'}</h2>
         {onCancel && (
           <button
             onClick={onCancel}
@@ -411,7 +417,7 @@ export function ExpenseForm({ onSuccess, onCancel, tripId }: ExpenseFormProps) {
             disabled={isSubmitting || !formData.vehicleId}
             className="px-6 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {isSubmitting ? 'Recording...' : 'Record Expense'}
+            {isSubmitting ? (expense ? 'Saving...' : 'Recording...') : (expense ? 'Save Changes' : 'Record Expense')}
           </button>
         </div>
       </form>

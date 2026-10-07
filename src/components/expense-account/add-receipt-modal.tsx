@@ -1,10 +1,37 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { CreateIndividualPayeeModal } from './create-individual-payee-modal'
 import { CreateContractorPayeeModal } from './create-contractor-payee-modal'
 import { CategoryPicker, type CategoryRef } from './category-picker'
 import { RECEIPT_DESCRIPTION_MIN_LENGTH as DESCRIPTION_MIN_LENGTH } from '@/lib/expense-account/receipt-validation'
+import { SearchableSelect, type SearchableSelectItem } from '@/components/common/searchable-select'
+
+// MBM-302: same 8 values as vehicle-expense-modal.tsx's EXPENSE_TYPES —
+// kept in sync manually since that file's copy is co-located with its own
+// line-item UI and isn't exported.
+const VEHICLE_EXPENSE_TYPES = [
+  { value: 'FUEL', label: 'Fuel / Petrol' },
+  { value: 'MAINTENANCE', label: 'Maintenance / Repairs' },
+  { value: 'OIL', label: 'Oil Change' },
+  { value: 'TIRE', label: 'Tires' },
+  { value: 'INSURANCE', label: 'Insurance' },
+  { value: 'TOLL', label: 'Tolls' },
+  { value: 'PARKING', label: 'Parking' },
+  { value: 'OTHER', label: 'Other' },
+] as const
+
+const VEHICLE_FUEL_TYPES = [
+  { value: 'DIESEL', label: 'Diesel' },
+  { value: 'GASOLINE', label: 'Petrol / Gasoline' },
+  { value: 'ELECTRIC', label: 'Electric' },
+  { value: 'HYBRID', label: 'Hybrid' },
+] as const
+
+function vehicleItemLabel(v: { year: number; make: string; model: string; licensePlate: string }): string {
+  return `${v.year} ${v.make} ${v.model} [${v.licensePlate}]`
+}
 
 interface PayeeRef {
   type: string
@@ -36,6 +63,8 @@ interface EditReceiptData {
   categoryName?: string | null
   subcategoryId?: string | null
   subcategoryName?: string | null
+  vehicleId?: string | null
+  vehicleLabel?: string | null
 }
 
 // Balance summary the parent (ViewReceiptsModal) already loads via
@@ -105,8 +134,12 @@ function saveLastPayee(p: PayeeRef) {
 }
 
 export function AddReceiptModal({ paymentId, paymentPayee, onClose, onSuccess, editReceipt, review, comboItemId }: AddReceiptModalProps) {
+  const router = useRouter()
   const today = new Date().toISOString().slice(0, 10)
   const isEditing = !!editReceipt
+  // MBM-302: keyed by payment+receipt so a saved draft only ever restores
+  // into the same receipt it was saved from.
+  const draftKey = `receipt-draft-${paymentId}-${editReceipt?.id ?? 'new'}`
   const initialPayee = editReceipt ? payeeRefFromReceipt(editReceipt) : (paymentPayee ?? null)
 
   const [selectedPayee, setSelectedPayee] = useState<PayeeRef | null>(initialPayee)
@@ -148,6 +181,136 @@ export function AddReceiptModal({ paymentId, paymentPayee, onClose, onSuccess, e
       ? { categoryId: editReceipt.categoryId, categoryName: editReceipt.categoryName ?? '', subcategoryId: editReceipt.subcategoryId ?? null, subcategoryName: editReceipt.subcategoryName ?? null }
       : null
   )
+
+  // MBM-302: opt-in vehicle link — collapsed by default since most receipts
+  // aren't vehicle-related. Starts open when editing an already-linked
+  // receipt so the existing link is visible rather than silently hidden.
+  const [vehicleSectionOpen, setVehicleSectionOpen] = useState(!!editReceipt?.vehicleId)
+  const [vehicles, setVehicles] = useState<SearchableSelectItem[]>([])
+  const [vehiclesLoading, setVehiclesLoading] = useState(false)
+  const [drivers, setDrivers] = useState<SearchableSelectItem[]>([])
+  const [driversLoading, setDriversLoading] = useState(false)
+  const [vehicleId, setVehicleId] = useState(editReceipt?.vehicleId ?? '')
+  const [vehicleExpenseType, setVehicleExpenseType] = useState('FUEL')
+  const [fuelQuantity, setFuelQuantity] = useState('')
+  const [fuelType, setFuelType] = useState('DIESEL')
+  const [vehicleMileage, setVehicleMileage] = useState('')
+  const [driverId, setDriverId] = useState('')
+
+  useEffect(() => {
+    if (!vehicleSectionOpen || vehicles.length > 0) return
+    setVehiclesLoading(true)
+    fetch('/api/vehicles?isActive=true&limit=100', { credentials: 'include' })
+      .then(res => res.json())
+      .then(json => {
+        const list = (json.data ?? []) as Array<{ id: string; year: number; make: string; model: string; licensePlate: string }>
+        setVehicles(list.map(v => ({ id: v.id, name: vehicleItemLabel(v) })))
+      })
+      .catch(() => {})
+      .finally(() => setVehiclesLoading(false))
+  }, [vehicleSectionOpen, vehicles.length])
+
+  useEffect(() => {
+    if (!vehicleSectionOpen || drivers.length > 0) return
+    setDriversLoading(true)
+    fetch('/api/vehicles/drivers?isActive=true&limit=100', { credentials: 'include' })
+      .then(res => res.json())
+      .then(json => {
+        const list = (json.data ?? []) as Array<{ id: string; fullName: string }>
+        setDrivers(list.map(d => ({ id: d.id, name: d.fullName })))
+      })
+      .catch(() => {})
+      .finally(() => setDriversLoading(false))
+  }, [vehicleSectionOpen, drivers.length])
+
+  // MBM-302: restore an in-progress form left behind by "Open in Fleet
+  // Management" (saved to sessionStorage right before navigating away) —
+  // runs once on mount, then clears the draft so it isn't reapplied later.
+  // Takes priority over the real-record hydration below, since it reflects
+  // the user's own more-recent unsaved edits.
+  const [openingFleetManagement, setOpeningFleetManagement] = useState(false)
+  // True only while the real-record hydration below is in flight — blocks
+  // Save so a fast click can't resend the vehicle section's placeholder
+  // defaults (FUEL/DIESEL) over a real TIRE/OIL/MAINTENANCE record.
+  const [hydratingVehicleLink, setHydratingVehicleLink] = useState(!!(editReceipt?.id && editReceipt?.vehicleId))
+  const draftRestoredRef = useRef(false)
+  useEffect(() => {
+    try {
+      const raw = window.sessionStorage.getItem(draftKey)
+      if (!raw) return
+      const draft = JSON.parse(raw)
+      if (draft.receiptDate) setReceiptDate(draft.receiptDate)
+      if (draft.amount) setAmount(draft.amount)
+      if (draft.description) setDescription(draft.description)
+      if (draft.notes) setNotes(draft.notes)
+      if (draft.receiptNumber) setReceiptNumber(draft.receiptNumber)
+      if (draft.category) setCategory(draft.category)
+      if (draft.vehicleId) { setVehicleId(draft.vehicleId); setVehicleSectionOpen(true); draftRestoredRef.current = true; setHydratingVehicleLink(false) }
+      if (draft.vehicleExpenseType) setVehicleExpenseType(draft.vehicleExpenseType)
+      if (draft.fuelQuantity) setFuelQuantity(draft.fuelQuantity)
+      if (draft.fuelType) setFuelType(draft.fuelType)
+      if (draft.vehicleMileage) setVehicleMileage(draft.vehicleMileage)
+      if (draft.driverId) setDriverId(draft.driverId)
+      window.sessionStorage.removeItem(draftKey)
+    } catch { /* non-fatal — just skip restore */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // MBM-302: when editing a receipt that's already vehicle-linked, hydrate
+  // the real expense type/fuel/mileage/driver from the linked record —
+  // without this, resaving an unrelated field (e.g. amount) would silently
+  // resend the vehicle section's hardcoded defaults (FUEL/DIESEL) and
+  // reclassify a TIRE/OIL/MAINTENANCE record. Skipped if a draft already
+  // restored these fields (more recent user intent).
+  useEffect(() => {
+    if (!editReceipt?.id || !editReceipt?.vehicleId) return
+    if (draftRestoredRef.current) { setHydratingVehicleLink(false); return }
+    fetch(`/api/expense-account/receipts/${editReceipt.id}/vehicle-link`, { credentials: 'include' })
+      .then(res => res.json())
+      .then(json => {
+        if (draftRestoredRef.current) return // a draft may have resolved while this was in flight
+        const link = json?.data
+        if (!link) return
+        if (link.vehicleExpenseType) setVehicleExpenseType(link.vehicleExpenseType)
+        if (link.fuelQuantity != null) setFuelQuantity(String(link.fuelQuantity))
+        if (link.fuelType) setFuelType(link.fuelType)
+        if (link.mileageAtExpense != null) setVehicleMileage(String(link.mileageAtExpense))
+        if (link.driverId) setDriverId(link.driverId)
+      })
+      .catch(() => {})
+      .finally(() => setHydratingVehicleLink(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // MBM-302: jump to the auto-created Fleet Management record for this
+  // already-saved, vehicle-linked receipt — saving the in-progress form
+  // first so "← Back to receipt" (built into /vehicles) can resume it.
+  async function openInFleetManagement() {
+    if (!editReceipt?.id) return
+    setOpeningFleetManagement(true)
+    try {
+      const res = await fetch(`/api/expense-account/receipts/${editReceipt.id}/vehicle-link`, { credentials: 'include' })
+      const json = await res.json()
+      const link = json?.data as { recordType: string; recordId: string; vehicleId: string } | null
+      if (!link) {
+        setError('No linked vehicle record found for this receipt yet')
+        return
+      }
+      try {
+        window.sessionStorage.setItem(draftKey, JSON.stringify({
+          receiptDate, amount, description, notes, receiptNumber, category,
+          vehicleId, vehicleExpenseType, fuelQuantity, fuelType, vehicleMileage, driverId,
+        }))
+      } catch { /* non-fatal — draft restore is a convenience, not required */ }
+      const returnTo = encodeURIComponent(window.location.href)
+      const tab = link.recordType === 'maintenance' ? 'maintenance' : 'overview'
+      router.push(`/vehicles?vehicleId=${link.vehicleId}&tab=${tab}&openRecordId=${link.recordId}&recordType=${link.recordType}&returnTo=${returnTo}`)
+    } catch {
+      setError('Failed to open Fleet Management')
+    } finally {
+      setOpeningFleetManagement(false)
+    }
+  }
 
   // MBM-286: live "requested / receipted so far / remaining" — sourced from
   // the review data the parent already loaded, updated instantly as the
@@ -278,6 +441,10 @@ export function AddReceiptModal({ paymentId, paymentPayee, onClose, onSuccess, e
       setError('Please confirm whether to update the payment payee')
       return
     }
+    if (vehicleId && vehicleExpenseType === 'FUEL' && (!fuelQuantity || !fuelType)) {
+      setError('Fuel quantity and fuel type are required for a fuel expense')
+      return
+    }
     setError(null)
     setSubmitting(true)
     try {
@@ -293,6 +460,16 @@ export function AddReceiptModal({ paymentId, paymentPayee, onClose, onSuccess, e
         updatePaymentPayee: payeeMismatch ? updatePaymentPayee : false,
         overrideReason: overrideReason.trim() || undefined,
         ...(isEditing ? {} : { comboItemId: comboItemId || undefined }),
+        ...(vehicleId
+          ? {
+              vehicleId,
+              vehicleExpenseType,
+              fuelQuantity: vehicleExpenseType === 'FUEL' && fuelQuantity ? parseFloat(fuelQuantity) : undefined,
+              fuelType: vehicleExpenseType === 'FUEL' ? fuelType : undefined,
+              mileageAtExpense: vehicleMileage ? parseInt(vehicleMileage, 10) : undefined,
+              driverId: driverId || undefined,
+            }
+          : (isEditing && editReceipt?.vehicleId ? { vehicleId: null } : {})),
       }
       if (selectedPayee) Object.assign(body, payeeTypeToApiFields(selectedPayee))
       else if (isEditing) Object.assign(body, { payeeType: null })
@@ -635,6 +812,121 @@ export function AddReceiptModal({ paymentId, paymentPayee, onClose, onSuccess, e
                 <CategoryPicker value={category} onChange={setCategory} disabled={submitting} />
               </div>
 
+              {/* MBM-302: opt-in vehicle link — auto-creates/updates the
+                  matching Fleet Management record on save. */}
+              <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-3">
+                <button
+                  type="button"
+                  onClick={() => setVehicleSectionOpen(o => !o)}
+                  className="w-full flex items-center justify-between text-sm font-medium"
+                  disabled={submitting}
+                >
+                  <span>🚗 Link to a vehicle{vehicleId && !vehicleSectionOpen ? ' — linked' : ''}</span>
+                  <span className="text-gray-400 text-xs">{vehicleSectionOpen ? 'Hide' : 'Show'}</span>
+                </button>
+
+                {vehicleSectionOpen && (
+                  <div className="mt-3 space-y-3">
+                    {isEditing && editReceipt?.vehicleId && (
+                      <button
+                        type="button"
+                        onClick={openInFleetManagement}
+                        disabled={openingFleetManagement || submitting}
+                        className="text-xs text-blue-600 dark:text-blue-400 hover:underline disabled:opacity-50"
+                      >
+                        {openingFleetManagement ? 'Opening…' : '🔧 Open in Fleet Management →'}
+                      </button>
+                    )}
+                    <div>
+                      <label className="block text-xs font-medium mb-1 text-gray-500 dark:text-gray-400">Vehicle</label>
+                      <SearchableSelect
+                        items={vehicles}
+                        value={vehicleId}
+                        onChange={setVehicleId}
+                        placeholder="Select a vehicle…"
+                        loading={vehiclesLoading}
+                        disabled={submitting}
+                      />
+                    </div>
+
+                    {vehicleId && (
+                      <>
+                        <div>
+                          <label className="block text-xs font-medium mb-1 text-gray-500 dark:text-gray-400">Vehicle expense type</label>
+                          <select
+                            value={vehicleExpenseType}
+                            onChange={e => setVehicleExpenseType(e.target.value)}
+                            className="input w-full px-3 py-2 text-sm"
+                            disabled={submitting}
+                          >
+                            {VEHICLE_EXPENSE_TYPES.map(t => (
+                              <option key={t.value} value={t.value}>{t.label}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {vehicleExpenseType === 'FUEL' && (
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-xs font-medium mb-1 text-gray-500 dark:text-gray-400">Fuel quantity <span className="text-red-500">*</span></label>
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={fuelQuantity}
+                                onChange={e => setFuelQuantity(e.target.value)}
+                                className="input w-full px-3 py-2 text-sm"
+                                placeholder="Liters/gallons"
+                                disabled={submitting}
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium mb-1 text-gray-500 dark:text-gray-400">Fuel type <span className="text-red-500">*</span></label>
+                              <select
+                                value={fuelType}
+                                onChange={e => setFuelType(e.target.value)}
+                                className="input w-full px-3 py-2 text-sm"
+                                disabled={submitting}
+                              >
+                                {VEHICLE_FUEL_TYPES.map(f => (
+                                  <option key={f.value} value={f.value}>{f.label}</option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-xs font-medium mb-1 text-gray-500 dark:text-gray-400">Mileage (optional)</label>
+                            <input
+                              type="number"
+                              min="0"
+                              value={vehicleMileage}
+                              onChange={e => setVehicleMileage(e.target.value)}
+                              className="input w-full px-3 py-2 text-sm"
+                              placeholder="Odometer reading"
+                              disabled={submitting}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium mb-1 text-gray-500 dark:text-gray-400">Driver (optional)</label>
+                            <SearchableSelect
+                              items={drivers}
+                              value={driverId}
+                              onChange={setDriverId}
+                              placeholder="Select a driver…"
+                              loading={driversLoading}
+                              disabled={submitting}
+                            />
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+
               {/* Receipt number */}
               <div>
                 <label className="block text-sm font-medium mb-1">Receipt Number</label>
@@ -708,8 +1000,8 @@ export function AddReceiptModal({ paymentId, paymentPayee, onClose, onSuccess, e
                 <button type="button" onClick={onClose} className="btn-secondary" disabled={submitting}>
                   Cancel
                 </button>
-                <button type="submit" className="btn-primary" disabled={submitting}>
-                  {submitting ? 'Saving...' : isEditing ? 'Save Changes' : 'Save Receipt'}
+                <button type="submit" className="btn-primary" disabled={submitting || hydratingVehicleLink}>
+                  {submitting ? 'Saving...' : hydratingVehicleLink ? 'Loading…' : isEditing ? 'Save Changes' : 'Save Receipt'}
                 </button>
               </div>
             </form>

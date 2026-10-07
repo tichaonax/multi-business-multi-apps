@@ -7,6 +7,12 @@ import { checkReceiptLimit } from '@/lib/expense-account/receipt-limit'
 import { reconciliationStatus } from '@/lib/expense-account/receipt-reconciliation-status'
 import { RECEIPT_DESCRIPTION_MIN_LENGTH } from '@/lib/expense-account/receipt-validation'
 import { createAuditLog } from '@/lib/audit'
+import { upsertLinkedVehicleRecord, type VehicleExpenseTypeInput } from '@/lib/vehicles/create-linked-vehicle-record'
+
+// Thrown inside the transaction when the vehicle-link helper rejects the
+// input (e.g. fuel type missing) — caught below and surfaced as a 400,
+// same shape as every other validation error in this route.
+class VehicleLinkError extends Error {}
 
 function resolvePayeeName(receipt: {
   payeeType?: string | null
@@ -106,6 +112,7 @@ export async function GET(
             categoryId: true,
             subcategoryId: true,
             comboItemId: true,
+            vehicleId: true,
             overLimitReason: true,
             overrideAt: true,
             notes: true,
@@ -117,6 +124,7 @@ export async function GET(
             creator: { select: { name: true } },
             category: { select: { id: true, name: true, emoji: true } },
             subcategory: { select: { id: true, name: true, emoji: true } },
+            vehicle: { select: { id: true, year: true, make: true, model: true, licensePlate: true } },
           },
           orderBy: { receiptDate: 'desc' },
         },
@@ -154,6 +162,8 @@ export async function GET(
       subcategoryId: r.subcategoryId,
       subcategoryName: r.subcategory?.name ?? null,
       comboItemId: r.comboItemId,
+      vehicleId: r.vehicleId,
+      vehicleLabel: r.vehicle ? `${r.vehicle.year} ${r.vehicle.make} ${r.vehicle.model} [${r.vehicle.licensePlate}]` : null,
       isOverLimitOverride: !!r.overrideAt,
       overLimitReason: r.overLimitReason,
       notes: r.notes,
@@ -246,7 +256,17 @@ export async function POST(
       notes,
       updatePaymentPayee,
       overrideReason,
+      vehicleId,
+      vehicleExpenseType,
+      fuelQuantity,
+      fuelType,
+      mileageAtExpense,
+      driverId,
     } = body
+
+    if (vehicleId && !vehicleExpenseType) {
+      return NextResponse.json({ error: 'vehicleExpenseType is required when linking a receipt to a vehicle' }, { status: 400 })
+    }
 
     if (!receiptDate || amount === undefined || amount === null) {
       return NextResponse.json({ error: 'receiptDate and amount are required' }, { status: 400 })
@@ -294,11 +314,30 @@ export async function POST(
           categoryId: categoryId ?? null,
           subcategoryId: subcategoryId ?? null,
           comboItemId: comboItemId ?? null,
+          vehicleId: vehicleId ?? null,
           notes: notes ?? null,
           createdBy: user.id,
           ...(overrideApplied ? { overLimitReason: overrideReason, overrideBy: user.id, overrideAt: new Date() } : {}),
         },
       })
+
+      if (vehicleId && vehicleExpenseType) {
+        const linkResult = await upsertLinkedVehicleRecord(tx, {
+          vehicleId,
+          expenseType: vehicleExpenseType as VehicleExpenseTypeInput,
+          amount: Number(amount),
+          date: new Date(receiptDate),
+          description: String(description).trim(),
+          mileageAtExpense: mileageAtExpense ?? null,
+          fuelQuantity: fuelQuantity ?? null,
+          fuelType: fuelType ?? null,
+          driverId: driverId ?? null,
+          receiptId: created.id,
+          expensePaymentId: paymentId,
+          createdBy: user.id,
+        })
+        if (!linkResult.ok) throw new VehicleLinkError(linkResult.error)
+      }
 
       // FREEFORM has no equivalent on ExpenseAccountPayments (a one-time receipt-level
       // payee, not a structured record) — never propagate it to the parent payment.
@@ -363,6 +402,9 @@ export async function POST(
       },
     }, { status: 201 })
   } catch (error) {
+    if (error instanceof VehicleLinkError) {
+      return NextResponse.json({ error: error.message }, { status: 400 })
+    }
     console.error('Error creating receipt:', error)
     return NextResponse.json({ error: 'Failed to create receipt' }, { status: 500 })
   }

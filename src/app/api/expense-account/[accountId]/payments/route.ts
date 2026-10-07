@@ -907,6 +907,7 @@ export async function POST(
               fuelQuantity: ve.fuelQuantity != null ? Number(ve.fuelQuantity) : null,
               fuelType: ve.fuelType || null,
               mileageAtExpense: ve.mileageAtExpense != null ? Number(ve.mileageAtExpense) : null,
+              expensePaymentId: newPayment.id,
               createdBy: user.id,
               updatedAt: new Date(),
             },

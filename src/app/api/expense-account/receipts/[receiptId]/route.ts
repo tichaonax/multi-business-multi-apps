@@ -6,8 +6,21 @@ import { isAccountCashier } from '@/lib/expense-account/receipt-review-access'
 import { checkReceiptLimit } from '@/lib/expense-account/receipt-limit'
 import { RECEIPT_DESCRIPTION_MIN_LENGTH } from '@/lib/expense-account/receipt-validation'
 import { createAuditLog } from '@/lib/audit'
+import { upsertLinkedVehicleRecord, type VehicleExpenseTypeInput } from '@/lib/vehicles/create-linked-vehicle-record'
 
-const EDITABLE_FIELDS = ['receiptDate', 'amount', 'description', 'receiptNumber', 'imageId', 'notes', 'categoryId', 'subcategoryId', 'comboItemId'] as const
+// Thrown inside the transaction when the vehicle-link helper rejects the
+// input — caught below and surfaced as a 400, same shape as other errors.
+class VehicleLinkError extends Error {}
+
+const EDITABLE_FIELDS = ['receiptDate', 'amount', 'description', 'receiptNumber', 'imageId', 'notes', 'categoryId', 'subcategoryId', 'comboItemId', 'vehicleId'] as const
+
+// Maps a VehicleMaintenanceRecords.serviceType back to the compact receipt-
+// form expense type, for inferring the type when an edit doesn't resupply it.
+const SERVICE_TYPE_REVERSE_MAP: Record<string, VehicleExpenseTypeInput> = {
+  OIL_CHANGE: 'OIL',
+  TIRE_REPLACEMENT: 'TIRE',
+  REPAIR: 'MAINTENANCE',
+}
 const PAYEE_FIELDS = ['payeeType', 'payeeName', 'payeePersonId', 'payeeBusinessId', 'payeeSupplierId'] as const
 
 /**
@@ -31,7 +44,7 @@ export async function PUT(
       where: { id: receiptId },
       select: {
         id: true, createdBy: true, receiptDate: true, amount: true, description: true,
-        receiptNumber: true, imageId: true, notes: true, expensePaymentId: true,
+        receiptNumber: true, imageId: true, notes: true, expensePaymentId: true, vehicleId: true,
         payeeType: true, payeeName: true, payeePersonId: true, payeeBusinessId: true, payeeSupplierId: true,
         expensePayment: {
           select: {
@@ -146,6 +159,63 @@ export async function PUT(
         })
       }
 
+      // Keep the linked Fleet Management record in sync. effectiveVehicleId
+      // is the post-edit vehicle link: explicitly provided in this request,
+      // or whatever the receipt already had if this edit didn't touch it.
+      const effectiveVehicleId = 'vehicleId' in body ? (body.vehicleId || null) : receipt.vehicleId
+      if (effectiveVehicleId) {
+        let expenseType = body.vehicleExpenseType as VehicleExpenseTypeInput | undefined
+        let fuelQuantity = body.fuelQuantity ?? null
+        let fuelType = body.fuelType ?? null
+        let mileageAtExpense = body.mileageAtExpense ?? null
+        let driverId = body.driverId ?? null
+
+        // Not resupplied in this edit — infer from whichever record is
+        // already linked to this receipt, so an amount-only edit still
+        // syncs the linked record without the caller resending everything.
+        if (!expenseType) {
+          const [existingVE, existingVM] = await Promise.all([
+            tx.vehicleExpenses.findFirst({ where: { receiptId }, select: { expenseType: true, fuelQuantity: true, fuelType: true, mileageAtExpense: true, driverId: true } }),
+            tx.vehicleMaintenanceRecords.findFirst({ where: { receiptId }, select: { serviceType: true, mileageAtService: true, driverId: true } }),
+          ])
+          if (existingVE) {
+            expenseType = existingVE.expenseType as VehicleExpenseTypeInput
+            fuelQuantity = fuelQuantity ?? existingVE.fuelQuantity
+            fuelType = fuelType ?? existingVE.fuelType
+            mileageAtExpense = mileageAtExpense ?? existingVE.mileageAtExpense
+            driverId = driverId ?? existingVE.driverId
+          } else if (existingVM) {
+            expenseType = SERVICE_TYPE_REVERSE_MAP[existingVM.serviceType] ?? 'MAINTENANCE'
+            mileageAtExpense = mileageAtExpense ?? existingVM.mileageAtService
+            driverId = driverId ?? existingVM.driverId
+          }
+        }
+
+        if (!expenseType) {
+          throw new VehicleLinkError('vehicleExpenseType is required when linking a receipt to a vehicle')
+        }
+
+        const linkResult = await upsertLinkedVehicleRecord(tx, {
+          vehicleId: effectiveVehicleId,
+          expenseType,
+          amount: Number(data.amount ?? receipt.amount),
+          date: (data.receiptDate as Date | undefined) ?? receipt.receiptDate,
+          description: (data.description as string | undefined) ?? receipt.description,
+          mileageAtExpense,
+          fuelQuantity,
+          fuelType,
+          driverId,
+          receiptId,
+          expensePaymentId: receipt.expensePaymentId,
+          createdBy: user.id,
+        })
+        if (!linkResult.ok) throw new VehicleLinkError(linkResult.error)
+      } else {
+        // Unlinked (or never linked) — remove any stale linked record.
+        await tx.vehicleExpenses.deleteMany({ where: { receiptId } })
+        await tx.vehicleMaintenanceRecords.deleteMany({ where: { receiptId } })
+      }
+
       return r
     })
 
@@ -181,6 +251,9 @@ export async function PUT(
 
     return NextResponse.json({ success: true, data: updated })
   } catch (error) {
+    if (error instanceof VehicleLinkError) {
+      return NextResponse.json({ error: error.message }, { status: 400 })
+    }
     console.error('Error updating receipt:', error)
     return NextResponse.json({ error: 'Failed to update receipt' }, { status: 500 })
   }

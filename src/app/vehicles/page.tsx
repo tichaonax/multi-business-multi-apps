@@ -5,7 +5,7 @@
 export const dynamic = 'force-dynamic';
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useDateFormat } from '@/contexts/settings-context'
 import { formatDateByFormat } from '@/lib/country-codes'
 import { ProtectedRoute } from '@/components/auth/protected-route'
@@ -26,11 +26,13 @@ import { MaintenanceForm } from '@/components/vehicles/maintenance-form'
 import { MaintenanceList } from '@/components/vehicles/maintenance-list'
 import { MaintenanceDetailModal } from '@/components/vehicles/maintenance-detail-modal'
 import { VehicleReports } from '@/components/vehicles/vehicle-reports'
-import { Vehicle, VehicleDriver, VehicleTrip, VehicleMaintenanceRecord } from '@/types/vehicle'
+import { ExpenseForm } from '@/components/vehicles/expense-form'
+import { Vehicle, VehicleDriver, VehicleTrip, VehicleMaintenanceRecord, VehicleExpense } from '@/types/vehicle'
 
 export default function VehiclesPage() {
   const { data: session } = useSession()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const currentUser = session?.user as SessionUser
   const { hasPermission, isSystemAdmin: contextIsAdmin, loading: permissionsLoading } = useBusinessPermissionsContext()
 
@@ -61,6 +63,13 @@ export default function VehiclesPage() {
   const [selectedMaintenance, setSelectedMaintenance] = useState<VehicleMaintenanceRecord | null>(null)
   const [tripToEdit, setTripToEdit] = useState<VehicleTrip | null>(null)
   const [maintenanceToEdit, setMaintenanceToEdit] = useState<VehicleMaintenanceRecord | null>(null)
+  // MBM-302: deep-link destination for a receipt-linked plain vehicle
+  // expense (fuel/toll/parking/insurance/other) — no browsable list/tab for
+  // these exists, so it opens as a standalone modal regardless of activeTab.
+  const [expenseToEdit, setExpenseToEdit] = useState<VehicleExpense | null>(null)
+  // MBM-302: "← Back to receipt" — present only when arriving via the
+  // receipt flow's "Open in Fleet Management" link.
+  const [returnTo, setReturnTo] = useState<string | null>(null)
   // simple refresh counter to signal children to re-fetch
   const [refreshCounter, setRefreshCounter] = useState(0)
   // For narrow single-vehicle refreshes: id + sequence to allow same id updates
@@ -115,6 +124,43 @@ export default function VehiclesPage() {
       setActiveTab(tabs[0].id as any)
     }
   }, [tabs, activeTab])
+
+  // MBM-302: deep-link from the receipt flow's "Open in Fleet Management" —
+  // ?openRecordId= + ?recordType= (maintenance|expense) opens that specific
+  // auto-created record in edit mode; ?tab= switches tabs; ?returnTo=
+  // renders the "← Back to receipt" link. Runs once on mount.
+  const autoOpenedDeepLinkRef = useRef(false)
+  useEffect(() => {
+    if (autoOpenedDeepLinkRef.current) return
+    if (tabs.length === 0) return // wait for permission-filtered tabs to be ready
+    const openRecordId = searchParams.get('openRecordId')
+    const recordType = searchParams.get('recordType')
+    const tabParam = searchParams.get('tab')
+    const returnToParam = searchParams.get('returnTo')
+    if (!openRecordId && !recordType && !tabParam && !returnToParam) return
+    autoOpenedDeepLinkRef.current = true
+
+    if (returnToParam) setReturnTo(returnToParam)
+    if (tabParam && tabs.find(t => t.id === tabParam)) setActiveTab(tabParam as any)
+
+    if (openRecordId && recordType === 'maintenance') {
+      fetch(`/api/vehicles/maintenance?id=${openRecordId}`, { credentials: 'include' })
+        .then(res => res.json())
+        .then(json => {
+          const record = json?.data?.[0]
+          if (record) { setMaintenanceToEdit(record); setActiveTab('maintenance') }
+        })
+        .catch(() => {})
+    } else if (openRecordId && recordType === 'expense') {
+      fetch(`/api/vehicles/expenses?id=${openRecordId}`, { credentials: 'include' })
+        .then(res => res.json())
+        .then(json => {
+          const record = json?.data?.[0]
+          if (record) setExpenseToEdit(record)
+        })
+        .catch(() => {})
+    }
+  }, [tabs, searchParams])
 
   const showToast = (msg: string, ms = 3000) => {
     setToastMessage(msg)
@@ -386,6 +432,17 @@ export default function VehiclesPage() {
             <div className="fixed top-5 right-5 z-50">
               <div className="px-4 py-2 bg-black text-white rounded shadow">{toastMessage}</div>
             </div>
+          )}
+
+          {/* MBM-302: present only when arrived via the receipt flow's
+              "Open in Fleet Management" link. */}
+          {returnTo && (
+            <button
+              onClick={() => router.push(returnTo)}
+              className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+            >
+              ← Back to receipt
+            </button>
           )}
           {/* Fleet Summary — vehicle/driver counts are secondary info, collapsed
               by default (MBM-299); service/license alerts stay always-visible
@@ -863,6 +920,25 @@ export default function VehiclesPage() {
               )}
             </div>
           </div>
+
+          {/* MBM-302: edit-mode-only destination for a receipt-linked plain
+              vehicle expense — no browsable list/tab exists for these, so
+              it's a standalone overlay rather than tab content. */}
+          {expenseToEdit && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+              <div className="w-full max-w-2xl my-8">
+                <ExpenseForm
+                  expense={expenseToEdit}
+                  onSuccess={() => {
+                    setExpenseToEdit(null)
+                    refreshAll()
+                    showToast('Expense updated')
+                  }}
+                  onCancel={() => setExpenseToEdit(null)}
+                />
+              </div>
+            </div>
+          )}
         </div>
       </ContentLayout>
     </ProtectedRoute>

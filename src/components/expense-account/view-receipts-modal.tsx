@@ -28,6 +28,8 @@ interface Receipt {
   subcategoryId: string | null
   subcategoryName: string | null
   comboItemId: string | null
+  vehicleId: string | null
+  vehicleLabel: string | null
   isOverLimitOverride: boolean
   overLimitReason: string | null
   notes: string | null
@@ -304,6 +306,11 @@ export function ViewReceiptsModal({
                           {r.categoryName && (
                             <span className="text-xs px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
                               {r.categoryName}{r.subcategoryName ? ` · ${r.subcategoryName}` : ''}
+                            </span>
+                          )}
+                          {r.vehicleLabel && (
+                            <span className="text-xs px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
+                              🚗 {r.vehicleLabel}
                             </span>
                           )}
                           {r.isOverLimitOverride && (

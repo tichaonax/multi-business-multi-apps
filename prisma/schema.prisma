@@ -1762,6 +1762,8 @@ model ExpenseAccountPayments {
   receipt_review                    ExpensePaymentReceiptReviews?
   combo_request                     ComboPaymentRequests?            @relation("ComboLinkedPayment")
   vehicle_service_contractor_payout VehicleServiceContractorPayouts?
+  vehicle_expenses                  VehicleExpenses[]                @relation("VehicleExpensePayment")
+  vehicle_maintenance_records       VehicleMaintenanceRecords[]      @relation("VehicleMaintenancePayment")
 
   @@index([expenseAccountId, paymentDate])
   @@index([categoryId])
@@ -1815,6 +1817,10 @@ model ExpensePaymentReceipts {
   overLimitReason String?   @map("over_limit_reason")
   overrideBy      String?   @map("override_by")
   overrideAt      DateTime? @map("override_at")
+  // MBM-302: marks this receipt entry as a vehicle expense, for this
+  // vehicle — informational only (same shape as comboItemId above), drives
+  // the auto-created VehicleExpenses/VehicleMaintenanceRecords row.
+  vehicleId       String?   @map("vehicle_id")
 
   expensePayment ExpenseAccountPayments    @relation(fields: [expensePaymentId], references: [id], onDelete: Cascade)
   payeePerson    Persons?                  @relation("ReceiptPayeePerson", fields: [payeePersonId], references: [id])
@@ -1826,12 +1832,16 @@ model ExpensePaymentReceipts {
   subcategory    ExpenseSubcategories?     @relation("ReceiptSubcategory", fields: [subcategoryId], references: [id])
   comboItem      ComboPaymentRequestItems? @relation("ReceiptComboItem", fields: [comboItemId], references: [id], onDelete: SetNull)
   overrideByUser Users?                    @relation("ReceiptOverrideBy", fields: [overrideBy], references: [id])
+  vehicle        Vehicles?                 @relation("ReceiptVehicle", fields: [vehicleId], references: [id], onDelete: SetNull)
+  vehicle_expenses             VehicleExpenses[]            @relation("VehicleExpenseReceipt")
+  vehicle_maintenance_records  VehicleMaintenanceRecords[]  @relation("VehicleMaintenanceReceipt")
 
   @@index([expensePaymentId], map: "idx_expense_payment_receipts_payment_id")
   @@index([payeePersonId], map: "idx_expense_payment_receipts_person_id")
   @@index([payeeBusinessId], map: "idx_expense_payment_receipts_business_id")
   @@index([categoryId], map: "idx_expense_payment_receipts_category_id")
   @@index([comboItemId], map: "idx_expense_payment_receipts_combo_item_id")
+  @@index([vehicleId], map: "idx_expense_payment_receipts_vehicle_id")
   @@map("expense_payment_receipts")
 }
 
@@ -3892,35 +3902,49 @@ model VehicleDrivers {
   driver_license_templates DriverLicenseTemplates? @relation(fields: [driverLicenseTemplateId], references: [id])
   users                    Users?                  @relation(fields: [userId], references: [id])
   vehicle_trips            VehicleTrips[]
+  vehicle_expenses             VehicleExpenses[]           @relation("VehicleExpenseDriver")
+  vehicle_maintenance_records  VehicleMaintenanceRecords[] @relation("VehicleMaintenanceDriver")
 
   @@map("vehicle_drivers")
 }
 
 model VehicleExpenses {
-  id                   String        @id @default(uuid())
+  id                   String                   @id @default(uuid())
   vehicleId            String
   tripId               String?
   businessId           String?
   expenseType          ExpenseType
   expenseCategory      String?
-  amount               Decimal       @db.Decimal(10, 2)
-  currency             String        @default("USD")
+  amount               Decimal                  @db.Decimal(10, 2)
+  currency             String                   @default("USD")
   expenseDate          DateTime
-  isBusinessDeductible Boolean       @default(false)
+  isBusinessDeductible Boolean                  @default(false)
   receiptUrl           String?
   vendorName           String?
   description          String?
   mileageAtExpense     Int?
-  fuelQuantity         Decimal?      @db.Decimal(8, 2)
+  fuelQuantity         Decimal?                 @db.Decimal(8, 2)
   fuelType             FuelType?
   createdBy            String
-  createdAt            DateTime      @default(now())
+  createdAt            DateTime                 @default(now())
   updatedAt            DateTime
-  businesses           Businesses?   @relation(fields: [businessId], references: [id])
-  users                Users         @relation(fields: [createdBy], references: [id])
-  vehicle_trips        VehicleTrips? @relation(fields: [tripId], references: [id])
-  vehicles             Vehicles      @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  // MBM-302: traces this expense back to the receipt/payment that funded
+  // it (informational, same onDelete:SetNull shape as other optional links
+  // in this schema) — and who was driving, when captured.
+  receiptId            String?
+  expensePaymentId     String?
+  driverId             String?
+  businesses           Businesses?              @relation(fields: [businessId], references: [id])
+  users                Users                    @relation(fields: [createdBy], references: [id])
+  vehicle_trips        VehicleTrips?            @relation(fields: [tripId], references: [id])
+  vehicles             Vehicles                 @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  receipt              ExpensePaymentReceipts?  @relation("VehicleExpenseReceipt", fields: [receiptId], references: [id], onDelete: SetNull)
+  expensePayment       ExpenseAccountPayments?  @relation("VehicleExpensePayment", fields: [expensePaymentId], references: [id], onDelete: SetNull)
+  driver               VehicleDrivers?          @relation("VehicleExpenseDriver", fields: [driverId], references: [id], onDelete: SetNull)
 
+  @@index([receiptId])
+  @@index([expensePaymentId])
+  @@index([driverId])
   @@map("vehicle_expenses")
 }
 
@@ -3970,10 +3994,21 @@ model VehicleMaintenanceRecords {
   createdBy                    String
   createdAt                    DateTime                     @default(now())
   updatedAt                    DateTime
+  // MBM-302: traces this maintenance record back to the receipt/payment
+  // that funded it, and who was driving, when captured via that flow.
+  receiptId                    String?
+  expensePaymentId             String?
+  driverId                     String?
   users                        Users                        @relation(fields: [createdBy], references: [id])
   vehicles                     Vehicles                     @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
   vehicle_maintenance_services VehicleMaintenanceServices[]
+  receipt                      ExpensePaymentReceipts?      @relation("VehicleMaintenanceReceipt", fields: [receiptId], references: [id], onDelete: SetNull)
+  expensePayment               ExpenseAccountPayments?      @relation("VehicleMaintenancePayment", fields: [expensePaymentId], references: [id], onDelete: SetNull)
+  driver                       VehicleDrivers?              @relation("VehicleMaintenanceDriver", fields: [driverId], references: [id], onDelete: SetNull)
 
+  @@index([receiptId])
+  @@index([expensePaymentId])
+  @@index([driverId])
   @@map("vehicle_maintenance_records")
 }
 
@@ -4162,6 +4197,7 @@ model Vehicles {
   vehicle_trips               VehicleTrips[]
   businesses                  Businesses?                 @relation(fields: [businessId], references: [id])
   users                       Users?                      @relation(fields: [userId], references: [id])
+  expense_payment_receipts    ExpensePaymentReceipts[]    @relation("ReceiptVehicle")
 
   @@map("vehicles")
 }

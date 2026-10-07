@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { X, Plus, Trash2, ShoppingCart, Car } from 'lucide-react'
 import { useToastContext } from '@/components/ui/toast'
+import { SearchableSelect, type SearchableSelectItem } from '@/components/common/searchable-select'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -36,12 +37,6 @@ interface Vehicle {
   currentMileage: number
   mileageUnit: string
   isActive: boolean
-}
-
-interface SelectItem {
-  id: string
-  name: string
-  emoji?: string | null
 }
 
 interface ExpenseLine {
@@ -84,121 +79,6 @@ function makeExpenseLine(): ExpenseLine {
 
 function vehicleLabel(v: Vehicle): string {
   return `${v.year} ${v.make} ${v.model} [${v.licensePlate}]`
-}
-
-// ─── Searchable select (fixed positioning to escape overflow-y-auto) ──────────
-
-function SearchableSelect({
-  items,
-  value,
-  onChange,
-  placeholder = 'Select…',
-  error = false,
-  disabled = false,
-  loading = false,
-}: {
-  items: SelectItem[]
-  value: string
-  onChange: (id: string) => void
-  placeholder?: string
-  error?: boolean
-  disabled?: boolean
-  loading?: boolean
-}) {
-  const [isOpen, setIsOpen] = useState(false)
-  const [search, setSearch] = useState('')
-  const buttonRef = useRef<HTMLButtonElement>(null)
-  const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number; width: number } | null>(null)
-
-  const selected = items.find(i => i.id === value)
-  const filtered = search
-    ? items.filter(i => i.name.toLowerCase().includes(search.toLowerCase()))
-    : items
-
-  const open = () => {
-    if (buttonRef.current) {
-      const rect = buttonRef.current.getBoundingClientRect()
-      setDropdownPos({ top: rect.bottom + 4, left: rect.left, width: rect.width })
-    }
-    setIsOpen(true)
-  }
-  const close = () => { setIsOpen(false); setSearch('') }
-
-  if (loading) {
-    return (
-      <div className="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-gray-400 bg-gray-50 dark:bg-gray-800 animate-pulse">
-        Loading…
-      </div>
-    )
-  }
-
-  return (
-    <div className="relative w-full">
-      <button
-        ref={buttonRef}
-        type="button"
-        disabled={disabled}
-        onClick={() => isOpen ? close() : open()}
-        className={`w-full text-sm border rounded-lg px-3 py-2 text-left flex items-center justify-between gap-1 transition-colors
-          ${error ? 'border-red-400' : 'border-gray-300 dark:border-gray-600'}
-          ${disabled
-            ? 'bg-gray-50 dark:bg-gray-800 cursor-not-allowed text-gray-400'
-            : 'bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 hover:border-gray-400 dark:hover:border-gray-500'
-          }
-        `}
-      >
-        <span className={selected ? 'text-gray-900 dark:text-gray-100' : 'text-gray-400 dark:text-gray-500'}>
-          {selected
-            ? [selected.emoji, selected.name].filter(Boolean).join(' ')
-            : placeholder
-          }
-        </span>
-        <svg className={`w-4 h-4 flex-shrink-0 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
-      </button>
-
-      {isOpen && dropdownPos && (
-        <div
-          style={{ position: 'fixed', top: dropdownPos.top, left: dropdownPos.left, width: dropdownPos.width, zIndex: 9999 }}
-          className="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-xl overflow-hidden"
-        >
-          <div className="p-2 border-b border-gray-200 dark:border-gray-700">
-            <input
-              type="text"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Search…"
-              autoFocus
-              className="w-full text-sm px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
-          <div className="max-h-52 overflow-y-auto">
-            {filtered.length === 0 ? (
-              <div className="px-3 py-4 text-sm text-center text-gray-500 dark:text-gray-400">No results</div>
-            ) : (
-              filtered.map(item => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => { onChange(item.id); close() }}
-                  className={`w-full text-sm text-left px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors
-                    ${value === item.id ? 'bg-blue-50 dark:bg-blue-900/20 font-medium text-blue-700 dark:text-blue-300' : 'text-gray-900 dark:text-gray-100'}
-                  `}
-                >
-                  {[item.emoji, item.name].filter(Boolean).join(' ')}
-                </button>
-              ))
-            )}
-          </div>
-        </div>
-      )}
-
-      {isOpen && (
-        <div className="fixed inset-0" style={{ zIndex: 9998 }} onClick={close} />
-      )}
-    </div>
-  )
 }
 
 // ─── Quick-add inline form ────────────────────────────────────────────────────
@@ -289,8 +169,8 @@ export default function VehicleExpenseModal({
 
   // Vehicle category hierarchy — auto-locked to the "Vehicle" expense category
   const [vehicleCategoryId, setVehicleCategoryId] = useState('')       // auto-found, not user-selected
-  const [vehicleSubcats, setVehicleSubcats] = useState<SelectItem[]>([]) // level 2 under Vehicle
-  const [vehicleSubSubcats, setVehicleSubSubcats] = useState<SelectItem[]>([]) // level 3
+  const [vehicleSubcats, setVehicleSubcats] = useState<SearchableSelectItem[]>([]) // level 2 under Vehicle
+  const [vehicleSubSubcats, setVehicleSubSubcats] = useState<SearchableSelectItem[]>([]) // level 3
   const [loadingSubcats, setLoadingSubcats] = useState(false)
   const [loadingSubSubcats, setLoadingSubSubcats] = useState(false)
   const [selectedSubcatId, setSelectedSubcatId] = useState('')
@@ -348,7 +228,7 @@ export default function VehicleExpenseModal({
       const subcatRes = await fetch(`/api/expense-categories/${found.id}/subcategories`, { credentials: 'include' })
       if (subcatRes.ok) {
         const subcatJson = await subcatRes.json()
-        const items: SelectItem[] = (subcatJson.subcategories ?? []).map((s: any) => ({
+        const items: SearchableSelectItem[] = (subcatJson.subcategories ?? []).map((s: any) => ({
           id: s.id, name: s.name, emoji: s.emoji ?? null,
         }))
         setVehicleSubcats(items)
@@ -368,7 +248,7 @@ export default function VehicleExpenseModal({
       const res = await fetch(`/api/expense-categories/subcategories/${subcatId}/sub-subcategories`, { credentials: 'include' })
       if (res.ok) {
         const json = await res.json()
-        const items: SelectItem[] = (json.subSubcategories ?? []).map((s: any) => ({
+        const items: SearchableSelectItem[] = (json.subSubcategories ?? []).map((s: any) => ({
           id: s.id, name: s.name, emoji: s.emoji ?? null,
         }))
         setVehicleSubSubcats(items)
@@ -400,7 +280,7 @@ export default function VehicleExpenseModal({
     }
     const json = await res.json()
     const created = json.subcategory
-    const newItem: SelectItem = { id: created.id, name: created.name, emoji: created.emoji ?? null }
+    const newItem: SearchableSelectItem = { id: created.id, name: created.name, emoji: created.emoji ?? null }
     setVehicleSubcats(prev => [...prev, newItem])
     setSelectedSubcatId(created.id)
     loadSubSubcats(created.id)
@@ -422,7 +302,7 @@ export default function VehicleExpenseModal({
     }
     const json = await res.json()
     const created = json.subSubcategory
-    const newItem: SelectItem = { id: created.id, name: created.name, emoji: created.emoji ?? null }
+    const newItem: SearchableSelectItem = { id: created.id, name: created.name, emoji: created.emoji ?? null }
     setVehicleSubSubcats(prev => [...prev, newItem])
     setSelectedSubSubcatId(created.id)
     setShowAddSubSubcat(false)
@@ -551,7 +431,7 @@ export default function VehicleExpenseModal({
 
   // ── Vehicle items for SearchableSelect ────────────────────────────────────
 
-  const vehicleItems: SelectItem[] = vehicles.map(v => ({ id: v.id, name: vehicleLabel(v) }))
+  const vehicleItems: SearchableSelectItem[] = vehicles.map(v => ({ id: v.id, name: vehicleLabel(v) }))
 
   // ── Render ────────────────────────────────────────────────────────────────
 
