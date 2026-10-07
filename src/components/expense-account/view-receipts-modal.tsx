@@ -194,13 +194,26 @@ export function ViewReceiptsModal({
     }
   }
 
-  function canDelete(r: Receipt): boolean {
+  // Everything canDelete checks except the vehicle link — used to decide
+  // whether the "linked, can't delete" hint is worth showing at all (no
+  // point explaining why delete is unavailable to someone who couldn't
+  // have deleted the receipt anyway).
+  function canDeleteIgnoringVehicleLink(r: Receipt): boolean {
     if (isAdmin) return true
     if (review?.canReview) return true // cashier may delete any receipt during review (MBM-271)
     if (r.createdBy !== currentUserId) return false
     if (review && review.status === 'APPROVED') return false // locked once the cashier signs off
     const diffDays = (Date.now() - new Date(r.createdAt).getTime()) / (1000 * 60 * 60 * 24)
     return diffDays <= 7
+  }
+
+  function canDelete(r: Receipt): boolean {
+    // MBM-302: a vehicle-linked receipt has a live VehicleExpenses/
+    // VehicleMaintenanceRecords row pointing back at it — editing to
+    // remove the link (which deletes that record too) is required first,
+    // for everyone including admins. Same rule enforced server-side.
+    if (r.vehicleId) return false
+    return canDeleteIgnoringVehicleLink(r)
   }
 
   // The submitter can edit their own receipt for as long as it hasn't been
@@ -377,7 +390,7 @@ export function ViewReceiptsModal({
                             ✏️
                           </button>
                         )}
-                        {canDelete(r) && (
+                        {canDelete(r) ? (
                           <button
                             onClick={() => handleDelete(r.id)}
                             disabled={deletingId === r.id}
@@ -386,7 +399,11 @@ export function ViewReceiptsModal({
                           >
                             {deletingId === r.id ? '...' : '✕'}
                           </button>
-                        )}
+                        ) : (r.vehicleId && canDeleteIgnoringVehicleLink(r)) ? (
+                          <span className="text-xs text-gray-400 px-1" title="Linked to a vehicle record — edit to remove the vehicle link before deleting">
+                            🔒
+                          </span>
+                        ) : null}
                       </div>
                     </div>
                   </div>

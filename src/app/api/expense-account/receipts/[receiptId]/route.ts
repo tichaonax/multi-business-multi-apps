@@ -290,7 +290,7 @@ export async function DELETE(
       where: { id: receiptId },
       select: {
         id: true, createdBy: true, amount: true, receiptDate: true, description: true,
-        receiptNumber: true, notes: true, imageId: true, expensePaymentId: true,
+        receiptNumber: true, notes: true, imageId: true, expensePaymentId: true, vehicleId: true,
         payeeType: true, payeeName: true,
         payeePerson: { select: { fullName: true } },
         payeeBusiness: { select: { name: true } },
@@ -303,6 +303,18 @@ export async function DELETE(
     })
 
     if (!receipt) return NextResponse.json({ error: 'Receipt not found' }, { status: 404 })
+
+    // MBM-302: a vehicle-linked receipt can't be hard-deleted — it has a
+    // live VehicleExpenses/VehicleMaintenanceRecords row pointing back at
+    // it, and deleting the receipt would silently orphan that record
+    // (onDelete: SetNull) rather than warn anyone. Edit the receipt to
+    // clear the vehicle link first (which deletes the linked record too),
+    // then delete.
+    if (receipt.vehicleId) {
+      return NextResponse.json({
+        error: 'This receipt is linked to a vehicle expense/maintenance record and can\'t be deleted — edit the receipt and remove the vehicle link first.',
+      }, { status: 400 })
+    }
 
     const isAdmin = user.role === 'admin'
     const isOwner = receipt.createdBy === user.id
