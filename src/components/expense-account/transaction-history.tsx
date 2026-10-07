@@ -1539,6 +1539,11 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
           onClose={() => setDetailPaymentId(null)}
           accountId={accountId}
           paymentId={detailPaymentId}
+          // Category/Subcategory live on the payment itself and are edited
+          // via EditPaymentModal's own Suggest-driven picker (already wired
+          // to refresh this list on save) — reuse it rather than duplicating
+          // category-editing inline in the detail modal.
+          onEditPayment={canEditPayments ? () => { const id = detailPaymentId; setDetailPaymentId(null); setEditPaymentId(id) } : undefined}
         />
       )}
 

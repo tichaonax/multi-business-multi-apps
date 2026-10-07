@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { formatPhoneNumberForDisplay } from '@/lib/country-codes'
-import { ServiceCategoryPicker } from '@/components/common/service-category-picker'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { useToastContext } from '@/components/ui/toast'
 
@@ -15,9 +14,9 @@ interface PaymentDetail {
   payeeType: string
   payeeUser: { id: string; name: string; email?: string } | null
   payeeEmployee: { id: string; fullName: string; phone?: string | null; nationalId?: string | null } | null
-  payeePerson: { id: string; fullName: string; phone?: string | null; email?: string | null; nationalId?: string | null; emoji?: string | null; serviceType?: string | null } | null
+  payeePerson: { id: string; fullName: string; phone?: string | null; email?: string | null; nationalId?: string | null; emoji?: string | null } | null
   payeeBusiness: { id: string; name: string } | null
-  payeeSupplier: { id: string; name: string; phone?: string | null; contactPerson?: string | null; emoji?: string | null; supplierType?: string | null; businessId?: string | null } | null
+  payeeSupplier: { id: string; name: string; phone?: string | null; contactPerson?: string | null; emoji?: string | null; businessId?: string | null } | null
   category: { name: string; emoji: string } | null
   subcategory: { name: string; emoji: string } | null
   notes: string | null
@@ -113,11 +112,18 @@ export function PaymentDetailModal({
   onClose,
   accountId,
   paymentId,
+  onEditPayment,
 }: {
   isOpen: boolean
   onClose: () => void
   accountId: string
   paymentId: string
+  // Opens the full payment editor (EditPaymentModal) for this payment —
+  // that's where Category/Subcategory actually live and already has a
+  // working Suggest-driven picker wired to refresh the transaction list on
+  // save. Optional: omitted by callers with no edit flow of their own
+  // (e.g. read-only drill-down contexts), in which case no edit action shows.
+  onEditPayment?: () => void
 }) {
   const router = useRouter()
   const toast = useToastContext()
@@ -125,15 +131,9 @@ export function PaymentDetailModal({
   const [payment, setPayment] = useState<PaymentDetail | null>(null)
   const [loading, setLoading] = useState(false)
   const [switchingBusiness, setSwitchingBusiness] = useState(false)
-  const [editingClassification, setEditingClassification] = useState(false)
-  const [editEmoji, setEditEmoji] = useState('')
-  const [editServiceType, setEditServiceType] = useState<string | null>(null)
-  const [editSupplierType, setEditSupplierType] = useState<string | null>(null)
-  const [saving, setSaving] = useState(false)
-  const [classificationError, setClassificationError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!isOpen || !accountId || !paymentId) { setPayment(null); setEditingClassification(false); return }
+    if (!isOpen || !accountId || !paymentId) { setPayment(null); return }
     setLoading(true)
     fetch(`/api/expense-account/${accountId}/payments/${paymentId}`, { credentials: 'include' })
       .then(r => r.ok ? r.json() : null)
@@ -163,68 +163,6 @@ export function PaymentDetailModal({
       toast.error('Could not switch to that supplier\'s business')
     } finally {
       setSwitchingBusiness(false)
-    }
-  }
-
-  function openClassificationEdit() {
-    if (!payment) return
-    setEditEmoji(payment.payeePerson?.emoji || payment.payeeSupplier?.emoji || '')
-    setEditServiceType(payment.payeePerson?.serviceType || null)
-    setEditSupplierType(payment.payeeSupplier?.supplierType || null)
-    setClassificationError(null)
-    setEditingClassification(true)
-  }
-
-  async function saveClassification() {
-    if (!payment) return
-    setSaving(true)
-    setClassificationError(null)
-    try {
-      if (payment.payeeType === 'PERSON' && payment.payeePerson) {
-        // PATCH (not PUT) — PUT on this route is a full-replace requiring
-        // fullName/phone/nationalId and 400s without them; PATCH only
-        // touches the fields sent.
-        const res = await fetch(`/api/persons/${payment.payeePerson.id}`, {
-          method: 'PATCH',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ serviceType: editServiceType, emoji: editEmoji }),
-        })
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}))
-          setClassificationError(err.error || 'Failed to save classification')
-          return
-        }
-        setPayment((prev) => prev ? {
-          ...prev,
-          payeePerson: prev.payeePerson ? { ...prev.payeePerson, emoji: editEmoji || undefined, serviceType: editServiceType } : null,
-        } : null)
-      } else if (payment.payeeType === 'SUPPLIER' && payment.payeeSupplier?.businessId) {
-        // Uses the SUPPLIER's own businessId (BusinessSuppliers.businessId),
-        // not the expense account's — a supplier can be classified even when
-        // the expense account paying them isn't tied to any business (e.g. a
-        // personal account paying a business-registered fuel supplier).
-        const res = await fetch(`/api/business/${payment.payeeSupplier.businessId}/suppliers/${payment.payeeSupplier.id}`, {
-          method: 'PUT',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ supplierType: editSupplierType, emoji: editEmoji }),
-        })
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}))
-          setClassificationError(err.error || 'Failed to save classification')
-          return
-        }
-        setPayment((prev) => prev ? {
-          ...prev,
-          payeeSupplier: prev.payeeSupplier ? { ...prev.payeeSupplier, emoji: editEmoji || undefined, supplierType: editSupplierType } : null,
-        } : null)
-      }
-      setEditingClassification(false)
-    } catch {
-      setClassificationError('Failed to save classification — check your connection and try again')
-    } finally {
-      setSaving(false)
     }
   }
 
@@ -286,9 +224,7 @@ export function PaymentDetailModal({
                 const manageUrl = resolveManageUrl(payment, returnTo)
                 const payeeEmoji = payment.payeePerson?.emoji || payment.payeeSupplier?.emoji || null
                 const defaultEmoji = badge?.emoji || '👤'
-                const canEditClassification = payment.payeeType === 'PERSON' || (payment.payeeType === 'SUPPLIER' && !!payment.payeeSupplier?.businessId)
                 return (
-                  <>
                   <div className="flex gap-3">
                     <span className="text-xs text-gray-400 w-28 shrink-0 pt-0.5">Payee</span>
                     <div className="flex flex-col gap-1 min-w-0">
@@ -311,16 +247,6 @@ export function PaymentDetailModal({
                           </span>
                         )}
                       </div>
-                      {/* Current classification — always visible, not just
-                          an edit link, so a mismatch is obvious at a glance. */}
-                      {canEditClassification && !editingClassification && (
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                          Classification:{' '}
-                          {(payment.payeeType === 'PERSON' ? payment.payeePerson?.serviceType : payment.payeeSupplier?.supplierType)
-                            ? <span className="text-primary font-medium">{payment.payeeType === 'PERSON' ? payment.payeePerson?.serviceType : payment.payeeSupplier?.supplierType}</span>
-                            : <span className="italic">not set</span>}
-                        </p>
-                      )}
                       <div className="flex items-center gap-3 flex-wrap">
                         {historyUrl && (
                           <Link
@@ -340,58 +266,9 @@ export function PaymentDetailModal({
                             ✏️ {switchingBusiness ? 'Switching business…' : 'View / Edit details'}
                           </Link>
                         )}
-                        {canEditClassification && !editingClassification && (
-                          <button
-                            onClick={openClassificationEdit}
-                            className="text-xs text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:underline"
-                          >
-                            🏷️ Set classification
-                          </button>
-                        )}
                       </div>
                     </div>
                   </div>
-                  {/* Classification edit — full modal width, not squeezed into
-                      the Payee row's narrow value column (that cramped nesting
-                      was the root cause of the Suggest/Domain/Category picker
-                      looking cut off). */}
-                  {editingClassification && (
-                    <div className="pt-3 border-t border-border space-y-3">
-                      <p className="text-xs font-medium text-gray-500 dark:text-gray-400">🏷️ Set classification</p>
-                      {payment.payeeType === 'PERSON' ? (
-                        <ServiceCategoryPicker
-                          apiEndpoint="/api/contractor-categories"
-                          value={editServiceType}
-                          onChange={(name, emoji) => { setEditServiceType(name || null); setEditEmoji(emoji) }}
-                        />
-                      ) : (
-                        <ServiceCategoryPicker
-                          apiEndpoint="/api/supplier-categories"
-                          value={editSupplierType}
-                          onChange={(name, emoji) => { setEditSupplierType(name || null); setEditEmoji(emoji) }}
-                        />
-                      )}
-                      {classificationError && (
-                        <p className="text-xs text-red-500">⚠️ {classificationError}</p>
-                      )}
-                      <div className="flex gap-2 justify-end">
-                        <button
-                          onClick={() => setEditingClassification(false)}
-                          className="px-3 py-1.5 text-xs bg-gray-100 dark:bg-gray-700 text-primary rounded-md"
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          onClick={saveClassification}
-                          disabled={saving}
-                          className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
-                        >
-                          {saving ? 'Saving…' : 'Save'}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                  </>
                 )
               })()}
               {nationalId && <Row label="ID" value={nationalId} />}
@@ -419,11 +296,25 @@ export function PaymentDetailModal({
                   )}
                 </div>
               )}
-              {payment.category && (
-                <Row label="Category" value={`${payment.category.emoji} ${payment.category.name}`} />
-              )}
-              {payment.subcategory && (
-                <Row label="Subcategory" value={`${payment.subcategory.emoji} ${payment.subcategory.name}`} />
+              {(payment.category || onEditPayment) && payment.paymentType !== 'TRANSFER_OUT' && (
+                <div className="flex gap-3">
+                  <span className="text-xs text-gray-400 w-28 shrink-0 pt-0.5">Category</span>
+                  <div className="flex flex-col gap-0.5 min-w-0">
+                    <span className="text-sm text-primary break-words">
+                      {payment.category
+                        ? `${payment.category.emoji} ${payment.category.name}${payment.subcategory ? ` › ${payment.subcategory.emoji} ${payment.subcategory.name}` : ''}`
+                        : <span className="italic text-gray-400">not set</span>}
+                    </span>
+                    {onEditPayment && (
+                      <button
+                        onClick={() => { onClose(); onEditPayment() }}
+                        className="text-xs text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:underline text-left w-fit"
+                      >
+                        ✏️ Edit category
+                      </button>
+                    )}
+                  </div>
+                </div>
               )}
               {payment.paymentType !== 'TRANSFER_OUT' && (
                 <Row label="Channel" value={payment.paymentChannel === 'ECOCASH' ? '📱 EcoCash' : '💵 Cash'} />
