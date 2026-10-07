@@ -711,8 +711,9 @@ export async function createCleanBackup(
   // Include ALL payments (including generic ones with payeeBusinessId=null)
   businessData.expenseAccountPayments = await prisma.expenseAccountPayments.findMany()
 
+  // businessId is nullable here too (MBM-304 follow-up audit) — same OR-null fix.
   businessData.expensePaymentVouchers = await prisma.expensePaymentVouchers.findMany({
-    where: { businessId: { in: businessIds } }
+    where: { OR: [{ businessId: { in: businessIds } }, { businessId: null }] }
   })
 
   // Receipts attached to expense payments (proof of spend documents)
@@ -821,33 +822,32 @@ export async function createCleanBackup(
   })
 
   // 11. Projects and construction
+  // Projects.businessId is nullable (canCreatePersonalProjects — a project
+  // not tied to any business) — same OR-null requirement as vehicles below;
+  // found via the same audit that caught the vehicle sub-table bug (MBM-304
+  // follow-up). Confirmed against real data: 1 project existed, 0 were ever
+  // backed up.
+  const projectBusinessScope = { OR: [{ businessId: { in: businessIds } }, { businessId: null }] }
+
   businessData.projects = await prisma.projects.findMany({
-    where: {
-      businessId: { in: businessIds }
-    }
+    where: projectBusinessScope
   })
 
   businessData.projectStages = await prisma.projectStages.findMany({
     where: {
-      projects: {
-        businessId: { in: businessIds }
-      }
+      projects: projectBusinessScope
     }
   })
 
   businessData.projectContractors = await prisma.projectContractors.findMany({
     where: {
-      projects: {
-        businessId: { in: businessIds }
-      }
+      projects: projectBusinessScope
     }
   })
 
   businessData.projectTransactions = await prisma.projectTransactions.findMany({
     where: {
-      projects: {
-        businessId: { in: businessIds }
-      }
+      projects: projectBusinessScope
     }
   })
 
@@ -1107,8 +1107,9 @@ export async function createCleanBackup(
 
   // businessTokenMenuItems already fetched above (needed for tokenConfigIds)
 
+  // businessId is nullable here too (MBM-304 follow-up audit) — same OR-null fix.
   businessData.wiFiUsageAnalytics = await prisma.wiFiUsageAnalytics.findMany({
-    where: { businessId: { in: businessIds } }
+    where: { OR: [{ businessId: { in: businessIds } }, { businessId: null }] }
   })
 
   // 22. WiFi Portal - R710 System (10 tables) - NEW
@@ -1609,9 +1610,10 @@ export async function createCleanBackup(
     where: { userId: { in: userIds } }
   })
 
-  // ManagerOverrideLogs are business-scoped (also have FK to users)
+  // ManagerOverrideLogs are business-scoped (also have FK to users) —
+  // businessId is nullable though (MBM-304 follow-up audit), same OR-null fix.
   businessData.managerOverrideLogs = await prisma.managerOverrideLog.findMany({
-    where: { businessId: { in: businessIds } }
+    where: { OR: [{ businessId: { in: businessIds } }, { businessId: null }] }
   })
 
   // OrderCancellations depend on managerOverrideLogs + businessOrders
@@ -1762,11 +1764,14 @@ export async function createCleanBackup(
   // An ImageTags row is relevant if either the tag itself is business-owned
   // (existing case) or the tagged image belongs to one of these businesses
   // (new case, now that a shared system tag can be attached to any
-  // business's own image).
+  // business's own image). Both Tags.businessId and Images.businessId are
+  // nullable (shared system tags / unowned images) — each branch needs its
+  // own OR-null, same as Tags' and businessCategories' own top-level
+  // queries already do (MBM-304 follow-up audit).
   businessData.imageTags = await prisma.imageTags.findMany({
     where: { OR: [
-      { tags: { businessId: { in: businessIds } } },
-      { images: { businessId: { in: businessIds } } },
+      { tags: { OR: [{ businessId: { in: businessIds } }, { businessId: null }] } },
+      { images: { OR: [{ businessId: { in: businessIds } }, { businessId: null }] } },
     ] }
   })
   // ProductTags (MBM-295) — links BusinessProducts to Tags; scoped via the

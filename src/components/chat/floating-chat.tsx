@@ -127,6 +127,12 @@ export function FloatingChat() {
   const [connected, setConnected] = useState(false)
   const [unread, setUnread] = useState(0)
   const [unreadDirect, setUnreadDirect] = useState(0)
+  // Snapshot of LAST_OPENED_KEY taken the moment the panel is opened, BEFORE
+  // it gets overwritten to "now" — without this, the unread badge resets to
+  // 0 the instant you open the panel with no trace of which message was
+  // actually new, so there was nothing left to visually flag. Cleared again
+  // on minimise so the next open takes a fresh snapshot.
+  const [unreadSinceSnapshot, setUnreadSinceSnapshot] = useState<string | null>(null)
 
   // Threading
   const [replyingTo, setReplyingTo] = useState<{ id: string; userName: string } | null>(null)
@@ -235,6 +241,10 @@ export function FloatingChat() {
       clearTimeout(autoCloseTimerRef.current)
       autoCloseTimerRef.current = null
     }
+    // Capture what "new" meant for this session before clearing it, so the
+    // Team Chat message list can show a divider at the first message that
+    // arrived since last time — see unreadSinceSnapshot above.
+    setUnreadSinceSnapshot(localStorage.getItem(LAST_OPENED_KEY))
     setUnread(0)
     setUnreadDirect(0)
     localStorage.setItem(LAST_OPENED_KEY, new Date().toISOString())
@@ -853,6 +863,17 @@ export function FloatingChat() {
     return acc
   }, [])
 
+  // The first Team/General message that arrived since this session's open
+  // snapshot (see unreadSinceSnapshot) — gets a "New messages" divider so
+  // the unread badge's count has something to actually point at, instead of
+  // vanishing the instant the panel opens with no trace of what was new.
+  const firstNewMessageId = unreadSinceSnapshot
+    ? messages.find(m =>
+        !m.isSystem && m.userId !== currentUserId && m.recipients.length === 0 &&
+        new Date(m.createdAt) > new Date(unreadSinceSnapshot)
+      )?.id ?? null
+    : null
+
   /** Render a single message bubble (used for both top-level and thread replies) */
   const renderMessage = (msg: Message, isReply = false) => {
     if (msg.isSystem) {
@@ -1194,7 +1215,7 @@ export function FloatingChat() {
           <button
             type="button"
             onMouseDown={e => e.stopPropagation()}
-            onClick={() => { cancelAutoClose(); setIsOpen(false) }}
+            onClick={() => { cancelAutoClose(); setIsOpen(false); setUnreadSinceSnapshot(null) }}
             className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-white/20 transition-colors"
             title="Minimise"
           >
@@ -1362,7 +1383,18 @@ export function FloatingChat() {
               <span className="text-[10px] text-secondary font-medium">{date}</span>
               <div className="flex-1 h-px bg-border" />
             </div>
-            {msgs.map(msg => renderMessage(msg))}
+            {msgs.map(msg => (
+              <div key={msg.id}>
+                {msg.id === firstNewMessageId && (
+                  <div className="flex items-center gap-2 my-2">
+                    <div className="flex-1 h-px bg-rose-300 dark:bg-rose-700" />
+                    <span className="text-[10px] text-rose-600 dark:text-rose-400 font-semibold uppercase tracking-wide">New messages</span>
+                    <div className="flex-1 h-px bg-rose-300 dark:bg-rose-700" />
+                  </div>
+                )}
+                {renderMessage(msg)}
+              </div>
+            ))}
           </div>
         ))}
         <div ref={bottomRef} />
