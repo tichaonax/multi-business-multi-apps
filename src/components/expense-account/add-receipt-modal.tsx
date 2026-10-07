@@ -29,6 +29,10 @@ const VEHICLE_FUEL_TYPES = [
   { value: 'HYBRID', label: 'Hybrid' },
 ] as const
 
+// Searchable version of VEHICLE_EXPENSE_TYPES, for the same SearchableSelect
+// used by the Vehicle and Driver pickers just above it.
+const VEHICLE_EXPENSE_TYPE_ITEMS: SearchableSelectItem[] = VEHICLE_EXPENSE_TYPES.map(t => ({ id: t.value, name: t.label }))
+
 function vehicleItemLabel(v: { year: number; make: string; model: string; licensePlate: string }): string {
   return `${v.year} ${v.make} ${v.model} [${v.licensePlate}]`
 }
@@ -894,16 +898,13 @@ export function AddReceiptModal({ paymentId, paymentPayee, onClose, onSuccess, e
                       <>
                         <div>
                           <label className="block text-xs font-medium mb-1 text-gray-500 dark:text-gray-400">Vehicle expense type</label>
-                          <select
+                          <SearchableSelect
+                            items={VEHICLE_EXPENSE_TYPE_ITEMS}
                             value={vehicleExpenseType}
-                            onChange={e => setVehicleExpenseType(e.target.value)}
-                            className="input w-full px-3 py-2 text-sm"
+                            onChange={setVehicleExpenseType}
+                            placeholder="Select expense type…"
                             disabled={submitting}
-                          >
-                            {VEHICLE_EXPENSE_TYPES.map(t => (
-                              <option key={t.value} value={t.value}>{t.label}</option>
-                            ))}
-                          </select>
+                          />
                         </div>
 
                         {vehicleExpenseType === 'FUEL' && (
