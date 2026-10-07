@@ -116,6 +116,12 @@ function sortRoomsByRecency(rooms: RoomSummary[]): RoomSummary[] {
 export function FloatingChat() {
   const { data: session, status } = useSession()
   const pathname = usePathname()
+  // Mirrors notification-provider.tsx's isAuthPage guard — `status` from
+  // useSession() can still read 'authenticated' on an /auth page (a
+  // lingering session cookie while switching accounts, a session that
+  // hasn't finished invalidating after logout, etc.), so relying on status
+  // alone let the chat bubble/panel render over the sign-in form.
+  const isAuthPage = !!pathname?.startsWith('/auth')
   const currentUserId = (session?.user as any)?.id as string | undefined
   const currentUserName = (session?.user as any)?.name as string | undefined
   // Cascading satellite windows only make sense with room to cascade into —
@@ -307,7 +313,7 @@ export function FloatingChat() {
 
   // MBM-301 — fetch the current user's DM/group conversation list.
   const loadRooms = useCallback(() => {
-    if (status !== 'authenticated') return Promise.resolve([] as RoomSummary[])
+    if (status !== 'authenticated' || isAuthPage) return Promise.resolve([] as RoomSummary[])
     setLoadingRooms(true)
     return fetch('/api/chat/rooms', { credentials: 'include' })
       .then(r => r.ok ? r.json() : [])
@@ -408,7 +414,7 @@ export function FloatingChat() {
 
   // Fetch message history and seed unread counts from messages received since last open
   useEffect(() => {
-    if (status !== 'authenticated') return
+    if (status !== 'authenticated' || isAuthPage) return
     fetch('/api/chat/rooms/general', { credentials: 'include' })
       .then(r => r.ok ? r.json() : null)
       .then((data: { id: string } | null) => { if (data) generalRoomIdRef.current = data.id })
@@ -426,11 +432,11 @@ export function FloatingChat() {
       .catch(() => {})
     loadOlderMonths(null)
     loadRooms()
-  }, [status, scrollToBottom, loadRooms, loadOlderMonths])
+  }, [status, isAuthPage, scrollToBottom, loadRooms, loadOlderMonths])
 
   // Socket.io connection
   useEffect(() => {
-    if (status !== 'authenticated') return
+    if (status !== 'authenticated' || isAuthPage) return
 
     const socket = io(window.location.origin, {
       transports: ['websocket', 'polling'],
@@ -603,7 +609,7 @@ export function FloatingChat() {
     })
 
     return () => { socket.disconnect(); socketRef.current = null }
-  }, [status, scrollToBottom, switchRoom, loadRooms])
+  }, [status, isAuthPage, scrollToBottom, switchRoom, loadRooms])
 
   // Re-fetch history and scroll whenever panel opens (auto or manual)
   useEffect(() => {
@@ -1053,6 +1059,7 @@ export function FloatingChat() {
   }
 
   if (pathname?.startsWith('/customer-display')) return null
+  if (isAuthPage) return null
   if (status !== 'authenticated') return null
 
   const roomsUnreadTotal = rooms.reduce((sum, r) => sum + r.unreadCount, 0)
