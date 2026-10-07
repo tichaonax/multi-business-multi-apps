@@ -175,26 +175,51 @@ export function CategoryPicker({ value, onChange, disabled }: CategoryPickerProp
 
   return (
     <div ref={containerRef} className="relative">
-      {!changing ? (
-        <div className="flex items-center gap-2 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700/50">
-          <span className="flex-1 text-sm text-gray-900 dark:text-gray-100 truncate">
-            {value ? (
-              <>{value.categoryName}{value.subcategoryName ? ` · ${value.subcategoryName}` : ''}</>
-            ) : (
-              <span className="text-gray-400 dark:text-gray-500">No expense type selected</span>
-            )}
-          </span>
+      <div className="flex items-center gap-2 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700/50">
+        <span className="flex-1 text-sm text-gray-900 dark:text-gray-100 truncate">
+          {value ? (
+            <>{value.categoryName}{value.subcategoryName ? ` · ${value.subcategoryName}` : ''}</>
+          ) : (
+            <span className="text-gray-400 dark:text-gray-500">No expense type selected</span>
+          )}
+        </span>
+        <button
+          type="button"
+          onClick={() => setChanging(c => !c)}
+          className="text-xs text-blue-600 dark:text-blue-400 hover:underline shrink-0"
+          disabled={disabled}
+        >
+          {changing ? 'Close' : value ? 'Change' : 'Select'}
+        </button>
+      </div>
+
+      {/* Suggest — always available, not gated behind "Change", so a user
+          who already has a type selected can still describe the expense
+          and get a different suggestion without first opening search. */}
+      {!pendingSubcategoryFor && (
+        <div className="flex gap-2 mt-2">
+          <input
+            type="text"
+            value={suggestQuery}
+            onChange={e => setSuggestQuery(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); if (suggestQuery.trim().length >= 2) handleSuggest() } }}
+            placeholder="Describe the expense to suggest a type…"
+            className="flex-1 min-w-0 px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            disabled={disabled}
+          />
           <button
             type="button"
-            onClick={() => setChanging(true)}
-            className="text-xs text-blue-600 dark:text-blue-400 hover:underline shrink-0"
-            disabled={disabled}
+            onClick={handleSuggest}
+            disabled={disabled || suggestLoading || suggestQuery.trim().length < 2}
+            className="px-3 py-1.5 text-xs font-medium border border-amber-400 text-amber-700 dark:text-amber-300 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-900/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
           >
-            {value ? 'Change' : 'Select'}
+            {suggestLoading ? '⏳' : '💡 Suggest'}
           </button>
         </div>
-      ) : pendingSubcategoryFor ? (
-        <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-2 space-y-1">
+      )}
+
+      {pendingSubcategoryFor && (
+        <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-2 space-y-1 mt-2">
           <p className="text-xs text-gray-500 dark:text-gray-400 px-1 pb-1">
             {pendingSubcategoryFor.emoji} {pendingSubcategoryFor.name} — choose a subcategory
           </p>
@@ -212,8 +237,10 @@ export function CategoryPicker({ value, onChange, disabled }: CategoryPickerProp
             ← Back
           </button>
         </div>
-      ) : (
-        <div>
+      )}
+
+      {changing && !pendingSubcategoryFor && (
+        <div className="mt-2">
           <input
             type="text"
             autoFocus
@@ -223,25 +250,6 @@ export function CategoryPicker({ value, onChange, disabled }: CategoryPickerProp
             placeholder={loading ? 'Loading types…' : 'Type to search expense types…'}
             disabled={disabled || loading}
           />
-          <div className="flex gap-2 mt-2">
-            <input
-              type="text"
-              value={suggestQuery}
-              onChange={e => setSuggestQuery(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); if (suggestQuery.trim().length >= 2) handleSuggest() } }}
-              placeholder="Describe the expense to suggest a type…"
-              className="flex-1 min-w-0 px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              disabled={disabled}
-            />
-            <button
-              type="button"
-              onClick={handleSuggest}
-              disabled={disabled || suggestLoading || suggestQuery.trim().length < 2}
-              className="px-3 py-1.5 text-xs font-medium border border-amber-400 text-amber-700 dark:text-amber-300 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-900/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
-            >
-              {suggestLoading ? '⏳' : '💡 Suggest'}
-            </button>
-          </div>
           <div className="absolute left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-10 max-h-48 overflow-y-auto">
             {filtered.map(c => (
               <button

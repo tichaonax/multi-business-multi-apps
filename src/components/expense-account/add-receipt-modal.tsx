@@ -553,14 +553,13 @@ export function AddReceiptModal({ paymentId, paymentPayee, onClose, onSuccess, e
   return (
     <>
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-        <div className="bg-white dark:bg-gray-800 rounded-lg w-full max-w-lg">
-          <div className="p-6">
-            <div className="flex justify-between items-center mb-5">
-              <h2 className="text-lg font-semibold">{isEditing ? 'Edit Receipt' : 'Add Receipt'}</h2>
-              <button onClick={onClose} className="text-gray-400 hover:text-gray-600" disabled={submitting}>✕</button>
-            </div>
+        <div className="bg-white dark:bg-gray-800 rounded-lg w-full max-w-2xl max-h-[90vh] flex flex-col">
+          <div className="flex justify-between items-center p-5 pb-0 flex-shrink-0">
+            <h2 className="text-lg font-semibold">{isEditing ? 'Edit Receipt' : 'Add Receipt'}</h2>
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600" disabled={submitting}>✕</button>
+          </div>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} id="add-receipt-form" className="overflow-y-auto overflow-x-hidden flex-1 min-h-0 p-5 space-y-4">
               {error && (
                 <div className="p-3 bg-red-50 border border-red-200 text-red-800 dark:bg-red-900/20 dark:border-red-800 dark:text-red-300 rounded text-sm">
                   {error}
@@ -1060,16 +1059,18 @@ export function AddReceiptModal({ paymentId, paymentPayee, onClose, onSuccess, e
                   disabled={submitting}
                 />
               </div>
+          </form>
 
-              <div className="flex justify-end gap-3 pt-1">
-                <button type="button" onClick={onClose} className="btn-secondary" disabled={submitting}>
-                  Cancel
-                </button>
-                <button type="submit" className="btn-primary" disabled={submitting || hydratingVehicleLink}>
-                  {submitting ? 'Saving...' : hydratingVehicleLink ? 'Loading…' : isEditing ? 'Save Changes' : 'Save Receipt'}
-                </button>
-              </div>
-            </form>
+          {/* Footer — pinned outside the scrollable form (via the submit
+              button's form= attribute) so Save/Cancel stay reachable
+              without scrolling to the bottom of a long form. */}
+          <div className="flex justify-end gap-3 p-4 border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
+            <button type="button" onClick={onClose} className="btn-secondary" disabled={submitting}>
+              Cancel
+            </button>
+            <button type="submit" form="add-receipt-form" className="btn-primary" disabled={submitting || hydratingVehicleLink}>
+              {submitting ? 'Saving...' : hydratingVehicleLink ? 'Loading…' : isEditing ? 'Save Changes' : 'Save Receipt'}
+            </button>
           </div>
         </div>
       </div>
