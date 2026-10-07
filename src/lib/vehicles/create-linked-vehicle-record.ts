@@ -12,6 +12,8 @@
 // the vehicle-expense-modal.tsx -> payment-batch creation path so that flow
 // starts populating expensePaymentId too (see plan Scope C).
 
+import { getLastKnownMileage } from './get-last-known-mileage'
+
 export type VehicleExpenseTypeInput =
   | 'FUEL' | 'TOLL' | 'PARKING' | 'MAINTENANCE' | 'INSURANCE' | 'OTHER'
   | 'OIL' | 'TIRE'
@@ -67,9 +69,20 @@ export async function upsertLinkedVehicleRecord(tx: any, input: LinkedVehicleRec
     return { ok: false, error: 'Fuel quantity and fuel type are required for fuel expenses' }
   }
 
-  const vehicle = await tx.vehicles.findUnique({ where: { id: vehicleId }, select: { currentMileage: true, businessId: true } })
+  const vehicle = await tx.vehicles.findUnique({ where: { id: vehicleId }, select: { businessId: true } })
   if (!vehicle) {
     return { ok: false, error: 'Vehicle not found' }
+  }
+
+  // Mileage only increases — reject a reading lower than the highest one
+  // already on record (any source), but allow repeating it exactly, since
+  // more than one service can happen the same day before the odometer
+  // itself changes. Vehicles.currentMileage alone isn't reliable here: it's
+  // only updated when a trip ends, not when an expense/maintenance record
+  // is saved with its own mileage reading — see getLastKnownMileage.
+  const lastKnownMileage = await getLastKnownMileage(tx, vehicleId)
+  if (typeof mileageAtExpense === 'number' && mileageAtExpense < lastKnownMileage) {
+    return { ok: false, error: `Mileage can't be less than the last recorded reading (${lastKnownMileage})` }
   }
 
   const wantsMaintenance = MAINTENANCE_TYPES.has(expenseType)
@@ -88,15 +101,10 @@ export async function upsertLinkedVehicleRecord(tx: any, input: LinkedVehicleRec
 
     const serviceType = SERVICE_TYPE_MAP[expenseType]
     const serviceName = SERVICE_NAME_MAP[expenseType]
-    // Service mileage can't exceed the vehicle's current reading — same rule
-    // /api/vehicles/maintenance enforces. Default to the vehicle's own
-    // current mileage (not 0) when the receipt form didn't capture one —
-    // a zero reading on an existing vehicle would misleadingly look like
-    // a data error.
-    const effectiveMileage = typeof mileageAtExpense === 'number' ? mileageAtExpense : vehicle.currentMileage
-    if (effectiveMileage > vehicle.currentMileage) {
-      return { ok: false, error: 'Service mileage cannot be greater than current vehicle mileage' }
-    }
+    // Default to the last known reading (not 0) when the receipt form
+    // didn't capture a mileage — a zero reading on an existing vehicle
+    // would misleadingly look like a data error. Already validated above.
+    const effectiveMileage = typeof mileageAtExpense === 'number' ? mileageAtExpense : lastKnownMileage
 
     if (existingMaintenance) {
       const updated = await tx.vehicleMaintenanceRecords.update({
