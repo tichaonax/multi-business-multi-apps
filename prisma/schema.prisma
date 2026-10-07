@@ -759,6 +759,10 @@ model SavedReports {
 model ChatMessages {
   id                      String                  @id @default(uuid())
   message                 String
+  // MBM-304: optional action link for a system message (e.g. "Open in
+  // Fleet Management →" on a license-compliance alert) — null for every
+  // normal user message.
+  linkUrl                 String?
   createdAt               DateTime                @default(now())
   deletedAt               DateTime?
   editedAt                DateTime?

@@ -258,21 +258,47 @@ export default function VehiclesPage() {
         return
       }
       const data = await res.json()
+      // MBM-304: daysUntilAndDate() builds the "expires <date> (<N> days
+      // overdue/left)" detail — previously `message` already included the
+      // plate/name AND the render below prepends it again, producing
+      // "ACT 5169 - ACT 5169 - License expiring"; also never showed the
+      // actual date or how urgent it was.
+      const daysUntilAndDate = (expiry: string | null | undefined, precomputedDays?: number) => {
+        if (!expiry) return { expiryStr: 'unknown date', daysLabel: '' }
+        const days = precomputedDays ?? Math.floor((new Date(expiry).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+        const expiryStr = new Date(expiry).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+        const daysLabel = days < 0 ? ` — ${Math.abs(days)} day${Math.abs(days) === 1 ? '' : 's'} OVERDUE`
+          : days === 0 ? ' — expires today'
+          : ` — ${days} day${days === 1 ? '' : 's'} left`
+        return { expiryStr, daysLabel }
+      }
+
       // Combine vehicle license alerts and driver license alerts into a single list
-      const vehicleAlerts = (data?.data?.expiringLicenses || []).map((a: any) => ({
-        id: a.id || a.vehicle?.id || `${a.vehicle?.licensePlate}-vehicle`,
-        type: 'vehicle',
-        licensePlate: a.vehicle?.licensePlate || a.licensePlate,
-        message: a.vehicle ? `${a.vehicle.licensePlate} - ${a.note || 'License expiring'}` : a.note,
-        dueDate: a.expiryDate || a.vehicle?.expiryDate
-      }))
-      const driverAlerts = (data?.data?.expiringDriverLicenses || []).map((d: any) => ({
-        id: d.id || d.driver?.id || `${d.driver?.fullName}-driver`,
-        type: 'driver',
-        name: d.fullName || d.driver?.fullName || d.name,
-        message: d.fullName ? `${d.fullName} - Driver license expiring` : d.note,
-        dueDate: d.licenseExpiry || d.expiryDate
-      }))
+      const vehicleAlerts = (data?.data?.expiringLicenses || []).map((a: any) => {
+        const expiry = a.expiryDate || a.vehicle?.expiryDate
+        const { expiryStr, daysLabel } = daysUntilAndDate(expiry)
+        const licenseTypeLabel = a.licenseType ? String(a.licenseType).replace(/_/g, ' ') : 'License'
+        return {
+          id: a.id || a.vehicle?.id || `${a.vehicle?.licensePlate}-vehicle`,
+          type: 'vehicle',
+          licensePlate: a.vehicle?.licensePlate || a.licensePlate,
+          message: `${licenseTypeLabel}${a.licenseNumber ? ` #${a.licenseNumber}` : ''} (${a.vehicle?.make ?? ''} ${a.vehicle?.model ?? ''}) expires ${expiryStr}${daysLabel}`,
+          dueDate: expiry,
+          urgency: a.urgency,
+        }
+      })
+      const driverAlerts = (data?.data?.expiringDriverLicenses || []).map((d: any) => {
+        const expiry = d.licenseExpiry || d.expiryDate
+        const { expiryStr, daysLabel } = daysUntilAndDate(expiry, d.daysUntilExpiry)
+        return {
+          id: d.id || d.driver?.id || `${d.fullName || d.driver?.fullName}-driver`,
+          type: 'driver',
+          name: d.fullName || d.driver?.fullName || d.name,
+          message: `Driver's license expires ${expiryStr}${daysLabel}`,
+          dueDate: expiry,
+          urgency: d.urgency,
+        }
+      })
       setComplianceAlerts([...vehicleAlerts, ...driverAlerts])
     } catch (err) {
       if ((err as any)?.name === 'AbortError') return
@@ -375,11 +401,18 @@ export default function VehiclesPage() {
     fetchSummary()
     fetchRecentTrips()
     fetchUpcomingMaintenance()
+    // MBM-304: was missing here entirely — Compliance Alerts initializes
+    // loadingCompliance=true and nothing ever set it false until the user
+    // manually clicked "Refresh Alerts" or triggered a Renew/Notify action,
+    // so a fresh page load (including the license-reminder notification's
+    // own deep link here) got stuck showing the loading skeleton forever.
+    fetchComplianceAlerts()
 
     return () => {
       controllerRef.current?.abort()
       tripsControllerRef.current?.abort()
       maintenanceControllerRef.current?.abort()
+      complianceControllerRef.current?.abort()
     }
   }, [])
 

@@ -96,6 +96,7 @@ export function shapeMessage(m: any, replyCount = 0) {
     // renders these as a centered event line instead of a chat bubble.
     isSystem: m.userId === null,
     message: m.message,
+    linkUrl: m.linkUrl ?? null,
     createdAt: m.createdAt.toISOString(),
     deletedAt: m.deletedAt?.toISOString() ?? null,
     editedAt: m.editedAt?.toISOString() ?? null,
@@ -111,10 +112,33 @@ export function shapeMessage(m: any, replyCount = 0) {
 }
 
 /** Posts a system/event message (e.g. "Alice added Bob to the group") into a
- * room and returns the shaped payload, ready to persist history and emit. */
-export async function postSystemMessage(roomId: string, text: string) {
+ * room and returns the shaped payload, ready to persist history and emit.
+ * Optional linkUrl renders as an action link (e.g. a compliance alert
+ * deep-linking into Fleet Management) — see shapeMessage.
+ *
+ * Optional recipientUserIds restricts visibility to exactly those users —
+ * same ChatMessageRecipients mechanism a normal "private reply" already
+ * uses (see POST /api/chat/messages), reused here so a system broadcast
+ * posted into the shared General room isn't visible to everyone in it. The
+ * caller is responsible for emitting only to those users (emitToUsers), not
+ * emitToRoom, when recipientUserIds is set.
+ */
+export async function postSystemMessage(roomId: string, text: string, linkUrl?: string, recipientUserIds?: string[]) {
   const created = await prisma.chatMessages.create({
-    data: { roomId, userId: null, message: text },
+    data: { roomId, userId: null, message: text, linkUrl: linkUrl ?? null },
   })
+
+  if (recipientUserIds && recipientUserIds.length > 0) {
+    await prisma.chatMessageRecipients.createMany({
+      data: recipientUserIds.map(uid => ({ messageId: created.id, userId: uid })),
+      skipDuplicates: true,
+    })
+    const full = await prisma.chatMessages.findUnique({
+      where: { id: created.id },
+      include: { chat_message_recipients: { include: { users: { select: { id: true, name: true } } } } },
+    })
+    return shapeMessage(full, 0)
+  }
+
   return shapeMessage(created, 0)
 }

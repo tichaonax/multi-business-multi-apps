@@ -31,6 +31,9 @@ interface Message {
   // A system/event message (e.g. "X added Y to the group") has no sender.
   isSystem?: boolean
   message: string
+  // MBM-304: action link on a system message (e.g. a license-compliance
+  // alert deep-linking into Fleet Management) — null for every normal message.
+  linkUrl?: string | null
   createdAt: string
   deletedAt: string | null
   editedAt: string | null
@@ -877,6 +880,32 @@ export function FloatingChat() {
   /** Render a single message bubble (used for both top-level and thread replies) */
   const renderMessage = (msg: Message, isReply = false) => {
     if (msg.isSystem) {
+      // MBM-304: a richer broadcast (e.g. a license-compliance digest) gets
+      // its own card — multi-line, with an action link — instead of the
+      // compact one-line pill used for simple membership-change events.
+      // No sender means no Reply/Edit/Delete anywhere below ever shows for
+      // these; opening the chat and seeing it here is the acknowledgement,
+      // same read-tracking every other message already gets.
+      const isRichAlert = !!msg.linkUrl || msg.message.includes('\n')
+      if (isRichAlert) {
+        return (
+          <div key={msg.id} className="flex justify-center mb-2 px-1">
+            <div className="max-w-[90%] bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl px-3 py-2">
+              <p className="text-[11px] text-amber-900 dark:text-amber-200 whitespace-pre-wrap leading-relaxed">{msg.message}</p>
+              {msg.linkUrl && (
+                <a
+                  href={msg.linkUrl}
+                  onClick={() => setIsOpen(false)}
+                  className="inline-block mt-1.5 text-[11px] font-semibold text-amber-700 dark:text-amber-300 hover:underline"
+                >
+                  Open in Fleet Management →
+                </a>
+              )}
+              <p className="text-[9px] text-amber-500 dark:text-amber-500 mt-1">{formatTime(msg.createdAt)} · System · Read-only</p>
+            </div>
+          </div>
+        )
+      }
       return (
         <div key={msg.id} className="flex items-center justify-center mb-2">
           <span className="text-[10px] text-secondary bg-gray-100 dark:bg-gray-800 rounded-full px-2.5 py-1 text-center">
