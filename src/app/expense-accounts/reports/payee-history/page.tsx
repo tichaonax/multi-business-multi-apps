@@ -9,6 +9,8 @@ import { ContentLayout } from '@/components/layout/content-layout'
 import { DateRangeSelector, DateRange } from '@/components/reports/date-range-selector'
 import { getEffectivePermissions } from '@/lib/permission-utils'
 import Link from 'next/link'
+import { PaymentDetailModal } from '@/components/expense-account/payment-detail-modal'
+import { ViewReceiptsModal } from '@/components/expense-account/view-receipts-modal'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -23,7 +25,13 @@ interface PersonRef { id: string; name: string; email?: string | null }
 
 interface Payment {
   id: string
+  // The underlying ExpenseAccountPayments row — for a receipt-level entry,
+  // `id` above is the receipt's own id, so this is what Payment Details /
+  // the receipts list actually need.
+  paymentId: string
+  hasReceipt: boolean
   amount: number
+  paymentAmount: number
   paymentDate: string
   status: string
   notes?: string | null
@@ -218,6 +226,10 @@ export default function PayeePaymentHistoryPage() {
   const [loadingPayments, setLoadingPayments] = useState(false)
   const [paymentError, setPaymentError] = useState<string | null>(null)
   const [paymentSearch, setPaymentSearch] = useState('')
+  // Row click -> rich Payment Details modal (same one the expense account
+  // transaction list uses); 🧾 badge click -> that payment's receipts list.
+  const [detailPayment, setDetailPayment] = useState<{ accountId: string; paymentId: string } | null>(null)
+  const [receiptsPayment, setReceiptsPayment] = useState<Payment | null>(null)
   // Grouped-by-account drill-down (default) vs a flat list of everything
   const [groupByAccount, setGroupByAccount] = useState(true)
   const [expandedAccountIds, setExpandedAccountIds] = useState<Set<string>>(new Set())
@@ -391,7 +403,11 @@ export default function PayeePaymentHistoryPage() {
         {/* Mobile card list (MBM-299 responsive-reports template) */}
         <div className="sm:hidden divide-y divide-gray-100 dark:divide-gray-700">
           {list.map(p => (
-            <div key={p.id} className="p-3 space-y-2">
+            <div
+              key={p.id}
+              onClick={() => setDetailPayment({ accountId: p.expenseAccount!.id, paymentId: p.paymentId })}
+              className="p-3 space-y-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/40"
+            >
               <div className="flex items-center justify-between">
                 <span className="text-gray-700 dark:text-gray-300 text-sm">{fmtDate(p.paymentDate)}</span>
                 <span className="font-medium text-red-600 dark:text-red-400">{fmt(p.amount)}</span>
@@ -403,8 +419,17 @@ export default function PayeePaymentHistoryPage() {
                   <p className="text-gray-600 dark:text-gray-400">{p.category?.name || <span className="text-gray-300 dark:text-gray-600">—</span>}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Receipt #</p>
-                  <p className="text-gray-500 dark:text-gray-400 font-mono text-xs">{p.receiptNumber || <span className="text-gray-300 dark:text-gray-600">—</span>}</p>
+                  <p className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Receipt</p>
+                  {p.hasReceipt ? (
+                    <button
+                      onClick={e => { e.stopPropagation(); setReceiptsPayment(p) }}
+                      className="text-xs text-teal-600 dark:text-teal-400 hover:underline"
+                    >
+                      🧾 View
+                    </button>
+                  ) : (
+                    <p className="text-gray-500 dark:text-gray-400 font-mono text-xs">{p.receiptNumber || <span className="text-gray-300 dark:text-gray-600">—</span>}</p>
+                  )}
                 </div>
                 {!groupByAccount && (
                   <div className="col-span-2">
@@ -438,7 +463,7 @@ export default function PayeePaymentHistoryPage() {
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Date</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Amount</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Category</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Receipt #</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Receipt</th>
                 {!groupByAccount && (
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Account</th>
                 )}
@@ -450,11 +475,26 @@ export default function PayeePaymentHistoryPage() {
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
               {list.map(p => (
-                <tr key={p.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/40">
+                <tr
+                  key={p.id}
+                  onClick={() => setDetailPayment({ accountId: p.expenseAccount!.id, paymentId: p.paymentId })}
+                  className="hover:bg-gray-50 dark:hover:bg-gray-700/40 cursor-pointer"
+                >
                   <td className="px-4 py-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{fmtDate(p.paymentDate)}</td>
                   <td className="px-4 py-3 text-right font-medium text-red-600 dark:text-red-400 whitespace-nowrap">{fmt(p.amount)}</td>
                   <td className="px-4 py-3 text-gray-600 dark:text-gray-400">{p.category?.name || <span className="text-gray-300 dark:text-gray-600">—</span>}</td>
-                  <td className="px-4 py-3 text-gray-500 dark:text-gray-400 font-mono text-xs">{p.receiptNumber || <span className="text-gray-300 dark:text-gray-600">—</span>}</td>
+                  <td className="px-4 py-3 text-xs">
+                    {p.hasReceipt ? (
+                      <button
+                        onClick={e => { e.stopPropagation(); setReceiptsPayment(p) }}
+                        className="text-teal-600 dark:text-teal-400 hover:underline"
+                      >
+                        🧾 View
+                      </button>
+                    ) : (
+                      <span className="text-gray-500 dark:text-gray-400 font-mono">{p.receiptNumber || <span className="text-gray-300 dark:text-gray-600">—</span>}</span>
+                    )}
+                  </td>
                   {!groupByAccount && (
                     <td className="px-4 py-3 text-gray-600 dark:text-gray-400 text-xs">{p.expenseAccount?.accountName || '—'}</td>
                   )}
@@ -472,6 +512,7 @@ export default function PayeePaymentHistoryPage() {
   }
 
   return (
+    <>
     <ContentLayout title="Payee Payment History" subtitle="Full payment history for any recipient in the system">
       <div className="space-y-5">
         <Link href="/expense-accounts/reports" className="text-sm text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1">
@@ -657,5 +698,25 @@ export default function PayeePaymentHistoryPage() {
         )}
       </div>
     </ContentLayout>
+
+    {detailPayment && (
+      <PaymentDetailModal
+        isOpen={!!detailPayment}
+        onClose={() => setDetailPayment(null)}
+        accountId={detailPayment.accountId}
+        paymentId={detailPayment.paymentId}
+      />
+    )}
+
+    {receiptsPayment && (
+      <ViewReceiptsModal
+        paymentId={receiptsPayment.paymentId}
+        paymentAmount={receiptsPayment.paymentAmount}
+        paymentDescription={receiptsPayment.notes || receiptsPayment.category?.name || 'Payment'}
+        onClose={() => setReceiptsPayment(null)}
+        onReceiptsChanged={() => {}}
+      />
+    )}
+    </>
   )
 }

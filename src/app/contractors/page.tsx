@@ -550,22 +550,27 @@ export default function ContractorsPage() {
     }
   }
 
-  const filteredContractors = contractors.filter(contractor => {
-    if (!searchTerm.trim()) return true
-    
-    const search = searchTerm.toLowerCase().trim()
-    return (
-      contractor.fullName.toLowerCase().includes(search) ||
-      contractor.email?.toLowerCase().includes(search) ||
-      contractor.phone?.includes(search) ||
-      contractor.nationalId?.toLowerCase().includes(search) ||
-      // Also search in project assignments
-      contractor.project_contractors.some(pc => 
-        pc.project.name.toLowerCase().includes(search) ||
-        pc.role?.toLowerCase().includes(search)
+  const filteredContractors = contractors
+    .filter(contractor => {
+      if (!searchTerm.trim()) return true
+
+      const search = searchTerm.toLowerCase().trim()
+      return (
+        contractor.fullName.toLowerCase().includes(search) ||
+        contractor.email?.toLowerCase().includes(search) ||
+        contractor.phone?.includes(search) ||
+        contractor.nationalId?.toLowerCase().includes(search) ||
+        // Also search in project assignments
+        contractor.project_contractors.some(pc =>
+          pc.project.name.toLowerCase().includes(search) ||
+          pc.role?.toLowerCase().includes(search)
+        )
       )
-    )
-  })
+    })
+    // Highest total paid first — expenseSummaries loads asynchronously, so
+    // a contractor not in it yet (or with no payments) sorts to the bottom
+    // rather than throwing off everyone else's order.
+    .sort((a, b) => (expenseSummaries[b.id]?.totalPaid ?? 0) - (expenseSummaries[a.id]?.totalPaid ?? 0))
 
   if (loading) {
     return (

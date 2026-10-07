@@ -145,7 +145,17 @@ export async function GET(
     // (their payments are never COMBO/split-attributed).
     type NormalizedEntry = {
       id: string
+      // The underlying ExpenseAccountPayments row this entry belongs to —
+      // for a fromReceipts entry, `id` above is the receipt's own id, so
+      // paymentId is what the Payment Details modal / receipts list need.
+      paymentId: string
+      hasReceipt: boolean
       amount: number
+      // The parent payment's own total amount — for a fromReceipts entry
+      // this differs from `amount` (that receipt's own amount); used when
+      // opening the full receipts list for the payment (expects the
+      // payment total, not one receipt's slice of it).
+      paymentAmount: number
       paymentDate: string
       category: { id: string; name: string; emoji: string } | null
       receiptNumber: string | null
@@ -182,7 +192,9 @@ export async function GET(
           creator: { select: { id: true, name: true, email: true } },
           expensePayment: {
             select: {
+              id: true,
               status: true,
+              amount: true,
               expenseAccount: { select: { id: true, accountName: true, accountNumber: true } },
               category: { select: { id: true, name: true, emoji: true } },
             },
@@ -207,7 +219,10 @@ export async function GET(
 
       const fromReceipts: NormalizedEntry[] = receipts.map((r) => ({
         id: r.id,
+        paymentId: r.expensePayment.id,
+        hasReceipt: true,
         amount: Number(r.amount),
+        paymentAmount: Number(r.expensePayment.amount),
         paymentDate: r.receiptDate.toISOString(),
         category: r.category ?? r.expensePayment.category,
         receiptNumber: r.receiptNumber,
@@ -221,7 +236,10 @@ export async function GET(
       }))
       const fromFallback: NormalizedEntry[] = fallbackPayments.map((p) => ({
         id: p.id,
+        paymentId: p.id,
+        hasReceipt: false,
         amount: Number(p.amount),
+        paymentAmount: Number(p.amount),
         paymentDate: p.paymentDate.toISOString(),
         category: p.category,
         receiptNumber: p.receiptNumber,
@@ -243,12 +261,16 @@ export async function GET(
           category: { select: { id: true, name: true, emoji: true } },
           creator: { select: { id: true, name: true, email: true } },
           submitter: { select: { id: true, name: true, email: true } },
+          _count: { select: { expense_payment_receipts: true } },
         },
         orderBy: { paymentDate: 'desc' },
       })
       allEntries = payments.map((p) => ({
         id: p.id,
+        paymentId: p.id,
+        hasReceipt: p._count.expense_payment_receipts > 0,
         amount: Number(p.amount),
+        paymentAmount: Number(p.amount),
         paymentDate: p.paymentDate.toISOString(),
         category: p.category,
         receiptNumber: p.receiptNumber,
