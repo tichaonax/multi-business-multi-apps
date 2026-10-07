@@ -17,17 +17,37 @@ export const EDIT_WINDOW_MS = 15 * 60 * 1000
 // (see /api/chat/messages/months and the ?month= param on the main GET).
 export const DEFAULT_HISTORY_WINDOW_MS = 30 * 24 * 60 * 60 * 1000
 
-/** Get or create the single general chat room — unchanged from before MBM-301. */
+/** Get or create the single general chat room. A startup race here (two
+ * near-simultaneous calls both finding nothing, both creating a row) once
+ * produced two "General" rows, and findFirst() with no orderBy then
+ * returned whichever one Postgres felt like, flipping between them and
+ * making the real chat history appear to vanish — see the
+ * merge_duplicate_general_rooms migration. orderBy here is defense in
+ * depth; the actual fix is the partial unique index that migration adds,
+ * which turns a repeat of that race into the P2002 caught below instead of
+ * a second row. */
 export async function getGeneralRoom() {
   let room = await prisma.chatRooms.findFirst({
     where: { name: GENERAL_ROOM_NAME, type: 'group' },
+    orderBy: { createdAt: 'asc' },
   })
   if (!room) {
-    room = await prisma.chatRooms.create({
-      data: { name: GENERAL_ROOM_NAME, type: 'group' },
-    })
+    try {
+      room = await prisma.chatRooms.create({
+        data: { name: GENERAL_ROOM_NAME, type: 'group' },
+      })
+    } catch (err: any) {
+      if (err?.code === 'P2002') {
+        room = await prisma.chatRooms.findFirst({
+          where: { name: GENERAL_ROOM_NAME, type: 'group' },
+          orderBy: { createdAt: 'asc' },
+        })
+      } else {
+        throw err
+      }
+    }
   }
-  return room
+  return room!
 }
 
 /** Find the existing 1:1 room between exactly these two users, or create one. */
