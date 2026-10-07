@@ -230,6 +230,32 @@ export default function PayeePaymentHistoryPage() {
   // transaction list uses); 🧾 badge click -> that payment's receipts list.
   const [detailPayment, setDetailPayment] = useState<{ accountId: string; paymentId: string } | null>(null)
   const [receiptsPayment, setReceiptsPayment] = useState<Payment | null>(null)
+
+  // Deep-link-and-return for Payment Details' "View / Edit details" — lands
+  // back on this exact payee + payment, not a generic expense-account page
+  // (see payment-detail-modal.tsx's `returnTo` prop).
+  const autoOpenedPaymentDetailRef = useRef(false)
+  useEffect(() => {
+    if (autoOpenedPaymentDetailRef.current) return
+    const id = searchParams.get('openPaymentDetail')
+    const accId = searchParams.get('openPaymentAccountId')
+    if (!id || !accId) return
+    autoOpenedPaymentDetailRef.current = true
+    setDetailPayment({ accountId: accId, paymentId: id })
+  }, [searchParams])
+
+  function buildPaymentDetailReturnTo(accountId: string, paymentId: string): string {
+    const params = new URLSearchParams()
+    if (selectedPayee) {
+      params.set('payeeType', selectedPayee.type)
+      params.set('payeeId', selectedPayee.id)
+      params.set('payeeName', selectedPayee.name)
+    }
+    if (allTime) params.set('allTime', 'true')
+    params.set('openPaymentDetail', paymentId)
+    params.set('openPaymentAccountId', accountId)
+    return encodeURIComponent(`/expense-accounts/reports/payee-history?${params.toString()}`)
+  }
   // Grouped-by-account drill-down (default) vs a flat list of everything
   const [groupByAccount, setGroupByAccount] = useState(true)
   const [expandedAccountIds, setExpandedAccountIds] = useState<Set<string>>(new Set())
@@ -705,6 +731,7 @@ export default function PayeePaymentHistoryPage() {
         onClose={() => setDetailPayment(null)}
         accountId={detailPayment.accountId}
         paymentId={detailPayment.paymentId}
+        returnTo={buildPaymentDetailReturnTo(detailPayment.accountId, detailPayment.paymentId)}
       />
     )}
 

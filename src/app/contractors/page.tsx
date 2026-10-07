@@ -791,7 +791,7 @@ export default function ContractorsPage() {
           {/* Edit Contractor Modal */}
           {showEditModal && selectedContractor && (
             <div className="fixed inset-0 bg-gray-600 bg-opacity-50 z-50 flex items-start sm:items-center justify-center overflow-y-auto">
-              <div className="relative my-10 mx-4 sm:mx-auto w-full max-w-lg shadow-lg rounded-md bg-white dark:bg-gray-800 border p-4 sm:p-6 overflow-y-auto max-h-[90vh]">
+              <div className="relative my-10 mx-4 sm:mx-auto w-full max-w-2xl shadow-lg rounded-md bg-white dark:bg-gray-800 border p-4 sm:p-6 overflow-y-auto max-h-[90vh]">
                 <form onSubmit={handleEditSubmit}>
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-lg font-medium text-primary">Edit Contractor</h3>
@@ -806,21 +806,35 @@ export default function ContractorsPage() {
                   </div>
 
                   <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-secondary mb-1">
-                        Full Name *
-                      </label>
-                      <input
-                        type="text"
-                        value={editForm.fullName}
-                        onChange={(e) => setEditForm({ ...editForm, fullName: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                        placeholder="Enter contractor's full name"
-                        required
-                      />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-secondary mb-1">
+                          Full Name *
+                        </label>
+                        <input
+                          type="text"
+                          value={editForm.fullName}
+                          onChange={(e) => setEditForm({ ...editForm, fullName: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                          placeholder="Enter contractor's full name"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-secondary mb-1">
+                          Email
+                        </label>
+                        <input
+                          type="email"
+                          value={editForm.email}
+                          onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                          placeholder="contractor@example.com"
+                        />
+                      </div>
                     </div>
 
-                    <div className="space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <PhoneNumberInput
                         value={editForm.phone}
                         onChange={(fullPhoneNumber) => setEditForm({ ...editForm, phone: fullPhoneNumber })}
@@ -841,30 +855,32 @@ export default function ContractorsPage() {
                       />
                     </div>
 
-                    <div>
-                      <label className="block text-sm font-medium text-secondary mb-1">
-                        Email
-                      </label>
-                      <input
-                        type="email"
-                        value={editForm.email}
-                        onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                        placeholder="contractor@example.com"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-secondary mb-1">
-                        Address
-                      </label>
-                      <textarea
-                        value={editForm.address}
-                        onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                        rows={2}
-                        placeholder="Contractor's address"
-                      />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-secondary mb-1">
+                          Address
+                        </label>
+                        <textarea
+                          value={editForm.address}
+                          onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                          rows={2}
+                          placeholder="Contractor's address"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-secondary mb-1">
+                          Notes <span className="text-red-500">*</span>
+                        </label>
+                        <textarea
+                          ref={editNotesRef}
+                          value={editForm.notes}
+                          onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                          rows={2}
+                          placeholder="What work does this contractor do? (required)"
+                        />
+                      </div>
                     </div>
 
                     <div>
@@ -873,20 +889,6 @@ export default function ContractorsPage() {
                         apiEndpoint="/api/contractor-categories"
                         value={editForm.serviceType || null}
                         onChange={(name, emoji) => setEditForm({ ...editForm, serviceType: name, emoji })}
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-secondary mb-1">
-                        Notes <span className="text-red-500">*</span>
-                      </label>
-                      <textarea
-                        ref={editNotesRef}
-                        value={editForm.notes}
-                        onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                        rows={2}
-                        placeholder="What work does this contractor do? (required)"
                       />
                     </div>
                   </div>

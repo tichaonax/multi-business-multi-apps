@@ -113,6 +113,7 @@ export function PaymentDetailModal({
   accountId,
   paymentId,
   onEditPayment,
+  returnTo: returnToProp,
 }: {
   isOpen: boolean
   onClose: () => void
@@ -124,6 +125,13 @@ export function PaymentDetailModal({
   // save. Optional: omitted by callers with no edit flow of their own
   // (e.g. read-only drill-down contexts), in which case no edit action shows.
   onEditPayment?: () => void
+  // Where "View / Edit details" should return to after closing the
+  // payee's own edit screen — pre-encoded. Defaults to this payment's
+  // expense-account transactions view (this modal's original/most common
+  // host); callers that open this modal from somewhere else (e.g. the
+  // Payee Payment History report) pass their own URL so the round trip
+  // lands back where the user actually was, not a generic account page.
+  returnTo?: string
 }) {
   const router = useRouter()
   const toast = useToastContext()
@@ -220,7 +228,7 @@ export function PaymentDetailModal({
                 const historyUrl = resolvePayeeHistoryUrl(payment)
                 // Reopens this exact Payment Details modal when the user
                 // navigates back from editing the payee's full record.
-                const returnTo = encodeURIComponent(`/expense-accounts/${accountId}?tab=transactions&openPaymentDetail=${paymentId}`)
+                const returnTo = returnToProp ?? encodeURIComponent(`/expense-accounts/${accountId}?tab=transactions&openPaymentDetail=${paymentId}`)
                 const manageUrl = resolveManageUrl(payment, returnTo)
                 const payeeEmoji = payment.payeePerson?.emoji || payment.payeeSupplier?.emoji || null
                 const defaultEmoji = badge?.emoji || '👤'
