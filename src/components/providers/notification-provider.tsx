@@ -43,6 +43,10 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const toast = useToastContext()
   const pathname = usePathname()
   const socketRef = useRef<Socket | null>(null)
+  // Buffers notification:new events for a short window so a burst shows as
+  // one coalesced toast instead of stacking one per event — see flushToasts.
+  const toastBufferRef = useRef<{ title: string; message: string }[]>([])
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [notifications, setNotifications] = useState<AppNotification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
 
@@ -97,6 +101,26 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       socket.emit('join-notification-room', { userId })
     })
 
+    // Toasts for a burst of notifications (e.g. a scheduled sweep that
+    // generates several at once) are coalesced into one popup instead of
+    // stacking a separate toast per event — each one still lands in the
+    // bell list immediately below, this only paces the momentary pop-up.
+    // A single notification still gets its own toast with full title +
+    // message; 2+ arriving within the window collapse into one summary.
+    const flushToasts = () => {
+      const items = toastBufferRef.current
+      toastBufferRef.current = []
+      toastTimerRef.current = null
+      if (items.length === 0) return
+      if (items.length === 1) {
+        toast.push(`${items[0].title}: ${items[0].message}`, { type: 'info' })
+      } else {
+        const preview = items.slice(0, 3).map(i => i.title).join(', ')
+        const more = items.length > 3 ? ` +${items.length - 3} more` : ''
+        toast.push(`🔔 ${items.length} new notifications — ${preview}${more}`, { type: 'info' })
+      }
+    }
+
     socket.on('notification:new', (payload: Omit<AppNotification, 'isRead'>) => {
       // Add to local list and bump unread count
       setNotifications(prev => [{ ...payload, isRead: false }, ...prev].slice(0, 30))
@@ -105,11 +129,16 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       // Dispatch the existing event so pending-actions hooks re-fetch
       window.dispatchEvent(new CustomEvent('pending-actions:refresh'))
 
-      // Show toast
-      toast.push(`${payload.title}: ${payload.message}`, { type: 'info' })
+      // Buffer the toast instead of showing it immediately — see flushToasts.
+      toastBufferRef.current.push({ title: payload.title, message: payload.message })
+      if (!toastTimerRef.current) {
+        toastTimerRef.current = setTimeout(flushToasts, 1200)
+      }
     })
 
     return () => {
+      if (toastTimerRef.current) { clearTimeout(toastTimerRef.current); toastTimerRef.current = null }
+      toastBufferRef.current = []
       socket.disconnect()
       socketRef.current = null
     }
