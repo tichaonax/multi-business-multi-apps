@@ -111,8 +111,13 @@ export async function getOrCreateDirectRoom(userId: string, otherUserId: string)
   })
   // AND-of-some can match a room that also has other members (defensive —
   // direct rooms are only ever created with exactly these two below); only
-  // reuse one that is actually just the two of them.
-  const exact = candidates.find(r => r.chat_participants.length === 2)
+  // reuse one that is actually just the two of them. Compares the DISTINCT
+  // set of userIds, not raw row count — a stray duplicate ChatParticipants
+  // row (possible before the roomId+userId unique constraint was added,
+  // see dedupe_chat_participants/merge_duplicate_direct_rooms migrations)
+  // used to make a plain length check fail and silently create a second
+  // "duplicate" direct room between the same two people.
+  const exact = candidates.find(r => new Set(r.chat_participants.map(p => p.userId)).size === 2)
   if (exact) return exact
 
   return prisma.chatRooms.create({
