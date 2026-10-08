@@ -260,19 +260,6 @@ export function FloatingChat() {
     localStorage.setItem(LAST_OPENED_KEY, new Date().toISOString())
   }, [])
 
-  // Manual open: cancel any pending auto-close; only marks Team/General read
-  // if that's the view the panel actually opens into.
-  const openManually = useCallback(() => {
-    if (autoCloseTimerRef.current) {
-      clearTimeout(autoCloseTimerRef.current)
-      autoCloseTimerRef.current = null
-    }
-    const defaultView = chatSettingsRef.current.defaultView
-    if (defaultView === 'team') markTeamRead()
-    setView(defaultView)
-    setIsOpen(true)
-  }, [markTeamRead])
-
   // Cancel auto-close on unmount
   useEffect(() => () => cancelAutoClose(), [])
 
@@ -333,6 +320,23 @@ export function FloatingChat() {
       .catch(() => [] as RoomSummary[])
       .finally(() => setLoadingRooms(false))
   }, [status])
+
+  // Manual open: cancel any pending auto-close; only marks Team/General read
+  // if that's the view the panel actually opens into. Also refreshes the
+  // room list every time — rooms is otherwise only fetched once on mount,
+  // so a long-lived browser tab could keep showing a room (or duplicate
+  // rooms since-merged by a migration) that no longer reflects the server.
+  const openManually = useCallback(() => {
+    if (autoCloseTimerRef.current) {
+      clearTimeout(autoCloseTimerRef.current)
+      autoCloseTimerRef.current = null
+    }
+    const defaultView = chatSettingsRef.current.defaultView
+    if (defaultView === 'team') markTeamRead()
+    setView(defaultView)
+    setIsOpen(true)
+    loadRooms()
+  }, [markTeamRead, loadRooms])
 
   // Open (or re-focus) a DM/group as its own satellite window, clearing its
   // unread badge. Re-opening an already-open one just brings it to front.
