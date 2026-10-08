@@ -644,7 +644,7 @@ async function generateComplianceAlertsReport(vehicleId?: string, driverId?: str
     // MBM-305: 'STANDARD' | 'EXEMPTION' — spec §9.1 requires these never be
     // shown under one ambiguous generic alert label.
     alertCategory: a.alertCategory,
-    vehicle: { licensePlate: a.vehicleLicensePlate, make: a.vehicleMake, model: a.vehicleModel },
+    vehicle: { id: a.vehicleId, licensePlate: a.vehicleLicensePlate, make: a.vehicleMake, model: a.vehicleModel },
   }))
 
   const expiringDriverLicenses = driverAlerts.map(a => ({

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useConfirm } from '@/components/ui/confirm-modal'
 import { useToastContext } from '@/components/ui/toast'
 import fetchWithValidation from '@/lib/fetchWithValidation'
@@ -43,9 +43,13 @@ interface VehicleDetailModalProps {
   vehicle: Vehicle
   onClose: () => void
   onUpdate?: (updatedVehicle: Vehicle) => void
+  // Deep-link from a compliance alert ("Renew →") — opens the Renew form
+  // for this specific license as soon as it's found on the vehicle, instead
+  // of making the user hunt for it in the license list themselves.
+  autoRenewLicenseId?: string | null
 }
 
-export function VehicleDetailModal({ vehicle, onClose, onUpdate }: VehicleDetailModalProps) {
+export function VehicleDetailModal({ vehicle, onClose, onUpdate, autoRenewLicenseId }: VehicleDetailModalProps) {
   const { data: session } = useSession()
   const { permissions } = useUserPermissions()
   const { format: globalDateFormat } = useDateFormat()
@@ -70,6 +74,17 @@ export function VehicleDetailModal({ vehicle, onClose, onUpdate }: VehicleDetail
   const [exemptions, setExemptions] = useState<VehicleExemption[]>([])
   const [loadingReceipts, setLoadingReceipts] = useState(false)
   const [loadingExemptions, setLoadingExemptions] = useState(false)
+
+  const autoRenewTriggeredRef = useRef(false)
+  useEffect(() => {
+    if (autoRenewTriggeredRef.current || !autoRenewLicenseId) return
+    const license = vehicleData.vehicleLicenses?.find(l => l.id === autoRenewLicenseId)
+    if (license) {
+      autoRenewTriggeredRef.current = true
+      setRenewingLicense(license)
+      setViewingLicense(null)
+    }
+  }, [autoRenewLicenseId, vehicleData.vehicleLicenses])
 
   const [formData, setFormData] = useState({
     licensePlate: vehicle.licensePlate,
@@ -1264,7 +1279,10 @@ export function VehicleDetailModal({ vehicle, onClose, onUpdate }: VehicleDetail
         onDelete={handleDeleteLicense}
         canEdit={canEdit}
         canRenew={canEdit}
-        onRenew={(license) => setRenewingLicense(license)}
+        onRenew={(license) => {
+          setRenewingLicense(license)
+          setViewingLicense(null)
+        }}
       />
     )}
 

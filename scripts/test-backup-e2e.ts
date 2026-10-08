@@ -117,6 +117,8 @@ const NEW_TABLE_KEYS = [
   'productTags',
   // Attribute Options — sizes/colors preset picker
   'attributeOptions',
+  // Vehicle Licensing Status, Retirement & Reinstatement (MBM-305)
+  'vehicleStatusHistory', 'vehicleRetirementReasons',
 ]
 
 async function main() {

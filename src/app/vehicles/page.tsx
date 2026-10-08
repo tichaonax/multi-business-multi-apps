@@ -58,6 +58,10 @@ export default function VehiclesPage() {
   const [showTripForm, setShowTripForm] = useState(false)
   const [showMaintenanceForm, setShowMaintenanceForm] = useState(false)
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null)
+  // Deep-links the Vehicle Detail modal straight to the Renew form for a
+  // specific license — set by handleRenew (Compliance Alerts panel) and by
+  // the ?recordType=vehicle-license-renew query param (System Alerts chat).
+  const [autoRenewLicenseId, setAutoRenewLicenseId] = useState<string | null>(null)
   const [selectedDriver, setSelectedDriver] = useState<VehicleDriver | null>(null)
   const [selectedTrip, setSelectedTrip] = useState<VehicleTrip | null>(null)
   const [selectedMaintenance, setSelectedMaintenance] = useState<VehicleMaintenanceRecord | null>(null)
@@ -137,13 +141,28 @@ export default function VehiclesPage() {
     const recordType = searchParams.get('recordType')
     const tabParam = searchParams.get('tab')
     const returnToParam = searchParams.get('returnTo')
+    const licenseIdParam = searchParams.get('licenseId')
     if (!openRecordId && !recordType && !tabParam && !returnToParam) return
     autoOpenedDeepLinkRef.current = true
 
     if (returnToParam) setReturnTo(returnToParam)
     if (tabParam && tabs.find(t => t.id === tabParam)) setActiveTab(tabParam as any)
 
-    if (openRecordId && recordType === 'maintenance') {
+    if (openRecordId && recordType === 'vehicle-license-renew') {
+      // "Renew →" link from a compliance alert (System Alerts chat digest or
+      // the Compliance Alerts panel) — openRecordId is the vehicleId,
+      // licenseId the specific license to pre-target in the Renew form.
+      fetch(`/api/vehicles?id=${openRecordId}&includeLicenses=true`, { credentials: 'include' })
+        .then(res => res.json())
+        .then(json => {
+          const v = json?.data?.[0]
+          if (v) {
+            if (licenseIdParam) setAutoRenewLicenseId(licenseIdParam)
+            setSelectedVehicle(v)
+          }
+        })
+        .catch(() => {})
+    } else if (openRecordId && recordType === 'maintenance') {
       fetch(`/api/vehicles/maintenance?id=${openRecordId}`, { credentials: 'include' })
         .then(res => res.json())
         .then(json => {
@@ -287,6 +306,7 @@ export default function VehiclesPage() {
           type: 'vehicle',
           category,
           alertTitle,
+          vehicleId: a.vehicle?.id,
           licensePlate: a.vehicle?.licensePlate || a.licensePlate,
           message: `${licenseTypeLabel}${a.licenseNumber ? ` #${a.licenseNumber}` : ''} (${a.vehicle?.make ?? ''} ${a.vehicle?.model ?? ''}) expires ${expiryStr}${daysLabel}`,
           dueDate: expiry,
@@ -315,48 +335,35 @@ export default function VehiclesPage() {
     }
   }, [])
 
-  // Handle renewing a vehicle license (optimistic UI)
+  // Opens the vehicle's real Renew form, pre-targeted at this specific
+  // license — previously this just PUT a fabricated "one year from now"
+  // expiry date onto the existing license record with no new license
+  // number, issue date, or document, which meant a license could be marked
+  // "renewed" with literally none of the actual new disk information ever
+  // captured. Renewing now always goes through the same validated
+  // LicenseFormModal flow (new number + dates required) as every other
+  // renewal path.
   const handleRenew = useCallback(async (alert: any) => {
-    if (!alert) return
+    if (!alert?.vehicleId) {
+      showToast('Unable to open this vehicle for renewal')
+      return
+    }
     const id = String(alert.id)
-    // Optimistically mark as renewed in the UI
-    setComplianceAlerts(prev => prev ? prev.map(a => String(a.id) === id ? { ...a, renewed: true, renewedAt: new Date().toISOString() } : a) : prev)
     setProcessingAlerts(p => Array.from(new Set([...p, id])))
     try {
-      // Compute a new expiry date (one year from now) as a simple renewal behavior
-      const newExpiry = new Date()
-      newExpiry.setFullYear(newExpiry.getFullYear() + 1)
-
-      const res = await fetch('/api/vehicles/licenses', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: alert.id, expiryDate: newExpiry.toISOString() })
-      })
-
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
-        throw new Error(body?.error || 'Failed to renew license')
-      }
-
-      showToast('License renewed')
-      // Refresh summary in the background
-      fetchSummary()
+      const res = await fetch(`/api/vehicles?id=${alert.vehicleId}&includeLicenses=true`)
+      const body = await res.json()
+      const v = body?.data?.[0]
+      if (!v) throw new Error('Vehicle not found')
+      setAutoRenewLicenseId(id)
+      setSelectedVehicle(v)
     } catch (err: any) {
-      // Revert optimistic update on error
-      setComplianceAlerts(prev => prev ? prev.map(a => String(a.id) === id ? (() => {
-        const copy = { ...a }
-        delete copy.renewed
-        delete copy.renewedAt
-        return copy
-      })() : a) : prev)
-      showToast(err?.message || 'Failed to renew license')
-      console.error('Renew license failed', err)
+      showToast(err?.message || 'Failed to open vehicle for renewal')
+      console.error('Open vehicle for renewal failed', err)
     } finally {
       setProcessingAlerts(p => p.filter(x => x !== id))
-      // Ensure server state is reflected eventually
-      fetchComplianceAlerts()
     }
-  }, [fetchComplianceAlerts, fetchSummary])
+  }, [])
 
   // Handle notifying a driver (optimistic UI)
   const handleNotify = useCallback(async (alert: any) => {
@@ -760,10 +767,10 @@ export default function VehiclesPage() {
                                   <>
                                     <button
                                       onClick={() => handleRenew(alert)}
-                                      disabled={processingAlerts.includes(String(alert.id)) || !!alert.renewed}
+                                      disabled={processingAlerts.includes(String(alert.id))}
                                       className={`text-xs px-2 py-1 rounded whitespace-nowrap ${processingAlerts.includes(String(alert.id)) ? 'bg-gray-300 text-gray-700' : 'bg-yellow-600 text-white hover:bg-yellow-700'}`}
                                     >
-                                      {alert.renewed ? 'Renewed' : (processingAlerts.includes(String(alert.id)) ? 'Processing...' : 'Renew')}
+                                      {processingAlerts.includes(String(alert.id)) ? 'Opening...' : 'Renew'}
                                     </button>
                                   </>
                                 ) : (
@@ -777,8 +784,6 @@ export default function VehiclesPage() {
                                     </button>
                                   </>
                                 )}
-                                {/* show a small timestamp when optimistic updates applied */}
-                                {alert.renewedAt && <span className="text-xs text-secondary ml-2">Renewed</span>}
                                 {alert.notifiedAt && <span className="text-xs text-secondary ml-2">Notified</span>}
                               </div>
                             </div>
@@ -842,7 +847,8 @@ export default function VehiclesPage() {
               {selectedVehicle && (
                 <VehicleDetailModal
                   vehicle={selectedVehicle}
-                  onClose={() => setSelectedVehicle(null)}
+                  autoRenewLicenseId={autoRenewLicenseId}
+                  onClose={() => { setSelectedVehicle(null); setAutoRenewLicenseId(null) }}
                   onUpdate={(updated) => {
                     // Update local selection and refresh overview data
                     setSelectedVehicle(updated)

@@ -340,8 +340,10 @@ const SKIP_BUSINESS_SCOPING = new Set([
   // Vehicle renewal workflow tables — scoped by vehicleId, not businessId
   'vehicleRenewalReceipts',      // vehicleId FK, no businessId column
   'vehicleExemptions',           // vehicleId FK, no businessId column
+  'vehicleStatusHistory',        // MBM-305: vehicleId FK, no businessId column
   // Global lookup tables — no businessId
   'issuingAuthorities',          // standalone reference table
+  'vehicleRetirementReasons',    // MBM-305: standalone reference table
   // Vehicle sub-tables — no direct businessId (linked via vehicleId)
   'vehicleDrivers',              // global driver table, no businessId
   'vehicleLicenses',             // vehicleId FK, no businessId

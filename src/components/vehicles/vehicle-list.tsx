@@ -464,7 +464,10 @@ ${licenseRows ? `<table>
           onClose={() => setViewingLicense(null)}
           canEdit={false}
           canRenew={!!canManageVehicles}
-          onRenew={(license) => setRenewingLicense(license)}
+          onRenew={(license) => {
+            setRenewingLicense(license)
+            setViewingLicense(null)
+          }}
         />
       )}
 

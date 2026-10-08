@@ -950,8 +950,18 @@ export async function createCleanBackup(
     where: { vehicles: vehicleBusinessScope }
   })
 
+  // MBM-305: vehicle licensing status change history — scoped via the
+  // parent vehicle, same as every other vehicle sub-table above.
+  businessData.vehicleStatusHistory = await prisma.vehicleStatusHistory.findMany({
+    where: { vehicles: vehicleBusinessScope }
+  })
+
   // Issuing Authorities — global lookup table, no business scope
   businessData.issuingAuthorities = await prisma.issuingAuthorities.findMany()
+
+  // MBM-305: retirement-reason lookup table — global, no business scope,
+  // same as issuingAuthorities above.
+  businessData.vehicleRetirementReasons = await prisma.vehicleRetirementReasons.findMany()
 
   // Vehicle Service business type (MBM-262)
   businessData.vehicleServiceLabourRates = await (prisma as any).vehicleServiceLabourRates.findMany({
@@ -1893,7 +1903,10 @@ export async function createCleanBackup(
     },
     // 6.42.0 (2026-09-09): added attributeOptions (sizes/colors preset
     // picker, migration 20260907080000) — landed without backup coverage.
-    schemaVersion: '6.43.0',
+    // 6.44.0 (2026-10-08): MBM-305 vehicle licensing status/retirement —
+    // added vehicleStatusHistory (scoped via parent vehicle) and
+    // vehicleRetirementReasons (global lookup table, like issuingAuthorities).
+    schemaVersion: '6.44.0',
     checksums: {
       businessData: businessDataChecksum,
       deviceData: deviceDataChecksum

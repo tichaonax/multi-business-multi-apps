@@ -126,15 +126,22 @@ function daysLabel(days: number): string {
   return `${days} day${days === 1 ? '' : 's'} left`
 }
 
+// Trailing `ref:` line carries the vehicle/license ids so the chat UI can
+// render a "Renew →" deep link straight to that license's Renew form
+// (parseComplianceDigest in chat-window.tsx) — not shown to the reader,
+// stripped out of the rendered card. Older stored messages predate this
+// line; the parser treats it as optional for backward compatibility.
 function formatVehicleLine(a: VehicleLicenseAlert): string {
   return `• ${a.vehicleLicensePlate} — ${a.vehicleMake} ${a.vehicleModel}\n` +
     `  ${a.licenseType.replace(/_/g, ' ')} #${a.licenseNumber}\n` +
-    `  Expires ${fmtDate(a.expiryDate)} — ${daysLabel(a.daysUntilExpiry)}`
+    `  Expires ${fmtDate(a.expiryDate)} — ${daysLabel(a.daysUntilExpiry)}\n` +
+    `  ref:${a.vehicleId}:${a.id}`
 }
 
 function formatDriverLine(a: DriverLicenseAlert): string {
   return `• ${a.fullName} — Driver's license\n` +
-    `  Expires ${fmtDate(a.licenseExpiry)} — ${daysLabel(a.daysUntilExpiry)}`
+    `  Expires ${fmtDate(a.licenseExpiry)} — ${daysLabel(a.daysUntilExpiry)}\n` +
+    `  ref:driver:${a.id}`
 }
 
 /**

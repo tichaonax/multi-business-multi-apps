@@ -142,9 +142,13 @@ export function RenewalReceiptForm({ vehicle, isOpen, onClose, onSave }: Renewal
     notes: '',
   })
 
+  // "Include" starts unchecked for every licence type — a pre-checked tab
+  // with blank dates is a trap: the other two tabs aren't mounted while
+  // inactive, so the browser's native required-field validation can't see
+  // them, and a user renewing only one licence type could otherwise submit
+  // an "included" Registration entry with no real issue/expiry date on it.
   const [registrationLic, setRegistrationLic] = useState({
     ...emptyLicense(),
-    include: true,
     licenseNumber: vehicle.licensePlate,
   })
   const [radioLic, setRadioLic] = useState(emptyLicense())
@@ -239,6 +243,26 @@ export function RenewalReceiptForm({ vehicle, isOpen, onClose, onSave }: Renewal
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    // Validate every "included" licence has real new disk info — can't rely
+    // on the inputs' native `required` attribute here since only the active
+    // tab's fields are mounted in the DOM; a licence marked included on a
+    // tab the user has since clicked away from would otherwise never be
+    // checked by the browser before this fires.
+    const tabbedLicenses: { tab: 'REGISTRATION' | 'RADIO' | 'INSURANCE'; label: string; lic: typeof registrationLic }[] = [
+      { tab: 'REGISTRATION', label: 'Vehicle Licence', lic: registrationLic },
+      { tab: 'RADIO', label: 'Radio/TV Licence', lic: radioLic },
+      { tab: 'INSURANCE', label: 'Insurance', lic: insuranceLic },
+    ]
+    for (const { tab, label, lic } of tabbedLicenses) {
+      if (!lic.include) continue
+      if (!lic.licenseNumber.trim() || !lic.issueDate || !lic.expiryDate) {
+        setActiveTab(tab)
+        toast.error(`${label} is marked as included but is missing its new licence number, issue date, or expiry date`)
+        return
+      }
+    }
+
     setLoading(true)
     try {
       const payload = {

@@ -72,6 +72,23 @@ interface ComplianceItem {
   dateLine: string
   daysLabel: string
   isOverdue: boolean
+  vehicleId?: string
+  licenseId?: string
+  driverId?: string
+}
+
+// Parses the optional trailing `ref:` line (see formatVehicleLine /
+// formatDriverLine) — absent on messages posted before this existed, so
+// callers must check the line actually starts with 'ref:' before consuming
+// it as part of the item, or an old message's next bullet/heading line
+// would get silently swallowed.
+function parseRef(line: string): { vehicleId?: string; licenseId?: string; driverId?: string } {
+  if (line.startsWith('ref:driver:')) return { driverId: line.slice('ref:driver:'.length) }
+  if (line.startsWith('ref:')) {
+    const [, vehicleId, licenseId] = line.split(':')
+    return { vehicleId, licenseId }
+  }
+  return {}
 }
 interface ComplianceSection {
   heading: string
@@ -107,13 +124,17 @@ function parseComplianceDigest(message: string): ParsedComplianceDigest | null {
         const isOverdue = expiryRaw.includes('OVERDUE')
         if (first.includes("— Driver's license")) {
           const identifier = (first.split(' — ')[0] ?? first).trim()
-          items.push({ identifier, subtitle: "Driver's Licence", licenseInfo: '', dateLine: dateLine ?? '', daysLabel: daysLabel ?? '', isOverdue })
-          i += 2
+          const refCandidate = (lines[i + 2] ?? '').trim()
+          const hasRef = refCandidate.startsWith('ref:')
+          items.push({ identifier, subtitle: "Driver's Licence", licenseInfo: '', dateLine: dateLine ?? '', daysLabel: daysLabel ?? '', isOverdue, ...(hasRef ? parseRef(refCandidate) : {}) })
+          i += hasRef ? 3 : 2
         } else {
           const [identifier, subtitle] = first.split(' — ')
           const licenseInfo = (lines[i + 1] ?? '').trim()
-          items.push({ identifier: (identifier ?? first).trim(), subtitle: (subtitle ?? '').trim(), licenseInfo, dateLine: dateLine ?? '', daysLabel: daysLabel ?? '', isOverdue })
-          i += 3
+          const refCandidate = (lines[i + 3] ?? '').trim()
+          const hasRef = refCandidate.startsWith('ref:')
+          items.push({ identifier: (identifier ?? first).trim(), subtitle: (subtitle ?? '').trim(), licenseInfo, dateLine: dateLine ?? '', daysLabel: daysLabel ?? '', isOverdue, ...(hasRef ? parseRef(refCandidate) : {}) })
+          i += hasRef ? 4 : 3
         }
       }
       sections.push({ heading, isOverdueSection, items })
@@ -146,6 +167,22 @@ function renderComplianceItem(item: ComplianceItem, idx: number) {
         <div className={`text-[10px] font-semibold mt-0.5 ${item.isOverdue ? 'text-red-600 dark:text-red-400' : 'text-amber-700 dark:text-amber-400'}`}>
           {item.dateLine}
         </div>
+      )}
+      {item.vehicleId && item.licenseId && (
+        <a
+          href={`/vehicles?recordType=vehicle-license-renew&openRecordId=${item.vehicleId}&licenseId=${item.licenseId}`}
+          className="inline-block mt-1 text-[10px] font-semibold text-blue-600 dark:text-blue-400 hover:underline"
+        >
+          Renew →
+        </a>
+      )}
+      {item.driverId && (
+        <a
+          href={`/vehicles?tab=drivers`}
+          className="inline-block mt-1 text-[10px] font-semibold text-blue-600 dark:text-blue-400 hover:underline"
+        >
+          Open driver →
+        </a>
       )}
     </div>
   )

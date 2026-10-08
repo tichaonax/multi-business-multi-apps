@@ -258,7 +258,9 @@ export const RESTORE_ORDER = [
   'vehicleTrips',  // Depends on driverAuthorizations via composite FK
   'vehicleReimbursements',
   'vehicleExemptions',     // depends on vehicles only
+  'vehicleStatusHistory',  // MBM-305: depends on vehicles + users (changedByUserId)
   'issuingAuthorities',    // global lookup table, no FK dependencies
+  'vehicleRetirementReasons', // MBM-305: global lookup table, no FK dependencies
 
   // Vehicle Service business type (MBM-262)
   'vehicleServiceLabourRates',            // Depends on businesses + inventorySubcategories + users
@@ -541,6 +543,9 @@ const UNIQUE_CONSTRAINT_FIELDS: Record<string, string | { fields: string[] }> = 
 
   // Issuing Authorities: global lookup table, unique on name
   'issuingAuthorities': 'name',
+
+  // MBM-305: Vehicle Retirement Reasons — global lookup table, unique on name
+  'vehicleRetirementReasons': 'name',
 
   // Prep Inventory Config: unique on (businessProductId, businessId)
   'menuItemInventoryConfigs': { fields: ['businessProductId', 'businessId'] },
