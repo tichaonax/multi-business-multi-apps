@@ -76,6 +76,16 @@ export async function GET(request: NextRequest) {
     })
     if (!membership) return NextResponse.json({ error: 'Not a participant of this conversation' }, { status: 403 })
 
+    // Read-only system channels (e.g. "System Alerts") auto-expire after 30
+    // days — same fire-and-forget pruning idea as General's 7-day cutoff
+    // below, just a longer window since these are deliberate compliance
+    // digests, not routine chat traffic.
+    prisma.chatRooms.findUnique({ where: { id: requestedRoomId! }, select: { type: true } }).then(r => {
+      if (r?.type !== 'system') return
+      const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+      return prisma.chatMessages.deleteMany({ where: { roomId: requestedRoomId!, createdAt: { lt: cutoff } } })
+    }).catch(() => {})
+
     const messages = await prisma.chatMessages.findMany({
       where: { roomId: requestedRoomId, parentId: null, createdAt: createdAtFilter },
       orderBy: { createdAt: 'asc' },

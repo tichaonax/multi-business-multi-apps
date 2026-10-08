@@ -94,6 +94,31 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
   const [showUnreadOnly, setShowUnreadOnly] = useState(true)
   const [canPettyCashRequest, setCanPettyCashRequest] = useState(false)
   const [bellSearch, setBellSearch] = useState('')
+  // Pending Actions preview segments — same default-collapsed pattern as
+  // the Notifications bell, so 84 items don't dump into one unmanageable
+  // scroll; a header per category instead, expand on demand (or on search).
+  const [expandedPending, setExpandedPending] = useState<Set<string>>(new Set())
+  const togglePendingSection = (key: string) => setExpandedPending(prev => {
+    const next = new Set(prev)
+    if (next.has(key)) next.delete(key); else next.add(key)
+    return next
+  })
+  const isPendingExpanded = (key: string) => expandedPending.has(key) || !!bellSearch.trim()
+  const renderPendingHeader = (sectionKey: string, icon: string, label: string, count: number, extra?: string) => count === 0 ? null : (
+    <button
+      key={`${sectionKey}-header`}
+      type="button"
+      onClick={() => togglePendingSection(sectionKey)}
+      className="w-full px-3 py-1.5 bg-gray-100 dark:bg-gray-900/60 hover:bg-gray-200 dark:hover:bg-gray-900 text-[10px] font-semibold text-secondary uppercase tracking-wide flex items-center gap-1 sticky top-0 transition-colors border-t border-border"
+    >
+      <span>{icon}</span>
+      <span className="flex-1 text-left truncate">{label}{extra ? ` — ${extra}` : ''}</span>
+      <span className="text-gray-400 dark:text-gray-500 font-normal normal-case shrink-0">({count})</span>
+      <svg className={`w-3 h-3 shrink-0 transition-transform ${isPendingExpanded(sectionKey) ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+      </svg>
+    </button>
+  )
   const [notifSearch, setNotifSearch] = useState('')
   // Notification bell segments default collapsed (header + unread count
   // only) — explicitly expanded ones live here by key.
@@ -940,225 +965,282 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                             </div>
                           </div>
                         )}
-                        <div className="divide-y divide-border max-h-80 overflow-y-auto">
-                          {(pendingActions as any).personalPaymentRequests?.filter((r: any) => !bellSearch || [r.creatorName, r.accountName, r.payeeName, r.notes, r.amount?.toString()].some(v => v?.toLowerCase().includes(bellSearch.toLowerCase()))).map((r: any) => (
-                            <Link key={r.id} href={`/admin/pending-actions?requestId=${r.id}`} onClick={() => setShowBellPreview(false)} className={`flex items-start gap-2 px-3 py-2 hover:bg-purple-50 dark:hover:bg-purple-900/10 text-xs ${r.priority === 'URGENT' ? 'border-l-2 border-red-500' : 'border-l-2 border-purple-400'}`}>
-                              <span className="mt-0.5 shrink-0">{r.priority === 'URGENT' ? '🚨' : '🙋'}</span>
-                              <div className="min-w-0">
-                                <p className="font-medium text-purple-700 dark:text-purple-300 truncate">
-                                  Personal Payment Request
-                                  {r.paymentChannel === 'ECOCASH' ? ' · 📱' : ' · 💵'}
-                                </p>
-                                <p className="text-secondary truncate">
-                                  {r.creatorName ?? '—'} → {r.accountName}
-                                  {r.payeeName ? ` · ${r.payeeName}` : ''}
-                                  {' · '}<span className="text-orange-500 dark:text-orange-400 font-semibold">${Number(r.amount).toFixed(2)}</span>
-                                </p>
-                                {r.notes && <p className="text-secondary italic truncate">{r.notes}</p>}
-                              </div>
-                            </Link>
-                          ))}
-                          {pendingActions.pendingPaymentBatches?.filter((b: any) => !bellSearch || [b.business?.name, b.eodDate].some((v: string | undefined) => v?.toLowerCase().includes(bellSearch.toLowerCase()))).map((b: any) => (
-                            <Link key={b.id} href={`/expense-accounts/payment-batches/${b.id}/review`} onClick={() => setShowBellPreview(false)} className="flex items-start gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 text-xs">
-                              <span className="mt-0.5 shrink-0">📋</span>
-                              <div className="min-w-0">
-                                <p className="font-medium text-primary truncate">Payment Batch — {b.business?.name ?? '—'}</p>
-                                <p className="text-secondary">
-                                  {b.eodDate} · {b._count?.payments ?? 0} payments
-                                  {b.cashCount > 0 && <span className="ml-1">· 💵 {b.cashCount}</span>}
-                                  {b.ecocashCount > 0 && <span className="ml-1">· 📱 {b.ecocashCount}</span>}
-                                  {b.totalAmount != null ? <><span> · </span><span className="text-orange-500 dark:text-orange-400 font-semibold">${Number(b.totalAmount).toFixed(2)}</span></> : ''}
-                                </p>
-                              </div>
-                            </Link>
-                          ))}
-                          {pendingActions.pendingPettyCash?.filter((p: any) => !bellSearch || [p.requester?.name, p.purpose, p.business?.name].some((v: string | undefined) => v?.toLowerCase().includes(bellSearch.toLowerCase()))).map((p: any) => (
-                            <Link
-                              key={p.id}
-                              href={`/petty-cash/${p.id}`}
-                              onClick={() => setShowBellPreview(false)}
-                              className={`flex items-start gap-2 px-3 py-2 text-xs ${p.priority === 'URGENT' ? 'bg-red-50/60 dark:bg-red-900/15 border-l-2 border-red-400 hover:bg-red-50 dark:hover:bg-red-900/20' : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'}`}
-                            >
-                              <span className="mt-0.5 shrink-0">{p.priority === 'URGENT' ? '🚨' : '🪙'}</span>
-                              <div className="min-w-0 flex-1">
-                                <p className={`font-medium truncate ${p.priority === 'URGENT' ? 'text-red-700 dark:text-red-300' : 'text-primary'}`}>
-                                  {p.priority === 'URGENT' && <span className="text-red-600 dark:text-red-400 font-bold mr-1">URGENT</span>}
-                                  {p.requester?.name ?? '—'}
-                                  <span className="ml-1.5 font-normal">{p.paymentChannel === 'ECOCASH' ? '📱 EcoCash' : '💵 Cash'}</span>
-                                </p>
-                                <p className="text-secondary">{p.business?.name && <span className="font-medium text-primary">{p.business.name} · </span>}{p.purpose} · <span className="text-orange-500 dark:text-orange-400 font-semibold">${Number(p.requestedAmount ?? 0).toFixed(2)}</span></p>
-                              </div>
-                            </Link>
-                          ))}
-                          {(() => { const _opc = (pendingActions.outstandingPettyCash ?? []).filter((r: any) => !bellSearch || [r.requesterName, r.purpose, r.businessName].some((v: string | undefined) => v?.toLowerCase().includes(bellSearch.toLowerCase()))); return _opc.length > 0 && (
-                            <>
-                              <div className="px-3 py-1.5 bg-amber-50 dark:bg-amber-900/20 border-t border-border">
-                                <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wide">
-                                  💵 Cash In-Hand — {_opc.length} request{_opc.length !== 1 ? 's' : ''} · ${Number(pendingActions.outstandingPettyCashTotal ?? 0).toFixed(2)} outstanding
-                                </span>
-                              </div>
-                              {_opc.map((r: any) => (
-                                <Link key={r.id} href={`/petty-cash/${r.id}`} onClick={() => setShowBellPreview(false)} className="flex items-start gap-2 px-3 py-2 hover:bg-amber-50 dark:hover:bg-amber-900/10 text-xs">
-                                  <span className="mt-0.5 shrink-0">💵</span>
-                                  <div className="min-w-0 flex-1">
-                                    <p className="font-medium text-primary truncate">{r.requesterName} — {r.purpose}</p>
-                                    <p className="text-secondary">{r.businessName} · <span className="text-orange-500 dark:text-orange-400 font-medium">${r.remainingBalance.toFixed(2)} remaining</span></p>
-                                  </div>
-                                </Link>
-                              ))}
-                            </>
-                          )})()}
-                          {pendingActions.pendingCashAllocations?.filter((r: any) => !bellSearch || (r.business?.name as string | undefined)?.toLowerCase().includes(bellSearch.toLowerCase())).map((r: any) => {
-                            const isGrouped = r.isGrouped === true
-                            const cashAllocUrl = isGrouped
-                              ? `/${r.business?.type ?? 'restaurant'}/reports/cash-allocation?reportId=${r.id}&businessId=${r.business?.id ?? ''}`
-                              : `/${r.business?.type ?? 'restaurant'}/reports/cash-allocation?date=${r.reportDate ? r.reportDate.split('T')[0] : ''}&businessId=${r.business?.id ?? ''}`
-                            const dateLabel = isGrouped
-                              ? (() => {
-                                  const dates: string[] = (r.groupedRun?.dates ?? []).map((d: any) => d.date).sort()
-                                  if (dates.length === 0) return `${r._count?.lineItems ?? 0} items`
-                                  const fmt = (s: string) => s.slice(5).replace('-', '/')
-                                  return dates.length === 1 ? fmt(dates[0]) : `${fmt(dates[0])} – ${fmt(dates[dates.length - 1])} (${dates.length} days)`
-                                })()
-                              : r.reportDate ? new Date(r.reportDate.split('T')[0] + 'T00:00:00').toLocaleDateString() : '—'
+                        <div className="max-h-80 overflow-y-auto">
+                          {(() => {
+                            const personalPaymentRequests = ((pendingActions as any).personalPaymentRequests ?? []).filter((r: any) => !bellSearch || [r.creatorName, r.accountName, r.payeeName, r.notes, r.amount?.toString()].some((v: any) => v?.toLowerCase().includes(bellSearch.toLowerCase())))
+                            const paymentBatches = (pendingActions.pendingPaymentBatches ?? []).filter((b: any) => !bellSearch || [b.business?.name, b.eodDate].some((v: string | undefined) => v?.toLowerCase().includes(bellSearch.toLowerCase())))
+                            const pettyCash = (pendingActions.pendingPettyCash ?? []).filter((p: any) => !bellSearch || [p.requester?.name, p.purpose, p.business?.name].some((v: string | undefined) => v?.toLowerCase().includes(bellSearch.toLowerCase())))
+                            const cashInHand = (pendingActions.outstandingPettyCash ?? []).filter((r: any) => !bellSearch || [r.requesterName, r.purpose, r.businessName].some((v: string | undefined) => v?.toLowerCase().includes(bellSearch.toLowerCase())))
+                            const cashAllocations = (pendingActions.pendingCashAllocations ?? []).filter((r: any) => !bellSearch || (r.business?.name as string | undefined)?.toLowerCase().includes(bellSearch.toLowerCase()))
+                            const stockDrafts = (pendingActions.pendingStockTakeDrafts ?? []).filter((d: any) => !bellSearch || [d.title, d.businessName].some((v: string | undefined) => v?.toLowerCase().includes(bellSearch.toLowerCase())))
+                            const supplierPayments = (pendingActions.pendingSupplierPayments ?? []).filter((s: any) => !bellSearch || (s.supplier?.name as string | undefined)?.toLowerCase().includes(bellSearch.toLowerCase()))
+                            const ecocashConversions = (pendingActions.pendingEcocashConversions ?? []).filter((e: any) => !bellSearch || [e.business?.name, e.requester?.name].some((v: string | undefined) => v?.toLowerCase().includes(bellSearch.toLowerCase())))
+                            const paymentRequests = (pendingActions.pendingPaymentRequests ?? []).filter((r: any) => !bellSearch || [r.accountName, r.business?.name].some((v: string | undefined) => v?.toLowerCase().includes(bellSearch.toLowerCase())))
+                            const myPendingPayments = ((pendingActions as any).myPendingPayments ?? []).filter((r: any) => !bellSearch || [r.accountName, r.business?.name].some((v: string | undefined) => v?.toLowerCase().includes(bellSearch.toLowerCase())))
+                            const myApprovedPayments = ((pendingActions as any).myApprovedPayments ?? []).filter((r: any) => !bellSearch || [r.businessName, r.categoryName, r.payeeName, r.notes].some((v: string | undefined) => v?.toLowerCase().includes(bellSearch.toLowerCase())))
+                            const myApprovedPettyCash = ((pendingActions as any).myApprovedPettyCash ?? []).filter((r: any) => !bellSearch || [r.business?.name, r.purpose].some((v: string | undefined) => v?.toLowerCase().includes(bellSearch.toLowerCase())))
+
                             return (
-                              <Link key={r.id} href={cashAllocUrl} onClick={() => setShowBellPreview(false)} className="flex items-start gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 text-xs">
-                                <span className="mt-0.5 shrink-0">{isGrouped ? '📅' : '📊'}</span>
-                                <div className="min-w-0">
-                                  <p className="font-medium text-primary truncate">{isGrouped ? 'Grouped EOD Catch-Up' : 'Cash Allocation'} — {r.business?.name ?? '—'}</p>
-                                  <p className="text-secondary">
-                                    {dateLabel}
-                                    {r._count?.lineItems === 0
-                                      ? <><span> · </span><span className="text-amber-500 dark:text-amber-400">ready to generate</span></>
-                                      : null}
-                                  </p>
-                                  <p className="text-secondary flex flex-wrap gap-x-3 mt-0.5">
-                                    {r.cashboxDeposit != null && (
-                                      <span>💵 <span className="font-semibold text-blue-600 dark:text-blue-400">${Number(r.cashboxDeposit).toFixed(2)}</span></span>
-                                    )}
-                                    {r.totalReported > 0 && (
-                                      <span>📤 <span className="font-semibold text-emerald-600 dark:text-emerald-400">${Number(r.totalReported).toFixed(2)}</span></span>
-                                    )}
-                                  </p>
-                                </div>
-                              </Link>
-                            )
-                          })}
-                          {(() => { const _psd = (pendingActions.pendingStockTakeDrafts ?? []).filter((d: any) => !bellSearch || [d.title, d.businessName].some((v: string | undefined) => v?.toLowerCase().includes(bellSearch.toLowerCase()))); return _psd.length > 0 && (
-                            <>
-                              <div className="px-3 py-1.5 bg-teal-50 dark:bg-teal-900/20 border-t border-border">
-                                <span className="text-[10px] font-semibold text-teal-700 dark:text-teal-400 uppercase tracking-wide">
-                                  📦 Bulk Stock — {_psd.length} draft{_psd.length !== 1 ? 's' : ''} in progress
-                                </span>
-                              </div>
-                              {_psd.map((d: any) => (
-                                <button
-                                  key={d.id}
-                                  onClick={() => {
-                                    setShowBellPreview(false)
-                                    const url = `/${d.businessType}/inventory?bulkStock=1`
-                                    if (d.businessId && currentBusiness?.businessId && d.businessId !== currentBusiness.businessId) {
-                                      setPendingDraftNav({ businessId: d.businessId, businessName: d.businessName, url, title: d.title })
-                                    } else {
-                                      window.location.href = url
-                                    }
-                                  }}
-                                  className="w-full flex items-start gap-2 px-3 py-2 hover:bg-teal-50 dark:hover:bg-teal-900/10 text-xs text-left"
-                                >
-                                  <span className="mt-0.5 shrink-0">📦</span>
-                                  <div className="min-w-0 flex-1">
-                                    <p className="font-medium text-primary truncate">{d.title}</p>
-                                    <p className="text-secondary">{d.businessName} · <span className="text-teal-600 dark:text-teal-400 font-medium">{d.itemCount} item{d.itemCount !== 1 ? 's' : ''} saved</span></p>
+                              <>
+                                {renderPendingHeader('personal', '🙋', 'Personal Payment Requests', personalPaymentRequests.length)}
+                                {isPendingExpanded('personal') && (
+                                  <div className="divide-y divide-border">
+                                    {personalPaymentRequests.map((r: any) => (
+                                      <Link key={r.id} href={`/admin/pending-actions?requestId=${r.id}`} onClick={() => setShowBellPreview(false)} className={`flex items-start gap-2 px-3 py-2 hover:bg-purple-50 dark:hover:bg-purple-900/10 text-xs ${r.priority === 'URGENT' ? 'border-l-2 border-red-500' : 'border-l-2 border-purple-400'}`}>
+                                        <span className="mt-0.5 shrink-0">{r.priority === 'URGENT' ? '🚨' : '🙋'}</span>
+                                        <div className="min-w-0">
+                                          <p className="font-medium text-purple-700 dark:text-purple-300 truncate">
+                                            Personal Payment Request
+                                            {r.paymentChannel === 'ECOCASH' ? ' · 📱' : ' · 💵'}
+                                          </p>
+                                          <p className="text-secondary truncate">
+                                            {r.creatorName ?? '—'} → {r.accountName}
+                                            {r.payeeName ? ` · ${r.payeeName}` : ''}
+                                            {' · '}<span className="text-orange-500 dark:text-orange-400 font-semibold">${Number(r.amount).toFixed(2)}</span>
+                                          </p>
+                                          {r.notes && <p className="text-secondary italic truncate">{r.notes}</p>}
+                                        </div>
+                                      </Link>
+                                    ))}
                                   </div>
-                                </button>
-                              ))}
-                            </>
-                          )})()}
-                          {pendingActions.pendingSupplierPayments?.filter((s: any) => !bellSearch || (s.supplier?.name as string | undefined)?.toLowerCase().includes(bellSearch.toLowerCase())).map((s: any) => (
-                            <Link key={s.id} href="/supplier-payments" onClick={() => setShowBellPreview(false)} className="flex items-start gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 text-xs">
-                              <span className="mt-0.5 shrink-0">🏭</span>
-                              <div className="min-w-0">
-                                <p className="font-medium text-primary truncate">Supplier Payment — {s.supplier?.name ?? '—'}</p>
-                                <p className="text-secondary"><span className="text-orange-500 dark:text-orange-400 font-semibold">${Number(s.amount ?? 0).toFixed(2)}</span></p>
-                              </div>
-                            </Link>
-                          ))}
-                          {(() => { const _pec = (pendingActions.pendingEcocashConversions ?? []).filter((e: any) => !bellSearch || [e.business?.name, e.requester?.name].some((v: string | undefined) => v?.toLowerCase().includes(bellSearch.toLowerCase()))); return _pec.length > 0 && (
-                            <>
-                              <div className="px-3 py-1.5 bg-teal-50 dark:bg-teal-900/20 border-t border-border">
-                                <span className="text-[10px] font-semibold text-teal-700 dark:text-teal-400 uppercase tracking-wide">
-                                  📱 Eco-Cash Conversions — {_pec.length} pending
-                                </span>
-                              </div>
-                              {_pec.map((e: any) => (
-                                <Link key={e.id} href="/cash-bucket" onClick={() => setShowBellPreview(false)} className="flex items-start gap-2 px-3 py-2 hover:bg-teal-50 dark:hover:bg-teal-900/10 text-xs">
-                                  <span className="mt-0.5 shrink-0">📱→💵</span>
-                                  <div className="min-w-0">
-                                    <p className="font-medium text-primary truncate">{e.business?.name ?? '—'}</p>
-                                    <p className="text-secondary">
-                                      <span className="text-teal-600 dark:text-teal-400 font-semibold">${Number(e.amount).toFixed(2)}</span>
-                                      {e.requester?.name ? ` · ${e.requester.name}` : ''}
-                                    </p>
+                                )}
+
+                                {renderPendingHeader('batches', '📋', 'Payment Batches', paymentBatches.length)}
+                                {isPendingExpanded('batches') && (
+                                  <div className="divide-y divide-border">
+                                    {paymentBatches.map((b: any) => (
+                                      <Link key={b.id} href={`/expense-accounts/payment-batches/${b.id}/review`} onClick={() => setShowBellPreview(false)} className="flex items-start gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 text-xs">
+                                        <span className="mt-0.5 shrink-0">📋</span>
+                                        <div className="min-w-0">
+                                          <p className="font-medium text-primary truncate">Payment Batch — {b.business?.name ?? '—'}</p>
+                                          <p className="text-secondary">
+                                            {b.eodDate} · {b._count?.payments ?? 0} payments
+                                            {b.cashCount > 0 && <span className="ml-1">· 💵 {b.cashCount}</span>}
+                                            {b.ecocashCount > 0 && <span className="ml-1">· 📱 {b.ecocashCount}</span>}
+                                            {b.totalAmount != null ? <><span> · </span><span className="text-orange-500 dark:text-orange-400 font-semibold">${Number(b.totalAmount).toFixed(2)}</span></> : ''}
+                                          </p>
+                                        </div>
+                                      </Link>
+                                    ))}
                                   </div>
-                                </Link>
-                              ))}
-                            </>
-                          )})()}
-                          {pendingActions.pendingPaymentRequests?.filter((r: any) => !bellSearch || [r.accountName, r.business?.name].some((v: string | undefined) => v?.toLowerCase().includes(bellSearch.toLowerCase()))).map((r: any) => {
-                            const hasUrgent = (r.urgentCount ?? 0) > 0
-                            const isSingle = !!r.singlePaymentId
-                            const href = isSingle
-                              ? `/expense-accounts/${r.id}/payments/${r.singlePaymentId}`
-                              : `/admin/pending-actions`
-                            return (
-                            <Link key={r.id} href={href} onClick={() => setShowBellPreview(false)} className={`flex items-start gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 text-xs ${hasUrgent ? 'border-l-2 border-red-500' : ''}`}>
-                              <span className="mt-0.5 shrink-0">{hasUrgent ? '🚨' : '💳'}</span>
-                              <div className="min-w-0">
-                                <p className={`font-medium truncate ${hasUrgent ? 'text-red-600 dark:text-red-400' : 'text-primary'}`}>
-                                  {isSingle ? 'Payment Request' : 'Payment Requests'} — {r.accountName ?? '—'}
-                                  {hasUrgent && <span className="ml-1.5 text-xs font-bold text-red-600 dark:text-red-400"> URGENT</span>}
-                                  {r.cashCount > 0 && <span className="ml-1.5 font-normal">💵 {r.cashCount}</span>}
-                                  {r.ecocashCount > 0 && <span className="ml-1.5 font-normal">📱 {r.ecocashCount}</span>}
-                                </p>
-                                <p className="text-secondary">{r.business?.name && <span className="font-medium text-primary">{r.business.name} · </span>}{r.requestCount ?? r.pendingCount ?? 0} pending{r.totalAmount != null && r.totalAmount > 0 ? <><span> · </span><span className="text-orange-500 dark:text-orange-400 font-semibold">${Number(r.totalAmount).toFixed(2)}</span></> : ''}</p>
-                              </div>
-                            </Link>
+                                )}
+
+                                {renderPendingHeader('pettycash', '🪙', 'Petty Cash Requests', pettyCash.length)}
+                                {isPendingExpanded('pettycash') && (
+                                  <div className="divide-y divide-border">
+                                    {pettyCash.map((p: any) => (
+                                      <Link
+                                        key={p.id}
+                                        href={`/petty-cash/${p.id}`}
+                                        onClick={() => setShowBellPreview(false)}
+                                        className={`flex items-start gap-2 px-3 py-2 text-xs ${p.priority === 'URGENT' ? 'bg-red-50/60 dark:bg-red-900/15 border-l-2 border-red-400 hover:bg-red-50 dark:hover:bg-red-900/20' : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'}`}
+                                      >
+                                        <span className="mt-0.5 shrink-0">{p.priority === 'URGENT' ? '🚨' : '🪙'}</span>
+                                        <div className="min-w-0 flex-1">
+                                          <p className={`font-medium truncate ${p.priority === 'URGENT' ? 'text-red-700 dark:text-red-300' : 'text-primary'}`}>
+                                            {p.priority === 'URGENT' && <span className="text-red-600 dark:text-red-400 font-bold mr-1">URGENT</span>}
+                                            {p.requester?.name ?? '—'}
+                                            <span className="ml-1.5 font-normal">{p.paymentChannel === 'ECOCASH' ? '📱 EcoCash' : '💵 Cash'}</span>
+                                          </p>
+                                          <p className="text-secondary">{p.business?.name && <span className="font-medium text-primary">{p.business.name} · </span>}{p.purpose} · <span className="text-orange-500 dark:text-orange-400 font-semibold">${Number(p.requestedAmount ?? 0).toFixed(2)}</span></p>
+                                        </div>
+                                      </Link>
+                                    ))}
+                                  </div>
+                                )}
+
+                                {renderPendingHeader('cashinhand', '💵', 'Cash In-Hand', cashInHand.length, cashInHand.length > 0 ? `$${Number(pendingActions.outstandingPettyCashTotal ?? 0).toFixed(2)} outstanding` : undefined)}
+                                {isPendingExpanded('cashinhand') && (
+                                  <div className="divide-y divide-border">
+                                    {cashInHand.map((r: any) => (
+                                      <Link key={r.id} href={`/petty-cash/${r.id}`} onClick={() => setShowBellPreview(false)} className="flex items-start gap-2 px-3 py-2 hover:bg-amber-50 dark:hover:bg-amber-900/10 text-xs">
+                                        <span className="mt-0.5 shrink-0">💵</span>
+                                        <div className="min-w-0 flex-1">
+                                          <p className="font-medium text-primary truncate">{r.requesterName} — {r.purpose}</p>
+                                          <p className="text-secondary">{r.businessName} · <span className="text-orange-500 dark:text-orange-400 font-medium">${r.remainingBalance.toFixed(2)} remaining</span></p>
+                                        </div>
+                                      </Link>
+                                    ))}
+                                  </div>
+                                )}
+
+                                {renderPendingHeader('cashalloc', '📊', 'Cash Allocations', cashAllocations.length)}
+                                {isPendingExpanded('cashalloc') && (
+                                  <div className="divide-y divide-border">
+                                    {cashAllocations.map((r: any) => {
+                                      const isGrouped = r.isGrouped === true
+                                      const cashAllocUrl = isGrouped
+                                        ? `/${r.business?.type ?? 'restaurant'}/reports/cash-allocation?reportId=${r.id}&businessId=${r.business?.id ?? ''}`
+                                        : `/${r.business?.type ?? 'restaurant'}/reports/cash-allocation?date=${r.reportDate ? r.reportDate.split('T')[0] : ''}&businessId=${r.business?.id ?? ''}`
+                                      const dateLabel = isGrouped
+                                        ? (() => {
+                                            const dates: string[] = (r.groupedRun?.dates ?? []).map((d: any) => d.date).sort()
+                                            if (dates.length === 0) return `${r._count?.lineItems ?? 0} items`
+                                            const fmt = (s: string) => s.slice(5).replace('-', '/')
+                                            return dates.length === 1 ? fmt(dates[0]) : `${fmt(dates[0])} – ${fmt(dates[dates.length - 1])} (${dates.length} days)`
+                                          })()
+                                        : r.reportDate ? new Date(r.reportDate.split('T')[0] + 'T00:00:00').toLocaleDateString() : '—'
+                                      return (
+                                        <Link key={r.id} href={cashAllocUrl} onClick={() => setShowBellPreview(false)} className="flex items-start gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 text-xs">
+                                          <span className="mt-0.5 shrink-0">{isGrouped ? '📅' : '📊'}</span>
+                                          <div className="min-w-0">
+                                            <p className="font-medium text-primary truncate">{isGrouped ? 'Grouped EOD Catch-Up' : 'Cash Allocation'} — {r.business?.name ?? '—'}</p>
+                                            <p className="text-secondary">
+                                              {dateLabel}
+                                              {r._count?.lineItems === 0
+                                                ? <><span> · </span><span className="text-amber-500 dark:text-amber-400">ready to generate</span></>
+                                                : null}
+                                            </p>
+                                            <p className="text-secondary flex flex-wrap gap-x-3 mt-0.5">
+                                              {r.cashboxDeposit != null && (
+                                                <span>💵 <span className="font-semibold text-blue-600 dark:text-blue-400">${Number(r.cashboxDeposit).toFixed(2)}</span></span>
+                                              )}
+                                              {r.totalReported > 0 && (
+                                                <span>📤 <span className="font-semibold text-emerald-600 dark:text-emerald-400">${Number(r.totalReported).toFixed(2)}</span></span>
+                                              )}
+                                            </p>
+                                          </div>
+                                        </Link>
+                                      )
+                                    })}
+                                  </div>
+                                )}
+
+                                {renderPendingHeader('stockdrafts', '📦', 'Bulk Stock Drafts', stockDrafts.length)}
+                                {isPendingExpanded('stockdrafts') && (
+                                  <div className="divide-y divide-border">
+                                    {stockDrafts.map((d: any) => (
+                                      <button
+                                        key={d.id}
+                                        onClick={() => {
+                                          setShowBellPreview(false)
+                                          const url = `/${d.businessType}/inventory?bulkStock=1`
+                                          if (d.businessId && currentBusiness?.businessId && d.businessId !== currentBusiness.businessId) {
+                                            setPendingDraftNav({ businessId: d.businessId, businessName: d.businessName, url, title: d.title })
+                                          } else {
+                                            window.location.href = url
+                                          }
+                                        }}
+                                        className="w-full flex items-start gap-2 px-3 py-2 hover:bg-teal-50 dark:hover:bg-teal-900/10 text-xs text-left"
+                                      >
+                                        <span className="mt-0.5 shrink-0">📦</span>
+                                        <div className="min-w-0 flex-1">
+                                          <p className="font-medium text-primary truncate">{d.title}</p>
+                                          <p className="text-secondary">{d.businessName} · <span className="text-teal-600 dark:text-teal-400 font-medium">{d.itemCount} item{d.itemCount !== 1 ? 's' : ''} saved</span></p>
+                                        </div>
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+
+                                {renderPendingHeader('supplier', '🏭', 'Supplier Payments', supplierPayments.length)}
+                                {isPendingExpanded('supplier') && (
+                                  <div className="divide-y divide-border">
+                                    {supplierPayments.map((s: any) => (
+                                      <Link key={s.id} href="/supplier-payments" onClick={() => setShowBellPreview(false)} className="flex items-start gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 text-xs">
+                                        <span className="mt-0.5 shrink-0">🏭</span>
+                                        <div className="min-w-0">
+                                          <p className="font-medium text-primary truncate">Supplier Payment — {s.supplier?.name ?? '—'}</p>
+                                          <p className="text-secondary"><span className="text-orange-500 dark:text-orange-400 font-semibold">${Number(s.amount ?? 0).toFixed(2)}</span></p>
+                                        </div>
+                                      </Link>
+                                    ))}
+                                  </div>
+                                )}
+
+                                {renderPendingHeader('ecocash', '📱', 'Eco-Cash Conversions', ecocashConversions.length)}
+                                {isPendingExpanded('ecocash') && (
+                                  <div className="divide-y divide-border">
+                                    {ecocashConversions.map((e: any) => (
+                                      <Link key={e.id} href="/cash-bucket" onClick={() => setShowBellPreview(false)} className="flex items-start gap-2 px-3 py-2 hover:bg-teal-50 dark:hover:bg-teal-900/10 text-xs">
+                                        <span className="mt-0.5 shrink-0">📱→💵</span>
+                                        <div className="min-w-0">
+                                          <p className="font-medium text-primary truncate">{e.business?.name ?? '—'}</p>
+                                          <p className="text-secondary">
+                                            <span className="text-teal-600 dark:text-teal-400 font-semibold">${Number(e.amount).toFixed(2)}</span>
+                                            {e.requester?.name ? ` · ${e.requester.name}` : ''}
+                                          </p>
+                                        </div>
+                                      </Link>
+                                    ))}
+                                  </div>
+                                )}
+
+                                {renderPendingHeader('paymentreq', '💳', 'Payment Requests', paymentRequests.length)}
+                                {isPendingExpanded('paymentreq') && (
+                                  <div className="divide-y divide-border">
+                                    {paymentRequests.map((r: any) => {
+                                      const hasUrgent = (r.urgentCount ?? 0) > 0
+                                      const isSingle = !!r.singlePaymentId
+                                      const href = isSingle
+                                        ? `/expense-accounts/${r.id}/payments/${r.singlePaymentId}`
+                                        : `/admin/pending-actions`
+                                      return (
+                                      <Link key={r.id} href={href} onClick={() => setShowBellPreview(false)} className={`flex items-start gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 text-xs ${hasUrgent ? 'border-l-2 border-red-500' : ''}`}>
+                                        <span className="mt-0.5 shrink-0">{hasUrgent ? '🚨' : '💳'}</span>
+                                        <div className="min-w-0">
+                                          <p className={`font-medium truncate ${hasUrgent ? 'text-red-600 dark:text-red-400' : 'text-primary'}`}>
+                                            {isSingle ? 'Payment Request' : 'Payment Requests'} — {r.accountName ?? '—'}
+                                            {hasUrgent && <span className="ml-1.5 text-xs font-bold text-red-600 dark:text-red-400"> URGENT</span>}
+                                            {r.cashCount > 0 && <span className="ml-1.5 font-normal">💵 {r.cashCount}</span>}
+                                            {r.ecocashCount > 0 && <span className="ml-1.5 font-normal">📱 {r.ecocashCount}</span>}
+                                          </p>
+                                          <p className="text-secondary">{r.business?.name && <span className="font-medium text-primary">{r.business.name} · </span>}{r.requestCount ?? r.pendingCount ?? 0} pending{r.totalAmount != null && r.totalAmount > 0 ? <><span> · </span><span className="text-orange-500 dark:text-orange-400 font-semibold">${Number(r.totalAmount).toFixed(2)}</span></> : ''}</p>
+                                        </div>
+                                      </Link>
+                                      )
+                                    })}
+                                  </div>
+                                )}
+
+                                {renderPendingHeader('myrequests', '📤', 'My Requests', myPendingPayments.length)}
+                                {isPendingExpanded('myrequests') && (
+                                  <div className="divide-y divide-border">
+                                    {myPendingPayments.map((r: any) => (
+                                      <Link key={r.id} href={`/expense-accounts/${r.id}`} onClick={() => setShowBellPreview(false)} className="flex items-start gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 text-xs">
+                                        <span className="mt-0.5 shrink-0">📤</span>
+                                        <div className="min-w-0">
+                                          <p className="font-medium text-primary truncate">My Request — {r.accountName ?? '—'}</p>
+                                          <p className="text-secondary">
+                                            {r.business?.name && <span className="font-medium text-primary">{r.business.name} · </span>}
+                                            {r.awaitingCashier
+                                              ? <span className="text-amber-500 dark:text-amber-400 font-medium">awaiting cashier</span>
+                                              : <span>{r.requestCount ?? 0} queued</span>}
+                                            {r.totalAmount != null ? <><span> · </span><span className="text-orange-500 dark:text-orange-400 font-semibold">${Number(r.totalAmount).toFixed(2)}</span></> : ''}
+                                          </p>
+                                        </div>
+                                      </Link>
+                                    ))}
+                                  </div>
+                                )}
+
+                                {renderPendingHeader('myapproved', '✅', 'Approved — Collect Cash', myApprovedPayments.length + myApprovedPettyCash.length)}
+                                {isPendingExpanded('myapproved') && (
+                                  <div className="divide-y divide-border">
+                                    {myApprovedPayments.map((r: any) => (
+                                      <Link key={r.id} href={`/expense-accounts/my-payments`} onClick={() => setShowBellPreview(false)} className="flex items-start gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 text-xs border-l-2 border-green-400">
+                                        <span className="mt-0.5 shrink-0">✅</span>
+                                        <div className="min-w-0">
+                                          <p className="font-medium text-green-700 dark:text-green-400 truncate">Payment Approved — Collect Cash</p>
+                                          <p className="text-secondary">{r.businessName} · <span className="text-green-600 dark:text-green-400 font-semibold">${Number(r.amount).toFixed(2)}</span>{r.categoryName ? ` · ${r.categoryName}` : ''}{r.notes ? ` · ${r.notes}` : ''}</p>
+                                          {r.payeeName && <p className="text-secondary font-medium">Payee: {r.payeeName}{r.payeePhone ? ` · ${r.payeePhone}` : ''}</p>}
+                                        </div>
+                                      </Link>
+                                    ))}
+                                    {myApprovedPettyCash.map((r: any) => (
+                                      <Link key={r.id} href={`/petty-cash/${r.id}`} onClick={() => setShowBellPreview(false)} className="flex items-start gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 text-xs border-l-2 border-green-400">
+                                        <span className="mt-0.5 shrink-0">🪙</span>
+                                        <div className="min-w-0">
+                                          <p className="font-medium text-green-700 dark:text-green-400 truncate">Petty Cash Approved — Collect Cash</p>
+                                          <p className="text-secondary">{r.business?.name} · <span className="text-green-600 dark:text-green-400 font-semibold">${Number(r.approvedAmount).toFixed(2)}</span> · {r.purpose}</p>
+                                        </div>
+                                      </Link>
+                                    ))}
+                                  </div>
+                                )}
+                              </>
                             )
-                          })}
-                          {(pendingActions as any).myPendingPayments?.filter((r: any) => !bellSearch || [r.accountName, r.business?.name].some((v: string | undefined) => v?.toLowerCase().includes(bellSearch.toLowerCase()))).map((r: any) => (
-                            <Link key={r.id} href={`/expense-accounts/${r.id}`} onClick={() => setShowBellPreview(false)} className="flex items-start gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 text-xs">
-                              <span className="mt-0.5 shrink-0">📤</span>
-                              <div className="min-w-0">
-                                <p className="font-medium text-primary truncate">My Request — {r.accountName ?? '—'}</p>
-                                <p className="text-secondary">
-                                  {r.business?.name && <span className="font-medium text-primary">{r.business.name} · </span>}
-                                  {r.awaitingCashier
-                                    ? <span className="text-amber-500 dark:text-amber-400 font-medium">awaiting cashier</span>
-                                    : <span>{r.requestCount ?? 0} queued</span>}
-                                  {r.totalAmount != null ? <><span> · </span><span className="text-orange-500 dark:text-orange-400 font-semibold">${Number(r.totalAmount).toFixed(2)}</span></> : ''}
-                                </p>
-                              </div>
-                            </Link>
-                          ))}
-                          {(pendingActions as any).myApprovedPayments?.filter((r: any) => !bellSearch || [r.businessName, r.categoryName, r.payeeName, r.notes].some((v: string | undefined) => v?.toLowerCase().includes(bellSearch.toLowerCase()))).map((r: any) => (
-                            <Link key={r.id} href={`/expense-accounts/my-payments`} onClick={() => setShowBellPreview(false)} className="flex items-start gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 text-xs border-l-2 border-green-400">
-                              <span className="mt-0.5 shrink-0">✅</span>
-                              <div className="min-w-0">
-                                <p className="font-medium text-green-700 dark:text-green-400 truncate">Payment Approved — Collect Cash</p>
-                                <p className="text-secondary">{r.businessName} · <span className="text-green-600 dark:text-green-400 font-semibold">${Number(r.amount).toFixed(2)}</span>{r.categoryName ? ` · ${r.categoryName}` : ''}{r.notes ? ` · ${r.notes}` : ''}</p>
-                                {r.payeeName && <p className="text-secondary font-medium">Payee: {r.payeeName}{r.payeePhone ? ` · ${r.payeePhone}` : ''}</p>}
-                              </div>
-                            </Link>
-                          ))}
-                          {(pendingActions as any).myApprovedPettyCash?.filter((r: any) => !bellSearch || [r.business?.name, r.purpose].some((v: string | undefined) => v?.toLowerCase().includes(bellSearch.toLowerCase()))).map((r: any) => (
-                            <Link key={r.id} href={`/petty-cash/${r.id}`} onClick={() => setShowBellPreview(false)} className="flex items-start gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 text-xs border-l-2 border-green-400">
-                              <span className="mt-0.5 shrink-0">🪙</span>
-                              <div className="min-w-0">
-                                <p className="font-medium text-green-700 dark:text-green-400 truncate">Petty Cash Approved — Collect Cash</p>
-                                <p className="text-secondary">{r.business?.name} · <span className="text-green-600 dark:text-green-400 font-semibold">${Number(r.approvedAmount).toFixed(2)}</span> · {r.purpose}</p>
-                              </div>
-                            </Link>
-                          ))}
+                          })()}
                         </div>
                         <div className="px-3 py-2 border-t border-border bg-gray-50 dark:bg-gray-700/50">
                           <Link href="/admin/pending-actions" onClick={() => setShowBellPreview(false)} className="text-xs text-blue-600 dark:text-blue-400 hover:underline font-medium">
