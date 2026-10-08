@@ -250,15 +250,35 @@ export function LicenseFormModal({ vehicleId, license, renewFrom, isOpen, onClos
   const fieldClass = 'w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500'
   const labelClass = 'block text-xs font-medium text-secondary mb-1'
 
+  // Renewing shows the record being replaced right under the title, so the
+  // user can confirm at a glance they're renewing the right one before
+  // typing anything — otherwise there's nothing on screen distinguishing
+  // "renew this overdue registration" from a blank Add License form.
+  const renewFromDaysOverdue = renewFrom
+    ? Math.floor((Date.now() - new Date(renewFrom.expiryDate).getTime()) / (24 * 60 * 60 * 1000))
+    : null
+  const renewFromIsOverdue = (renewFromDaysOverdue ?? 0) > 0
+
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4">
       <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl ring-2 ring-blue-500/30 w-full max-w-2xl flex flex-col max-h-[90vh] overflow-x-hidden">
         {/* Sticky Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-gray-700 shrink-0">
-          <h2 className="text-base font-semibold text-primary">
-            {license ? 'Edit License' : renewFrom ? `Renew ${renewFrom.licenseType.replace('_', ' ')} License` : 'Add New License'}
-          </h2>
-          <button onClick={onClose} className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-secondary">
+          <div className="min-w-0">
+            <h2 className="text-base font-semibold text-primary">
+              {license ? 'Edit License' : renewFrom ? `Renew ${renewFrom.licenseType.replace('_', ' ')} License` : 'Add New License'}
+            </h2>
+            {renewFrom && (
+              <p className={`text-xs mt-0.5 ${renewFromIsOverdue ? 'text-red-600 dark:text-red-400' : 'text-secondary'}`}>
+                Replacing #{renewFrom.licenseNumber}
+                {renewFrom.issuingAuthority ? ` (${renewFrom.issuingAuthority})` : ''} —{' '}
+                {renewFromIsOverdue ? 'expired' : 'expires'}{' '}
+                {new Date(renewFrom.expiryDate).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+                {renewFromIsOverdue && ` (${renewFromDaysOverdue} day${renewFromDaysOverdue === 1 ? '' : 's'} overdue)`}
+              </p>
+            )}
+          </div>
+          <button onClick={onClose} className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-secondary shrink-0">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -470,7 +490,7 @@ export function LicenseFormModal({ vehicleId, license, renewFrom, isOpen, onClos
             className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50"
             disabled={loading}
           >
-            {loading ? 'Saving...' : license ? 'Update License' : 'Add License'}
+            {loading ? 'Saving...' : license ? 'Update License' : renewFrom ? 'Save Renewal' : 'Add License'}
           </button>
         </div>
       </div>
