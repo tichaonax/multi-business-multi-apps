@@ -20,6 +20,7 @@ import {
   getVehicleLicenseAlerts,
   getDriverLicenseAlerts,
   getVehicleComplianceRecipients,
+  deactivateSupersededVehicleLicenses,
   type VehicleLicenseAlert,
   type DriverLicenseAlert,
 } from './license-compliance'
@@ -40,6 +41,14 @@ const VEHICLES_OVERVIEW_LINK = '/vehicles?tab=overview'
 
 export async function sweepVehicleLicenseReminders(options: { forceChatDigest?: boolean } = {}): Promise<{ vehicleLicenses: number; driverLicenses: number; notificationsSent: number }> {
   try {
+    // Self-heal first: a vehicle should only ever have one active license
+    // per type. Clearing out any stale duplicate before computing alerts
+    // means a license that's genuinely already been renewed can't still
+    // show up as overdue right alongside its own replacement.
+    await deactivateSupersededVehicleLicenses().catch(err => {
+      console.error('[license-reminder-notify] deactivateSupersededVehicleLicenses failed:', err)
+    })
+
     const [vehicleAlerts, driverAlerts, recipientIds] = await Promise.all([
       getVehicleLicenseAlerts(),
       getDriverLicenseAlerts(),

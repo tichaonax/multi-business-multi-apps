@@ -11,6 +11,7 @@
 // case, not an excluded one.
 
 import { prisma } from '@/lib/prisma'
+import { createAuditLog } from '@/lib/audit'
 
 export type LicenseUrgency = 'OVERDUE' | 'CRITICAL' | 'HIGH'
 
@@ -45,7 +46,7 @@ function classify(daysUntilExpiry: number): LicenseUrgency {
 
 export async function getVehicleLicenseAlerts(vehicleId?: string): Promise<VehicleLicenseAlert[]> {
   const windowEnd = new Date(Date.now() + WARNING_WINDOW_DAYS * 24 * 60 * 60 * 1000)
-  const licenses = await prisma.vehicleLicenses.findMany({
+  const rawLicenses = await prisma.vehicleLicenses.findMany({
     where: {
       isActive: true,
       expiryDate: { lte: windowEnd },
@@ -56,6 +57,25 @@ export async function getVehicleLicenseAlerts(vehicleId?: string): Promise<Vehic
     },
     orderBy: { expiryDate: 'asc' },
   })
+
+  // A vehicle should only ever carry one alert per license type. Renewing a
+  // license is supposed to deactivate the record it replaces (see POST
+  // /api/vehicles/licenses), but not every creation path does — a license
+  // added via the Renewal Receipt flow, a bulk import, or any other path
+  // that doesn't run that check can leave a stale isActive:true row behind
+  // alongside the new one, which would otherwise surface as two alerts
+  // (one overdue, one not) for what's really just one license that was
+  // already renewed. Keep only the one with the latest expiryDate per
+  // (vehicleId, licenseType) — that's unambiguously the current license.
+  const latestPerVehicleAndType = new Map<string, (typeof rawLicenses)[number]>()
+  for (const l of rawLicenses) {
+    const key = `${l.vehicleId}:${l.licenseType}`
+    const existing = latestPerVehicleAndType.get(key)
+    if (!existing || l.expiryDate > existing.expiryDate) {
+      latestPerVehicleAndType.set(key, l)
+    }
+  }
+  const licenses = [...latestPerVehicleAndType.values()].sort((a, b) => a.expiryDate.getTime() - b.expiryDate.getTime())
 
   const now = Date.now()
   return licenses.map(l => {
@@ -73,6 +93,63 @@ export async function getVehicleLicenseAlerts(vehicleId?: string): Promise<Vehic
       vehicleModel: l.vehicles.model,
     }
   })
+}
+
+/**
+ * Permanently fixes the data, not just the alert view: whenever a vehicle
+ * has more than one `isActive: true` license of the same type, deactivates
+ * every one except the current (latest-expiry) record — same effect as the
+ * create-route's own auto-deactivation (POST /api/vehicles/licenses), run
+ * here as a self-heal for whichever creation path left the old record
+ * active (confirmed happening for at least one vehicle's REGISTRATION
+ * renewal, which didn't go through that endpoint). Called from the
+ * compliance sweep, so it runs nightly, on the throttled lazy trigger, and
+ * whenever an admin forces a sweep. Returns how many were deactivated, for
+ * the sweep's own result summary.
+ */
+export async function deactivateSupersededVehicleLicenses(): Promise<number> {
+  const active = await prisma.vehicleLicenses.findMany({
+    where: { isActive: true },
+    select: { id: true, vehicleId: true, licenseType: true, licenseNumber: true, expiryDate: true },
+    orderBy: { expiryDate: 'desc' },
+  })
+
+  const byVehicleAndType = new Map<string, typeof active>()
+  for (const l of active) {
+    const key = `${l.vehicleId}:${l.licenseType}`
+    const group = byVehicleAndType.get(key)
+    if (group) group.push(l); else byVehicleAndType.set(key, [l])
+  }
+
+  let deactivatedCount = 0
+  for (const group of byVehicleAndType.values()) {
+    if (group.length < 2) continue
+    // group is already sorted latest-expiry-first (inherited from the query
+    // order) within each key's insertion order — re-sort defensively.
+    const sorted = [...group].sort((a, b) => b.expiryDate.getTime() - a.expiryDate.getTime())
+    const [current, ...superseded] = sorted
+    for (const old of superseded) {
+      await prisma.vehicleLicenses.update({ where: { id: old.id }, data: { isActive: false } })
+      deactivatedCount++
+      await createAuditLog({
+        userId: 'admin-system-user-default',
+        action: 'VEHICLE_LICENSE_DEACTIVATED',
+        entityType: 'VehicleLicense',
+        entityId: old.id,
+        oldValues: { isActive: true, expiryDate: old.expiryDate },
+        newValues: { isActive: false },
+        metadata: {
+          vehicleId: old.vehicleId,
+          licenseType: old.licenseType,
+          licenseNumber: old.licenseNumber,
+          supersededBy: current.id,
+          supersededByLicenseNumber: current.licenseNumber,
+          reason: 'Auto-deactivated: superseded by a newer license of the same type (compliance sweep self-heal)',
+        },
+      }).catch(() => {})
+    }
+  }
+  return deactivatedCount
 }
 
 export async function getDriverLicenseAlerts(driverId?: string): Promise<DriverLicenseAlert[]> {
