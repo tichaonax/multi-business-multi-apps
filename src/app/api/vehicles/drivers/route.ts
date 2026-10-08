@@ -7,7 +7,7 @@ import * as bcrypt from 'bcrypt'
 import { randomBytes } from 'crypto';
 import * as crypto from 'crypto';
 import { getServerUser } from '@/lib/get-server-user'
-import { clearDriverLicenseReminder } from '@/lib/vehicles/license-reminder-notify'
+import { resweepVehicleLicenseReminders } from '@/lib/vehicles/license-reminder-notify'
 // Validation schemas
 const CreateDriverSchema = z.object({
   fullName: z.string().min(1, 'Full name is required'),
@@ -392,11 +392,10 @@ export async function PUT(request: NextRequest) {
       }
     })
 
-    // MBM-304: clear any outstanding expiry reminder immediately — if the
-    // license is still within the warning window, the next throttled/
-    // nightly sweep recreates it within minutes.
+    // MBM-304: recompute the compliance summary immediately — if the
+    // license is still within the warning window, it's recreated right away anyway.
     if (updateData.licenseExpiry) {
-      clearDriverLicenseReminder(driver.id).catch(() => {})
+      resweepVehicleLicenseReminders().catch(() => {})
     }
 
     return NextResponse.json({

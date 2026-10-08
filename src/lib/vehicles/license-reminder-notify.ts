@@ -20,23 +20,20 @@ import {
   getVehicleLicenseAlerts,
   getDriverLicenseAlerts,
   getVehicleComplianceRecipients,
-  type LicenseUrgency,
   type VehicleLicenseAlert,
   type DriverLicenseAlert,
 } from './license-compliance'
 
-export function vehicleLicenseReminderGroupKey(licenseId: string): string {
-  return `vehicle-license-reminder:${licenseId}`
-}
-
-export function driverLicenseReminderGroupKey(driverId: string): string {
-  return `driver-license-reminder:${driverId}`
-}
-
-function actionTitle(urgency: LicenseUrgency, kind: 'Vehicle' | 'Driver'): string {
-  return urgency === 'OVERDUE'
-    ? `⚠️ Action Needed: ${kind} License Overdue`
-    : `⚠️ Action Needed: ${kind} License Expiring Soon`
+// A single combined groupKey for every recipient's bell notification —
+// previously one row per license/driver (vehicle-license-reminder:${id}),
+// which meant a fleet with several overdue licenses buried the bell under
+// a long, unmanageable list of near-identical rows. One upserted summary
+// row per user (via emitGroupedNotification's existing upsert-on-groupKey
+// behavior) replaces that; the full itemized breakdown already lives in
+// both the Compliance Alerts panel (linkUrl below) and the System Alerts
+// chat digest (postLicenseComplianceChatDigest).
+function vehicleLicenseComplianceSummaryGroupKey(): string {
+  return 'vehicle-license-compliance-summary'
 }
 
 const VEHICLES_OVERVIEW_LINK = '/vehicles?tab=overview'
@@ -50,43 +47,33 @@ export async function sweepVehicleLicenseReminders(): Promise<{ vehicleLicenses:
     ])
 
     let notificationsSent = 0
+    const totalAlerts = vehicleAlerts.length + driverAlerts.length
+    const groupKey = vehicleLicenseComplianceSummaryGroupKey()
 
-    for (const alert of vehicleAlerts) {
-      const groupKey = vehicleLicenseReminderGroupKey(alert.id)
-      const title = actionTitle(alert.urgency, 'Vehicle')
-      const message = alert.urgency === 'OVERDUE'
-        ? `${alert.licenseType} license #${alert.licenseNumber} for ${alert.vehicleLicensePlate} (${alert.vehicleMake} ${alert.vehicleModel}) expired ${Math.abs(alert.daysUntilExpiry)} day(s) ago, on ${alert.expiryDate.toDateString()}. Renew immediately.`
-        : `${alert.licenseType} license #${alert.licenseNumber} for ${alert.vehicleLicensePlate} (${alert.vehicleMake} ${alert.vehicleModel}) expires in ${alert.daysUntilExpiry} day(s), on ${alert.expiryDate.toDateString()}.`
-
-      for (const userId of recipientIds) {
-        await emitGroupedNotification({
-          userId,
-          type: alert.urgency === 'OVERDUE' ? 'VEHICLE_LICENSE_OVERDUE' : 'VEHICLE_LICENSE_EXPIRING',
-          title,
-          message,
-          linkUrl: VEHICLES_OVERVIEW_LINK,
-          metadata: { licenseId: alert.id, vehicleId: alert.vehicleId, urgency: alert.urgency },
-          groupKey,
-        })
-        notificationsSent++
-      }
-    }
-
-    for (const alert of driverAlerts) {
-      const groupKey = driverLicenseReminderGroupKey(alert.id)
-      const title = actionTitle(alert.urgency, 'Driver')
-      const message = alert.urgency === 'OVERDUE'
-        ? `${alert.fullName}'s driver license expired ${Math.abs(alert.daysUntilExpiry)} day(s) ago, on ${alert.licenseExpiry.toDateString()}. Renew immediately.`
-        : `${alert.fullName}'s driver license expires in ${alert.daysUntilExpiry} day(s), on ${alert.licenseExpiry.toDateString()}.`
+    if (totalAlerts === 0) {
+      // Nothing outstanding any more — drop the summary row entirely rather
+      // than leave a stale "0 alerts" notification sitting in the bell.
+      await clearGroupedNotifications(groupKey)
+    } else {
+      const overdueCount =
+        vehicleAlerts.filter(a => a.urgency === 'OVERDUE').length +
+        driverAlerts.filter(a => a.urgency === 'OVERDUE').length
+      const soonCount = totalAlerts - overdueCount
+      const title = overdueCount > 0
+        ? `⚠️ Action Needed: ${overdueCount} License${overdueCount === 1 ? '' : 's'} Overdue${soonCount > 0 ? `, ${soonCount} Expiring Soon` : ''}`
+        : `⚠️ Action Needed: ${soonCount} License${soonCount === 1 ? '' : 's'} Expiring Soon`
+      const message = `${totalAlerts} vehicle/driver license${totalAlerts === 1 ? '' : 's'} need${totalAlerts === 1 ? 's' : ''} attention` +
+        (overdueCount > 0 ? ` — ${overdueCount} already overdue.` : '.') +
+        ' Open Fleet Management for the full breakdown.'
 
       for (const userId of recipientIds) {
         await emitGroupedNotification({
           userId,
-          type: alert.urgency === 'OVERDUE' ? 'VEHICLE_LICENSE_OVERDUE' : 'VEHICLE_LICENSE_EXPIRING',
+          type: overdueCount > 0 ? 'VEHICLE_LICENSE_OVERDUE' : 'VEHICLE_LICENSE_EXPIRING',
           title,
           message,
           linkUrl: VEHICLES_OVERVIEW_LINK,
-          metadata: { driverId: alert.id, urgency: alert.urgency },
+          metadata: { overdueCount, soonCount, totalAlerts },
           groupKey,
         })
         notificationsSent++
@@ -188,14 +175,15 @@ export async function postLicenseComplianceChatDigest(vehicleAlerts: VehicleLice
   }
 }
 
-/** Clears a vehicle license's reminder for everyone — call when it's renewed. */
-export async function clearVehicleLicenseReminder(licenseId: string): Promise<void> {
-  await clearGroupedNotifications(vehicleLicenseReminderGroupKey(licenseId))
-}
-
-/** Clears a driver license's reminder for everyone — call when it's renewed. */
-export async function clearDriverLicenseReminder(driverId: string): Promise<void> {
-  await clearGroupedNotifications(driverLicenseReminderGroupKey(driverId))
+/** Recomputes the license-compliance summary immediately — call right after
+ * a vehicle or driver license is renewed, so the bell/chat digest drop or
+ * update it without waiting for the next throttled sweep. The groupKey is
+ * now one shared summary row per recipient, not one per license, so there's
+ * no single id to "clear" any more — a full resweep naturally drops the
+ * renewed license/driver from the count (or clears the row entirely if
+ * nothing else is outstanding). */
+export async function resweepVehicleLicenseReminders(): Promise<void> {
+  await sweepVehicleLicenseReminders()
 }
 
 let lastLazySweepAt = 0

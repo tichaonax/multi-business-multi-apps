@@ -35,7 +35,8 @@ import {
   Network,
   Receipt,
   HandCoins,
-  Building
+  Building,
+  Bell
 } from 'lucide-react'
 import { useEffect } from 'react'
 import { useSession } from 'next-auth/react'
@@ -70,6 +71,13 @@ export default function AdminPage() {
   const [sanitizingTokens, setSanitizingTokens] = useState(false)
   const [sanitizeResult, setSanitizeResult] = useState<any>(null)
   const [sanitizeError, setSanitizeError] = useState('')
+
+  // Vehicle License Compliance Sweep (MBM-304) — manual trigger for testing,
+  // same job the nightly cron and the throttled lazy GET /api/notifications
+  // trigger both run, without waiting for either.
+  const [sweepingLicenses, setSweepingLicenses] = useState(false)
+  const [licenseSweepResult, setLicenseSweepResult] = useState<any>(null)
+  const [licenseSweepError, setLicenseSweepError] = useState('')
 
   // Clock-In Data Reset
   const [resettingClockIn, setResettingClockIn] = useState(false)
@@ -172,6 +180,34 @@ export default function AdminPage() {
       setAdminCreationError(err?.message || 'Failed to create admin user')
     } finally {
       setCreatingAdmin(false)
+    }
+  }
+
+  const handleTriggerLicenseSweep = async () => {
+    setSweepingLicenses(true)
+    setLicenseSweepError('')
+    setLicenseSweepResult(null)
+
+    try {
+      const response = await fetch('/api/admin/trigger-vehicle-license-sweep', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        setLicenseSweepResult(data.result)
+        toast.push('Vehicle license compliance sweep completed')
+      } else {
+        setLicenseSweepError(data.error || 'Failed to run sweep')
+        toast.error(`Sweep failed: ${data.error || 'Unknown error'}`)
+      }
+    } catch (error) {
+      setLicenseSweepError('Network error occurred')
+      toast.error('Network error during license sweep')
+    } finally {
+      setSweepingLicenses(false)
     }
   }
 
@@ -599,6 +635,67 @@ export default function AdminPage() {
                   <div className="flex items-center">
                     <AlertTriangle className="h-5 w-5 text-red-500 mr-2" />
                     <div className="text-sm text-red-700 dark:text-red-300">{sanitizeError}</div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {isSysAdmin && (
+            <div className="card p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center">
+                  <Bell className="h-6 w-6 mr-2 text-amber-500" />
+                  <h3 className="text-lg font-semibold text-primary">Vehicle License Compliance Sweep</h3>
+                </div>
+              </div>
+              <p className="text-secondary mb-4">Manually run the vehicle/driver license compliance check (MBM-304) instead of waiting for the nightly job or the next notification load</p>
+              <div className="text-sm text-secondary mb-4">
+                • Sends/refreshes push notifications to cashiers &amp; admins
+                <br />
+                • Posts a digest to the "System Alerts" chat room (throttled to once per ~20h)
+                <br />
+                • Same job the nightly cron runs — safe to re-run any time
+              </div>
+              <button
+                onClick={handleTriggerLicenseSweep}
+                disabled={sweepingLicenses}
+                className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+              >
+                {sweepingLicenses ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Running Sweep...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Run License Compliance Sweep
+                  </>
+                )}
+              </button>
+
+              {licenseSweepResult && (
+                <div className="mt-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+                  <div className="flex items-center mb-2">
+                    <CheckCircle className="h-5 w-5 text-amber-500 mr-2" />
+                    <div className="font-medium text-amber-800 dark:text-amber-200">
+                      Sweep Completed Successfully
+                    </div>
+                  </div>
+                  <div className="text-sm text-amber-700 dark:text-amber-300 space-y-1">
+                    <div>• Vehicle licenses flagged: <strong>{licenseSweepResult.vehicleLicenses}</strong></div>
+                    <div>• Driver licenses flagged: <strong>{licenseSweepResult.driverLicenses}</strong></div>
+                    <div>• Notifications sent: <strong>{licenseSweepResult.notificationsSent}</strong></div>
+                  </div>
+                </div>
+              )}
+
+              {licenseSweepError && (
+                <div className="mt-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                  <div className="flex items-center">
+                    <AlertTriangle className="h-5 w-5 text-red-500 mr-2" />
+                    <div className="text-sm text-red-700 dark:text-red-300">{licenseSweepError}</div>
                   </div>
                 </div>
               )}

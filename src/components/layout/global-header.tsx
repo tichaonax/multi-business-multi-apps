@@ -87,7 +87,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
   const pendingCount = usePendingActionsCount()
   const pendingActions = usePendingActions()
   const { overdueCount: policyOverdueCount } = usePolicyOverdue()
-  const { unreadCount: notifUnreadCount, notifications: notifList, markRead, markAllRead } = useNotifications()
+  const { unreadCount: notifUnreadCount, notifications: notifList, markRead, markAllRead, dismiss: dismissNotif } = useNotifications()
   const [showBellPreview, setShowBellPreview] = useState(false)
   const [showNotifPanel, setShowNotifPanel] = useState(false)
   const [pendingDraftNav, setPendingDraftNav] = useState<{ businessId: string; businessName: string; url: string; title: string } | null>(null)
@@ -1279,13 +1279,21 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                             return (
                             <div
                               key={n.id}
-                              className={`flex items-start gap-2 px-3 py-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 text-xs ${
+                              className={`group relative flex items-start gap-2 px-3 py-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 text-xs ${
                                 isUrgent
                                   ? 'bg-red-50/60 dark:bg-red-900/15 border-l-2 border-red-400'
                                   : !n.isRead ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''
                               }`}
                               onClick={() => { markRead(n.id); setShowNotifPanel(false); if (n.linkUrl) window.location.href = n.linkUrl }}
                             >
+                              <button
+                                type="button"
+                                title="Dismiss"
+                                onClick={e => { e.stopPropagation(); dismissNotif(n.id) }}
+                                className="absolute top-1 right-1 w-4 h-4 rounded-full flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-500 dark:hover:bg-gray-600 opacity-0 group-hover:opacity-100 transition-opacity leading-none"
+                              >
+                                ×
+                              </button>
                               <span className="mt-0.5 shrink-0 text-base">
                                 {isUrgent ? '🚨' : n.type === 'PAYMENT_APPROVED' ? '✅' : n.type === 'PAYMENT_REJECTED' ? '↩️' : n.type === 'PAYMENT_SUBMITTED' ? '📋' : n.type === 'PAYMENT_PAID' ? '💰' : n.type === 'PETTY_CASH_SUBMITTED' ? '💸' : n.type === 'PETTY_CASH_APPROVED' ? '🪙' : n.type === 'PETTY_CASH_REJECTED' ? '❌' : n.type === 'CHAT_MESSAGE' ? '💬' : n.type === 'LOW_STOCK' ? '📦' : n.type === 'COMBO_REQUEST_SUBMITTED' ? '📋' : n.type === 'COMBO_REQUEST_APPROVED' ? '✅' : n.type === 'COMBO_REQUEST_PARTIALLY_APPROVED' ? '⚠️' : n.type === 'COMBO_REQUEST_CANCELLED' ? '❌' : n.type === 'COMBO_REQUEST_PAID' ? '💯' : n.type === 'JOB_BILLED_AWAITING_PAYMENT' ? '🧾' : n.type === 'JOB_START_ESCALATION' ? '⏰' : '🔔'}
                               </span>

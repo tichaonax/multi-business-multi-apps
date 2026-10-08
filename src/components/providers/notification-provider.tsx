@@ -21,6 +21,7 @@ interface NotificationContextValue {
   unreadCount: number
   markRead: (id: string) => Promise<void>
   markAllRead: () => Promise<void>
+  dismiss: (id: string) => Promise<void>
   refresh: () => Promise<void>
 }
 
@@ -29,6 +30,7 @@ const NotificationContext = createContext<NotificationContextValue>({
   unreadCount: 0,
   markRead: async () => {},
   markAllRead: async () => {},
+  dismiss: async () => {},
   refresh: async () => {},
 })
 
@@ -129,8 +131,23 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     } catch { /* non-critical */ }
   }, [])
 
+  // Dismiss — permanently removes it (unlike markRead, which just mutes the
+  // styling but leaves it sitting in the list for up to 30 days).
+  const dismiss = useCallback(async (id: string) => {
+    let wasUnread = false
+    setNotifications(prev => {
+      const target = prev.find(n => n.id === id)
+      wasUnread = !!target && !target.isRead
+      return prev.filter(n => n.id !== id)
+    })
+    if (wasUnread) setUnreadCount(prev => Math.max(0, prev - 1))
+    try {
+      await fetch(`/api/notifications/${id}`, { method: 'DELETE', credentials: 'include' })
+    } catch { /* non-critical */ }
+  }, [])
+
   return (
-    <NotificationContext.Provider value={{ notifications, unreadCount, markRead, markAllRead, refresh }}>
+    <NotificationContext.Provider value={{ notifications, unreadCount, markRead, markAllRead, dismiss, refresh }}>
       {children}
     </NotificationContext.Provider>
   )
