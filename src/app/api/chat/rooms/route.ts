@@ -9,7 +9,7 @@ export async function GET() {
     const user = await getServerUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const participantRows = await prisma.chatParticipants.findMany({
+    const allParticipantRows = await prisma.chatParticipants.findMany({
       where: { userId: user.id, chat_rooms: { type: { in: ['direct', 'group', 'system'] } } },
       include: {
         chat_rooms: {
@@ -22,6 +22,18 @@ export async function GET() {
           },
         },
       },
+    })
+
+    // Defense in depth: one card per room.id, never per ChatParticipants
+    // row. A stray duplicate participant row (the exact bug that flooded
+    // the chat list with repeated "System Alerts" entries — see
+    // dedupe_chat_participants migration) now just gets silently ignored
+    // here instead of rendering as a duplicate room.
+    const seenRoomIds = new Set<string>()
+    const participantRows = allParticipantRows.filter(p => {
+      if (!p.roomId || seenRoomIds.has(p.roomId)) return false
+      seenRoomIds.add(p.roomId)
+      return true
     })
 
     const rooms = await Promise.all(participantRows.map(async (p) => {

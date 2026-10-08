@@ -824,6 +824,13 @@ model ChatParticipants {
   chat_rooms ChatRooms? @relation(fields: [roomId], references: [id], onDelete: Cascade)
   users      Users?     @relation(fields: [userId], references: [id])
 
+  // Without this, createMany's skipDuplicates (used by
+  // getOrCreateSystemAlertsRoom to re-ensure membership on every sweep) has
+  // no unique index to dedupe against and silently inserts a new row every
+  // time — the real cause of "System Alerts" flooding the chat list (one
+  // card per ChatParticipants row, not per room). See
+  // dedupe_chat_participants migration for the one-time cleanup.
+  @@unique([roomId, userId])
   @@map("chat_participants")
 }
 
