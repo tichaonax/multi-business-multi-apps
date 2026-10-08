@@ -1266,53 +1266,79 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                             </div>
                           </div>
                         )}
-                        <div className="divide-y divide-border max-h-80 overflow-y-auto">
+                        <div className="max-h-80 overflow-y-auto">
                           {(() => {
                             const baseList = showUnreadOnly ? notifList.filter(n => !n.isRead) : notifList
                             const filtered = notifSearch.trim() ? baseList.filter(n => `${n.title ?? ''} ${n.message ?? ''}`.toLowerCase().includes(notifSearch.toLowerCase())) : baseList
                             if (filtered.length === 0) return <div className="px-3 py-4 text-xs text-secondary text-center">{notifSearch ? 'No matching notifications' : showUnreadOnly ? 'No unread notifications' : 'No notifications'}</div>
-                            return filtered.map(n => {
-                            const isUrgent = n.title?.includes('Urgent') || n.title?.includes('URGENT') || n.message?.includes('🚨')
-                            const hasCash = n.message?.includes('💵')
-                            const hasEcoCash = n.message?.includes('📱')
-                            const showBadges = (n.type === 'PETTY_CASH_SUBMITTED' || n.type === 'PAYMENT_SUBMITTED' || n.type === 'PAYMENT_APPROVED' || n.type === 'PAYMENT_REJECTED') && (hasCash || hasEcoCash || isUrgent)
-                            return (
-                            <div
-                              key={n.id}
-                              className={`group relative flex items-start gap-2 px-3 py-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 text-xs ${
-                                isUrgent
-                                  ? 'bg-red-50/60 dark:bg-red-900/15 border-l-2 border-red-400'
-                                  : !n.isRead ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''
-                              }`}
-                              onClick={() => { markRead(n.id); setShowNotifPanel(false); if (n.linkUrl) window.location.href = n.linkUrl }}
-                            >
-                              <button
-                                type="button"
-                                title="Dismiss"
-                                onClick={e => { e.stopPropagation(); dismissNotif(n.id) }}
-                                className="absolute top-1 right-1 w-4 h-4 rounded-full flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-500 dark:hover:bg-gray-600 opacity-0 group-hover:opacity-100 transition-opacity leading-none"
+
+                            const renderItem = (n: typeof filtered[number]) => {
+                              const isUrgent = n.title?.includes('Urgent') || n.title?.includes('URGENT') || n.message?.includes('🚨')
+                              const hasCash = n.message?.includes('💵')
+                              const hasEcoCash = n.message?.includes('📱')
+                              const showBadges = (n.type === 'PETTY_CASH_SUBMITTED' || n.type === 'PAYMENT_SUBMITTED' || n.type === 'PAYMENT_APPROVED' || n.type === 'PAYMENT_REJECTED') && (hasCash || hasEcoCash || isUrgent)
+                              return (
+                              <div
+                                key={n.id}
+                                className={`group relative flex items-start gap-2 px-3 py-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 text-xs border-b border-border ${
+                                  isUrgent
+                                    ? 'bg-red-50/60 dark:bg-red-900/15 border-l-2 border-red-400'
+                                    : !n.isRead ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''
+                                }`}
+                                onClick={() => { markRead(n.id); setShowNotifPanel(false); if (n.linkUrl) window.location.href = n.linkUrl }}
                               >
-                                ×
-                              </button>
-                              <span className="mt-0.5 shrink-0 text-base">
-                                {isUrgent ? '🚨' : n.type === 'PAYMENT_APPROVED' ? '✅' : n.type === 'PAYMENT_REJECTED' ? '↩️' : n.type === 'PAYMENT_SUBMITTED' ? '📋' : n.type === 'PAYMENT_PAID' ? '💰' : n.type === 'PETTY_CASH_SUBMITTED' ? '💸' : n.type === 'PETTY_CASH_APPROVED' ? '🪙' : n.type === 'PETTY_CASH_REJECTED' ? '❌' : n.type === 'CHAT_MESSAGE' ? '💬' : n.type === 'LOW_STOCK' ? '📦' : n.type === 'COMBO_REQUEST_SUBMITTED' ? '📋' : n.type === 'COMBO_REQUEST_APPROVED' ? '✅' : n.type === 'COMBO_REQUEST_PARTIALLY_APPROVED' ? '⚠️' : n.type === 'COMBO_REQUEST_CANCELLED' ? '❌' : n.type === 'COMBO_REQUEST_PAID' ? '💯' : n.type === 'JOB_BILLED_AWAITING_PAYMENT' ? '🧾' : n.type === 'JOB_START_ESCALATION' ? '⏰' : '🔔'}
-                              </span>
-                              <div className="min-w-0 flex-1">
-                                <p className={`font-medium truncate ${isUrgent ? 'text-red-700 dark:text-red-300' : !n.isRead ? 'text-blue-700 dark:text-blue-300' : 'text-primary'}`}>{n.title}</p>
-                                <p className="text-secondary line-clamp-2">{n.message}</p>
-                                {showBadges && (
-                                  <div className="flex items-center gap-1 mt-1 flex-wrap">
-                                    {isUrgent && <span className="bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300 font-bold px-1.5 py-0.5 rounded text-[10px]">URGENT</span>}
-                                    {hasCash && <span className="bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 px-1.5 py-0.5 rounded text-[10px]">💵 Cash</span>}
-                                    {hasEcoCash && <span className="bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300 px-1.5 py-0.5 rounded text-[10px]">📱 EcoCash</span>}
-                                  </div>
-                                )}
-                                <p className="text-gray-400 dark:text-gray-500 mt-0.5">{new Date(n.createdAt).toLocaleString()}</p>
+                                <button
+                                  type="button"
+                                  title="Dismiss"
+                                  onClick={e => { e.stopPropagation(); dismissNotif(n.id) }}
+                                  className="absolute top-1 right-1 w-4 h-4 rounded-full flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-500 dark:hover:bg-gray-600 opacity-0 group-hover:opacity-100 transition-opacity leading-none"
+                                >
+                                  ×
+                                </button>
+                                <span className="mt-0.5 shrink-0 text-base">
+                                  {isUrgent ? '🚨' : n.type === 'PAYMENT_APPROVED' ? '✅' : n.type === 'PAYMENT_REJECTED' ? '↩️' : n.type === 'PAYMENT_SUBMITTED' ? '📋' : n.type === 'PAYMENT_PAID' ? '💰' : n.type === 'PETTY_CASH_SUBMITTED' ? '💸' : n.type === 'PETTY_CASH_APPROVED' ? '🪙' : n.type === 'PETTY_CASH_REJECTED' ? '❌' : n.type === 'CHAT_MESSAGE' ? '💬' : n.type === 'LOW_STOCK' ? '📦' : n.type === 'COMBO_REQUEST_SUBMITTED' ? '📋' : n.type === 'COMBO_REQUEST_APPROVED' ? '✅' : n.type === 'COMBO_REQUEST_PARTIALLY_APPROVED' ? '⚠️' : n.type === 'COMBO_REQUEST_CANCELLED' ? '❌' : n.type === 'COMBO_REQUEST_PAID' ? '💯' : n.type === 'JOB_BILLED_AWAITING_PAYMENT' ? '🧾' : n.type === 'JOB_START_ESCALATION' ? '⏰' : '🔔'}
+                                </span>
+                                <div className="min-w-0 flex-1">
+                                  <p className={`font-medium truncate ${isUrgent ? 'text-red-700 dark:text-red-300' : !n.isRead ? 'text-blue-700 dark:text-blue-300' : 'text-primary'}`}>{n.title}</p>
+                                  <p className="text-secondary line-clamp-2">{n.message}</p>
+                                  {showBadges && (
+                                    <div className="flex items-center gap-1 mt-1 flex-wrap">
+                                      {isUrgent && <span className="bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300 font-bold px-1.5 py-0.5 rounded text-[10px]">URGENT</span>}
+                                      {hasCash && <span className="bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 px-1.5 py-0.5 rounded text-[10px]">💵 Cash</span>}
+                                      {hasEcoCash && <span className="bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300 px-1.5 py-0.5 rounded text-[10px]">📱 EcoCash</span>}
+                                    </div>
+                                  )}
+                                  <p className="text-gray-400 dark:text-gray-500 mt-0.5">{new Date(n.createdAt).toLocaleString()}</p>
+                                </div>
+                                {!n.isRead && <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0 mt-1" />}
                               </div>
-                              {!n.isRead && <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0 mt-1" />}
-                            </div>
-                            )
-                          })
+                              )
+                            }
+
+                            // Segment so related notifications (e.g. every vehicle
+                            // license alert) sit together under their own labeled
+                            // section instead of interleaved in one long list —
+                            // each segment keeps the API's newest-first order.
+                            const segmented = new Map<string, { label: string; icon: string; items: typeof filtered }>()
+                            for (const n of filtered) {
+                              const seg = notifSegmentFor(n.type)
+                              if (!segmented.has(seg.key)) segmented.set(seg.key, { label: seg.label, icon: seg.icon, items: [] })
+                              segmented.get(seg.key)!.items.push(n)
+                            }
+                            const orderedKeys = [...NOTIF_SEGMENTS.map(s => s.key), 'other'].filter(k => segmented.has(k))
+
+                            return orderedKeys.map(key => {
+                              const seg = segmented.get(key)!
+                              return (
+                                <div key={key}>
+                                  <div className="px-3 py-1 bg-gray-100 dark:bg-gray-900/60 text-[10px] font-semibold text-secondary uppercase tracking-wide flex items-center gap-1 sticky top-0">
+                                    <span>{seg.icon}</span>{seg.label}
+                                    <span className="text-gray-400 dark:text-gray-500 font-normal normal-case">({seg.items.length})</span>
+                                  </div>
+                                  {seg.items.map(renderItem)}
+                                </div>
+                              )
+                            })
                           })()}
                         </div>
                       </div>
@@ -1517,6 +1543,27 @@ function formatBusinessTypeLabel(businessType: string): string {
     .split('_')
     .map(word => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ')
+}
+
+// Notification bell segments — every AppNotification.type buckets into one
+// of these so related notifications sit together instead of interleaved in
+// one long chronological list (e.g. vehicle licenses no longer get lost
+// between petty cash and chat pings). Order here is the display order;
+// unmatched types fall into "Other". Not collapsible by design — this is
+// visual segmentation only, not hiding anything.
+const NOTIF_SEGMENTS: { key: string; label: string; icon: string; types: string[] }[] = [
+  { key: 'vehicle', label: 'Vehicle & Licensing', icon: '🚗', types: ['VEHICLE_LICENSE_EXPIRING', 'VEHICLE_LICENSE_OVERDUE'] },
+  { key: 'payments', label: 'Payments', icon: '💰', types: ['PAYMENT_SUBMITTED', 'PAYMENT_APPROVED', 'PAYMENT_REJECTED', 'PAYMENT_PAID', 'BATCH_READY', 'PAYMENTS_REVERSED_TO_PETTY_CASH'] },
+  { key: 'withdrawals', label: 'Withdrawals', icon: '🏦', types: ['WITHDRAWAL_SUBMITTED', 'WITHDRAWAL_ADMIN_APPROVED', 'WITHDRAWAL_DENIED_LENDER', 'WITHDRAWAL_DENIED_ADMIN', 'WITHDRAWAL_PAID', 'WITHDRAWAL_CASHIER_ALERT'] },
+  { key: 'pettycash', label: 'Petty Cash', icon: '💸', types: ['PETTY_CASH_SUBMITTED', 'PETTY_CASH_APPROVED', 'PETTY_CASH_REJECTED', 'PETTY_CASH_SETTLE_REQUESTED', 'CASH_ALLOC_RECONCILED'] },
+  { key: 'combo', label: 'Combo Requests', icon: '📋', types: ['COMBO_REQUEST_SUBMITTED', 'COMBO_REQUEST_APPROVED', 'COMBO_REQUEST_PARTIALLY_APPROVED', 'COMBO_REQUEST_CANCELLED', 'COMBO_REQUEST_PAID', 'COMBO_REQUEST_RETURNED', 'COMBO_REQUEST_SETTLE_REQUESTED', 'COMBO_REQUEST_SETTLED', 'COMBO_REQUEST_EXPIRING', 'COMBO_REQUEST_EXPIRED'] },
+  { key: 'receipts', label: 'Receipts', icon: '🧾', types: ['RECEIPT_REMINDER', 'RECEIPT_ESCALATION'] },
+  { key: 'jobs', label: 'Jobs', icon: '🛠️', types: ['JOB_BILLED_AWAITING_PAYMENT', 'JOB_START_ESCALATION'] },
+  { key: 'inventory', label: 'Inventory', icon: '📦', types: ['LOW_STOCK', 'INVENTORY_ZERO_OUT', 'PRICE_CHANGED', 'ALLOCATION_SKIPPED'] },
+  { key: 'chat', label: 'Chat', icon: '💬', types: ['CHAT_MESSAGE'] },
+]
+function notifSegmentFor(type: string): { key: string; label: string; icon: string } {
+  return NOTIF_SEGMENTS.find(s => s.types.includes(type)) ?? { key: 'other', label: 'Other', icon: '🔔' }
 }
 
 function formatSegmentName(segment: string): string {
