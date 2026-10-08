@@ -10513,7 +10513,7 @@ The renewal receipt form has three tabs — **Registration**, **Radio / TV**, an
 | Usage | Description of use — Radio / TV tab only (e.g., "PRIVATE VEHICLE") |
 | Exempt | Tick if this licence has been waived / exempted |
 
-Only fill in the tabs for licences that were actually renewed on this receipt.
+Each tab starts with an **"Include this licence in the renewal"** checkbox, unticked by default — tick it only for the licence type(s) actually renewed on this receipt. Once ticked, its Licence Number, Issue Date, and Expiry Date become required: the form checks every ticked tab for complete new licence details before it will save, even if you're not currently viewing that tab, so a tab you ticked and then forgot to finish can't slip through with blank data.
 
 ---
 
@@ -10663,11 +10663,13 @@ The same information surfaces in three places, from quickest glance to most deta
 
 | Where | What it shows | Detail level |
 |---|---|---|
-| **🔔 Bell notification** | One collapsed summary per recipient, e.g. *"⚠️ Action Needed: 3 Licenses Overdue, 2 Expiring Soon"* — refreshes in place as the real count changes, rather than adding a new row every time the check runs. | Summary only — click it to go to the Compliance Alerts panel. |
-| **💬 System Alerts chat** | A read-only message listing every affected vehicle and driver — licence type, licence number, make/model, exact expiry date, and days overdue/remaining — grouped under OVERDUE and Expiring Soon headings. Posted at most once every ~20 hours so it doesn't spam the channel. | Full detail, with a link straight into Fleet Management. See [System Alerts (Read-Only)](#system-alerts-read-only). |
+| **🔔 Bell notification** | A row titled e.g. *"⚠️ Action Needed: 3 Licenses Overdue, 2 Expiring Soon"* — refreshes in place as the real count changes, rather than adding a new row every time the check runs. Tap it to expand in place: the same per-vehicle/driver breakdown as the System Alerts chat, colour-coded, with a **Renew →** (or **Open driver →**) link on each item. | Full detail, expands in place — no need to leave the bell panel. |
+| **💬 System Alerts chat** | A read-only message listing every affected vehicle and driver — licence type, licence number, make/model, exact expiry date, and days overdue/remaining — grouped under OVERDUE and Expiring Soon headings, each with its own **Renew →** link. Posted at most once every ~20 hours so it doesn't spam the channel. | Full detail, with links straight to the specific vehicle's Renew form. See [System Alerts (Read-Only)](#system-alerts-read-only). |
 | **Compliance Alerts panel** (Fleet Management → Overview tab) | A live, itemised list recalculated every time you open the page — always reflects the current state, not a snapshot. | Full detail, interactive (click through to the vehicle or driver). |
 
-All three are driven by the same underlying check, so they never disagree with each other about what's currently outstanding.
+All three are driven by the same underlying check and render from the same shared formatting component, so they never disagree with each other about what's currently outstanding or look inconsistent from one place to the next.
+
+Every individual vehicle item — in the bell, the chat, or the panel — has its own **Renew** action that jumps straight to that vehicle, pre-opened on the Renew form for that exact licence. You never have to go hunting for the right vehicle in Fleet Management first.
 
 ### How Often It Checks
 
@@ -10678,8 +10680,12 @@ All three are driven by the same underlying check, so they never disagree with e
 ### The Renewal Workflow
 
 1. Renew the licence at the licensing office as normal.
-2. Record it in the system using **[Record a Renewal Receipt](#41-vehicle-renewal-receipts)** (Fleet Management → Vehicles tab → select the vehicle → **Record Renewal Receipt**) — or, for a standalone licence update without a receipt, edit the licence directly and set its new expiry date.
-3. **That's it — no separate "clear alert" step.** Saving a new expiry date automatically re-runs the check immediately for that vehicle/driver:
+2. Record it in the system either by:
+   - clicking **Renew →** on the alert itself (bell, System Alerts chat, or Compliance Alerts panel) — opens that vehicle straight to the Renew form for that exact licence, or
+   - using **[Record a Renewal Receipt](#41-vehicle-renewal-receipts)** (Fleet Management → Vehicles tab → select the vehicle → **Record Renewal Receipt**) if you're also logging the payment breakdown.
+
+   Either way, renewing **always requires entering the new licence number and the new issue/expiry dates** — there is no shortcut that marks a licence renewed without capturing what actually changed. The old licence record is kept as history, not overwritten, so you can always see what it looked like before.
+3. **That's it — no separate "clear alert" step.** Saving the new licence automatically re-runs the check immediately for that vehicle/driver:
    - If the new expiry date is now more than 30 days away, the bell summary count drops, the vehicle/driver disappears from the Compliance Alerts panel, and (once nothing is outstanding for anyone) the bell notification clears itself entirely.
    - If it's still within the 30-day window (e.g. renewed for a short period), it simply shows with its new, later date and updated days-remaining.
 4. The **System Alerts chat** message isn't retroactively edited (chat messages are a point-in-time record of what the sweep found), but the *next* scheduled digest will reflect the renewal — or you can [force one immediately](#manually-triggering-a-check-admin) to confirm right away.

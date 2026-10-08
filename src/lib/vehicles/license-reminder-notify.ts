@@ -129,6 +129,12 @@ function daysLabel(days: number): string {
   return `${days} day${days === 1 ? '' : 's'} left`
 }
 
+// A license whose date has already passed is "Expired", not "Expires" —
+// the future tense reads wrong once it's overdue.
+function expiryVerb(days: number): string {
+  return days < 0 ? 'Expired' : 'Expires'
+}
+
 // Trailing `ref:` line carries the vehicle/license ids so the chat UI can
 // render a "Renew →" deep link straight to that license's Renew form
 // (parseComplianceDigest in chat-window.tsx) — not shown to the reader,
@@ -137,13 +143,13 @@ function daysLabel(days: number): string {
 function formatVehicleLine(a: VehicleLicenseAlert): string {
   return `• ${a.vehicleLicensePlate} — ${a.vehicleMake} ${a.vehicleModel}\n` +
     `  ${a.licenseType.replace(/_/g, ' ')} #${a.licenseNumber}\n` +
-    `  Expires ${fmtDate(a.expiryDate)} — ${daysLabel(a.daysUntilExpiry)}\n` +
+    `  ${expiryVerb(a.daysUntilExpiry)} ${fmtDate(a.expiryDate)} — ${daysLabel(a.daysUntilExpiry)}\n` +
     `  ref:${a.vehicleId}:${a.id}`
 }
 
 function formatDriverLine(a: DriverLicenseAlert): string {
   return `• ${a.fullName} — Driver's license\n` +
-    `  Expires ${fmtDate(a.licenseExpiry)} — ${daysLabel(a.daysUntilExpiry)}\n` +
+    `  ${expiryVerb(a.daysUntilExpiry)} ${fmtDate(a.licenseExpiry)} — ${daysLabel(a.daysUntilExpiry)}\n` +
     `  ref:driver:${a.id}`
 }
 

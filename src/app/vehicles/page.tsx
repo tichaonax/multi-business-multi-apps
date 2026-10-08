@@ -283,19 +283,22 @@ export default function VehiclesPage() {
       // "ACT 5169 - ACT 5169 - License expiring"; also never showed the
       // actual date or how urgent it was.
       const daysUntilAndDate = (expiry: string | null | undefined, precomputedDays?: number) => {
-        if (!expiry) return { expiryStr: 'unknown date', daysLabel: '' }
+        if (!expiry) return { expiryStr: 'unknown date', daysLabel: '', verb: 'expires' }
         const days = precomputedDays ?? Math.floor((new Date(expiry).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
         const expiryStr = new Date(expiry).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
         const daysLabel = days < 0 ? ` — ${Math.abs(days)} day${Math.abs(days) === 1 ? '' : 's'} OVERDUE`
           : days === 0 ? ' — expires today'
           : ` — ${days} day${days === 1 ? '' : 's'} left`
-        return { expiryStr, daysLabel }
+        // A date in the past reads wrong in future tense ("expires Jun 30"
+        // when it's already October).
+        const verb = days < 0 ? 'expired' : 'expires'
+        return { expiryStr, daysLabel, verb }
       }
 
       // Combine vehicle license alerts and driver license alerts into a single list
       const vehicleAlerts = (data?.data?.expiringLicenses || []).map((a: any) => {
         const expiry = a.expiryDate || a.vehicle?.expiryDate
-        const { expiryStr, daysLabel } = daysUntilAndDate(expiry)
+        const { expiryStr, daysLabel, verb } = daysUntilAndDate(expiry)
         const licenseTypeLabel = a.licenseType ? String(a.licenseType).replace(/_/g, ' ') : 'License'
         // MBM-305 spec §9.1 — standard and exemption expiry are never shown
         // under one ambiguous generic label.
@@ -308,19 +311,19 @@ export default function VehiclesPage() {
           alertTitle,
           vehicleId: a.vehicle?.id,
           licensePlate: a.vehicle?.licensePlate || a.licensePlate,
-          message: `${licenseTypeLabel}${a.licenseNumber ? ` #${a.licenseNumber}` : ''} (${a.vehicle?.make ?? ''} ${a.vehicle?.model ?? ''}) expires ${expiryStr}${daysLabel}`,
+          message: `${licenseTypeLabel}${a.licenseNumber ? ` #${a.licenseNumber}` : ''} (${a.vehicle?.make ?? ''} ${a.vehicle?.model ?? ''}) ${verb} ${expiryStr}${daysLabel}`,
           dueDate: expiry,
           urgency: a.urgency,
         }
       })
       const driverAlerts = (data?.data?.expiringDriverLicenses || []).map((d: any) => {
         const expiry = d.licenseExpiry || d.expiryDate
-        const { expiryStr, daysLabel } = daysUntilAndDate(expiry, d.daysUntilExpiry)
+        const { expiryStr, daysLabel, verb } = daysUntilAndDate(expiry, d.daysUntilExpiry)
         return {
           id: d.id || d.driver?.id || `${d.fullName || d.driver?.fullName}-driver`,
           type: 'driver',
           name: d.fullName || d.driver?.fullName || d.name,
-          message: `Driver's license expires ${expiryStr}${daysLabel}`,
+          message: `Driver's license ${verb} ${expiryStr}${daysLabel}`,
           dueDate: expiry,
           urgency: d.urgency,
         }
@@ -848,7 +851,16 @@ export default function VehiclesPage() {
                 <VehicleDetailModal
                   vehicle={selectedVehicle}
                   autoRenewLicenseId={autoRenewLicenseId}
-                  onClose={() => { setSelectedVehicle(null); setAutoRenewLicenseId(null) }}
+                  onClose={() => {
+                    // Arrived via a deep link (e.g. "Renew →" from the chat
+                    // digest or the notification bell) that carried a
+                    // ?returnTo= — closing sends the user back there instead
+                    // of stranding them on /vehicles, same pattern as the
+                    // inventory edit-item modal's closeEditForm().
+                    if (returnTo) { router.push(returnTo); return }
+                    setSelectedVehicle(null)
+                    setAutoRenewLicenseId(null)
+                  }}
                   onUpdate={(updated) => {
                     // Update local selection and refresh overview data
                     setSelectedVehicle(updated)

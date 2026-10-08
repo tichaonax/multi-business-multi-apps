@@ -118,6 +118,10 @@ export function parseComplianceDigest(message: string): ParsedComplianceDigest |
 
 function ComplianceItemCard({ item }: { item: ComplianceItem }) {
   const color = getUserColor(item.identifier)
+  // Carries the page the user was on back through the deep link — closing
+  // the vehicle/driver that opens returns them here instead of stranding
+  // them on /vehicles (see the onClose handler in vehicles/page.tsx).
+  const returnTo = typeof window !== 'undefined' ? `&returnTo=${encodeURIComponent(window.location.href)}` : ''
   return (
     <div className={`rounded-md border-l-4 ${color.border} bg-white/70 dark:bg-black/25 px-2 py-1.5 mb-1.5 last:mb-0`}>
       <div className="flex items-start justify-between gap-2">
@@ -137,7 +141,7 @@ function ComplianceItemCard({ item }: { item: ComplianceItem }) {
       )}
       {item.vehicleId && item.licenseId && (
         <a
-          href={`/vehicles?recordType=vehicle-license-renew&openRecordId=${item.vehicleId}&licenseId=${item.licenseId}`}
+          href={`/vehicles?recordType=vehicle-license-renew&openRecordId=${item.vehicleId}&licenseId=${item.licenseId}${returnTo}`}
           className="inline-block mt-1 text-[10px] font-semibold text-blue-600 dark:text-blue-400 hover:underline"
         >
           Renew →
