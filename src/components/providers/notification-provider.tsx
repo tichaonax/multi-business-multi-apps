@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react'
 import { usePathname } from 'next/navigation'
 import { io, Socket } from 'socket.io-client'
 import { useToastContext } from '@/components/ui/toast'
+import { parseComplianceDigest } from '@/components/vehicles/license-compliance-digest'
 
 export interface AppNotification {
   id: string
@@ -113,7 +114,15 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       toastTimerRef.current = null
       if (items.length === 0) return
       if (items.length === 1) {
-        toast.push(`${items[0].title}: ${items[0].message}`, { type: 'info' })
+        // The vehicle/driver license compliance notification's `message` is
+        // the same full itemized digest text the bell panel and chat window
+        // render as structured cards (see ComplianceDigestSections) — never
+        // dump that raw multi-line text into a one-line toast popup.
+        const parsed = parseComplianceDigest(items[0].message)
+        const preview = parsed
+          ? `${items[0].title} — ${parsed.sections.reduce((sum, s) => sum + s.items.length, 0)} license(s) need attention`
+          : `${items[0].title}: ${items[0].message}`
+        toast.push(preview, { type: 'info' })
       } else {
         const preview = items.slice(0, 3).map(i => i.title).join(', ')
         const more = items.length > 3 ? ` +${items.length - 3} more` : ''

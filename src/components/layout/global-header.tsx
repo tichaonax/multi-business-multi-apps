@@ -21,6 +21,7 @@ import { usePolicyOverdue } from '@/hooks/use-policy-overdue'
 import { useActiveServerLabel } from '@/hooks/use-active-server-label'
 import { getDefaultPagePath } from '@/lib/business-default-pages'
 import { subscribeChatBadge, ChatBadgeState } from '@/lib/chat-badge'
+import { ComplianceDigestSections, parseComplianceDigest } from '@/components/vehicles/license-compliance-digest'
 
 interface GlobalHeaderProps {
   title?: string
@@ -120,6 +121,11 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
     </button>
   )
   const [notifSearch, setNotifSearch] = useState('')
+  // Vehicle/driver license compliance notifications expand in place to show
+  // the same per-vehicle breakdown + Renew links as the System Alerts chat
+  // digest (ComplianceDigestSections), instead of navigating away — plain
+  // row IDs expanded here.
+  const [expandedComplianceNotifIds, setExpandedComplianceNotifIds] = useState<Set<string>>(new Set())
   // Notification bell segments default collapsed (header + unread count
   // only) — explicitly expanded ones live here by key.
   const [expandedNotifSegments, setExpandedNotifSegments] = useState<Set<string>>(new Set())
@@ -1358,6 +1364,66 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                             if (filtered.length === 0) return <div className="px-3 py-4 text-xs text-secondary text-center">{notifSearch ? 'No matching notifications' : showUnreadOnly ? 'No unread notifications' : 'No notifications'}</div>
 
                             const renderItem = (n: typeof filtered[number]) => {
+                              // Vehicle/driver license compliance notifications carry the
+                              // same itemized digest text as the System Alerts chat message
+                              // (buildComplianceDigestText) — expand in place with the same
+                              // shared ComplianceDigestSections renderer + Renew links,
+                              // instead of a truncated sentence the user has to click away
+                              // from just to see which vehicle needs what.
+                              if (n.type === 'VEHICLE_LICENSE_OVERDUE' || n.type === 'VEHICLE_LICENSE_EXPIRING') {
+                                const isExpanded = expandedComplianceNotifIds.has(n.id)
+                                const parsed = parseComplianceDigest(n.message)
+                                const itemCount = parsed?.sections.reduce((sum, s) => sum + s.items.length, 0) ?? 0
+                                return (
+                                  <div key={n.id} className={`px-3 py-2 text-xs border-b border-border ${!n.isRead ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''}`}>
+                                    <div
+                                      className="flex items-start gap-2 cursor-pointer"
+                                      onClick={() => {
+                                        markRead(n.id)
+                                        setExpandedComplianceNotifIds(prev => {
+                                          const next = new Set(prev)
+                                          if (next.has(n.id)) next.delete(n.id); else next.add(n.id)
+                                          return next
+                                        })
+                                      }}
+                                    >
+                                      <span className="mt-0.5 shrink-0 text-base">⚠️</span>
+                                      <div className="min-w-0 flex-1">
+                                        <p className={`font-medium truncate ${!n.isRead ? 'text-blue-700 dark:text-blue-300' : 'text-primary'}`}>{n.title}</p>
+                                        {!isExpanded && (
+                                          <p className="text-secondary line-clamp-2">
+                                            {itemCount > 0 ? `${itemCount} license${itemCount === 1 ? '' : 's'} need attention — tap to view` : n.message}
+                                          </p>
+                                        )}
+                                        <p className="text-gray-400 dark:text-gray-500 mt-0.5">{new Date(n.createdAt).toLocaleString()}</p>
+                                      </div>
+                                      {!n.isRead && <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0 mt-1" />}
+                                      <button
+                                        type="button"
+                                        title="Dismiss"
+                                        onClick={e => { e.stopPropagation(); dismissNotif(n.id) }}
+                                        className="shrink-0 w-6 h-6 -mr-1 -mt-0.5 rounded-full flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-500 dark:hover:bg-gray-600 active:bg-gray-500 text-sm leading-none"
+                                      >
+                                        ×
+                                      </button>
+                                    </div>
+                                    {isExpanded && (
+                                      <div className="mt-2 pl-6">
+                                        <ComplianceDigestSections message={n.message} />
+                                        {n.linkUrl && (
+                                          <a
+                                            href={n.linkUrl}
+                                            onClick={() => setShowNotifPanel(false)}
+                                            className="inline-block mt-1.5 text-[11px] font-semibold text-amber-700 dark:text-amber-300 hover:underline"
+                                          >
+                                            Open in Fleet Management →
+                                          </a>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                )
+                              }
                               const isUrgent = n.title?.includes('Urgent') || n.title?.includes('URGENT') || n.message?.includes('🚨')
                               const hasCash = n.message?.includes('💵')
                               const hasEcoCash = n.message?.includes('📱')

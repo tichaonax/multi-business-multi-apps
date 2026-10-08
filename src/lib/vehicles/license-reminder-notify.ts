@@ -86,9 +86,12 @@ export async function sweepVehicleLicenseReminders(options: { forceChatDigest?: 
       const title = overdueCount > 0
         ? `⚠️ Action Needed: ${overdueCount} License${overdueCount === 1 ? '' : 's'} Overdue${soonCount > 0 ? `, ${soonCount} Expiring Soon` : ''}`
         : `⚠️ Action Needed: ${soonCount} License${soonCount === 1 ? '' : 's'} Expiring Soon`
-      const message = `${totalAlerts} vehicle/driver license${totalAlerts === 1 ? '' : 's'} need${totalAlerts === 1 ? 's' : ''} attention` +
-        (overdueCount > 0 ? ` — ${overdueCount} already overdue.` : '.') +
-        ' Open Fleet Management for the full breakdown.'
+      // Same itemized, per-vehicle/driver text the System Alerts chat digest
+      // posts (buildComplianceDigestText) — not a separate terse sentence —
+      // so the bell notification panel can parse and render it with the
+      // exact same shared component (ComplianceDigestSections) instead of
+      // reimplementing the formatting a second time.
+      const message = buildComplianceDigestText(vehicleAlerts, driverAlerts).trimEnd()
 
       for (const userId of recipientIds) {
         await emitGroupedNotification({
@@ -144,6 +147,32 @@ function formatDriverLine(a: DriverLicenseAlert): string {
     `  ref:driver:${a.id}`
 }
 
+// Builds the itemized OVERDUE / Expiring soon breakdown shared by the bell
+// notification's `message` and the System Alerts chat digest — one builder
+// so the two can never drift apart in format, each appending its own footer
+// (the chat digest's "read-only" line; the bell has none).
+function buildComplianceDigestText(vehicleAlerts: VehicleLicenseAlert[], driverAlerts: DriverLicenseAlert[]): string {
+  const overdueVehicles = vehicleAlerts.filter(a => a.urgency === 'OVERDUE')
+  const soonVehicles = vehicleAlerts.filter(a => a.urgency !== 'OVERDUE')
+  const overdueDrivers = driverAlerts.filter(a => a.urgency === 'OVERDUE')
+  const soonDrivers = driverAlerts.filter(a => a.urgency !== 'OVERDUE')
+
+  const sections: string[] = [CHAT_DIGEST_MARKER, '']
+  if (overdueVehicles.length + overdueDrivers.length > 0) {
+    sections.push(`⛔ OVERDUE (${overdueVehicles.length + overdueDrivers.length})`)
+    sections.push(...overdueVehicles.map(formatVehicleLine))
+    sections.push(...overdueDrivers.map(formatDriverLine))
+    sections.push('')
+  }
+  if (soonVehicles.length + soonDrivers.length > 0) {
+    sections.push(`⚠️ Expiring soon (${soonVehicles.length + soonDrivers.length})`)
+    sections.push(...soonVehicles.map(formatVehicleLine))
+    sections.push(...soonDrivers.map(formatDriverLine))
+    sections.push('')
+  }
+  return sections.join('\n')
+}
+
 /**
  * Posts a single read-only system message into the dedicated "System
  * Alerts" room (see getOrCreateSystemAlertsRoom) — a genuinely separate
@@ -184,27 +213,8 @@ export async function postLicenseComplianceChatDigest(vehicleAlerts: VehicleLice
       if (recent) return // already posted a digest recently — avoid spamming the room
     }
 
-    const overdueVehicles = vehicleAlerts.filter(a => a.urgency === 'OVERDUE')
-    const soonVehicles = vehicleAlerts.filter(a => a.urgency !== 'OVERDUE')
-    const overdueDrivers = driverAlerts.filter(a => a.urgency === 'OVERDUE')
-    const soonDrivers = driverAlerts.filter(a => a.urgency !== 'OVERDUE')
-
-    const sections: string[] = [CHAT_DIGEST_MARKER, '']
-    if (overdueVehicles.length + overdueDrivers.length > 0) {
-      sections.push(`⛔ OVERDUE (${overdueVehicles.length + overdueDrivers.length})`)
-      sections.push(...overdueVehicles.map(formatVehicleLine))
-      sections.push(...overdueDrivers.map(formatDriverLine))
-      sections.push('')
-    }
-    if (soonVehicles.length + soonDrivers.length > 0) {
-      sections.push(`⚠️ Expiring soon (${soonVehicles.length + soonDrivers.length})`)
-      sections.push(...soonVehicles.map(formatVehicleLine))
-      sections.push(...soonDrivers.map(formatDriverLine))
-      sections.push('')
-    }
-    sections.push('This is a read-only system alert — open it to acknowledge, then use the link below to renew in Fleet Management.')
-
-    const message = sections.join('\n')
+    const message = buildComplianceDigestText(vehicleAlerts, driverAlerts) +
+      'This is a read-only system alert — open it to acknowledge, then use the link below to renew in Fleet Management.'
     const payload = await postSystemMessage(room.id, message, VEHICLES_OVERVIEW_LINK)
     emitToUsers(recipientUserIds, 'chat:message', payload)
   } catch (err) {
