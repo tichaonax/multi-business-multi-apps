@@ -1,7 +1,7 @@
 'use client'
 
 import { VehicleLicense } from '@/types/vehicle'
-import { X, Calendar, AlertCircle, CheckCircle, Edit, Trash2 } from 'lucide-react'
+import { X, Calendar, AlertCircle, CheckCircle, Edit, Trash2, RefreshCw } from 'lucide-react'
 import { formatDateByFormat } from '@/lib/country-codes'
 import { useDateFormat } from '@/contexts/settings-context'
 import { ModalPortal } from '@/components/ui/modal-portal'
@@ -11,10 +11,12 @@ interface LicenseDetailModalProps {
   onClose: () => void
   onEdit?: (license: VehicleLicense) => void
   onDelete?: (licenseId: string) => void
+  onRenew?: (license: VehicleLicense) => void
   canEdit?: boolean
+  canRenew?: boolean
 }
 
-export function LicenseDetailModal({ license, onClose, onEdit, onDelete, canEdit }: LicenseDetailModalProps) {
+export function LicenseDetailModal({ license, onClose, onEdit, onDelete, onRenew, canEdit, canRenew }: LicenseDetailModalProps) {
   const { format: globalDateFormat } = useDateFormat()
 
   if (!license) return null
@@ -205,6 +207,18 @@ export function LicenseDetailModal({ license, onClose, onEdit, onDelete, canEdit
 
         {/* Footer Actions */}
         <div className="flex items-center justify-end space-x-3 p-6 border-t border-gray-200 dark:border-gray-700 shrink-0">
+          {canRenew && onRenew && (
+            <button
+              onClick={() => {
+                onRenew(license)
+                onClose()
+              }}
+              className="flex items-center space-x-2 px-4 py-2 bg-amber-600 text-white rounded-md hover:bg-amber-700 transition-colors"
+            >
+              <RefreshCw className="h-4 w-4" />
+              <span>Renew</span>
+            </button>
+          )}
           {canEdit && onEdit && (
             <button
               onClick={() => {

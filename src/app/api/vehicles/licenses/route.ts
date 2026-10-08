@@ -18,7 +18,12 @@ const CreateLicenseSchema = z.object({
   usage: z.string().optional(),
   isExempt: z.boolean().optional().default(false),
   documentUrl: z.string().optional(),
-  reminderDays: z.number().int().min(1).max(365).default(30)
+  reminderDays: z.number().int().min(1).max(365).default(30),
+  // Set by the "Renew License" flow — the specific license this new record
+  // replaces. Deactivates it unconditionally (even if not yet expired),
+  // unlike the general "Add License" path which only auto-deactivates an
+  // already-expired one and otherwise rejects a duplicate active license.
+  supersedesLicenseId: z.string().optional()
 })
 
 const UpdateLicenseSchema = z.object({
@@ -116,7 +121,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const validatedData = CreateLicenseSchema.parse(body)
+    const { supersedesLicenseId, ...validatedData } = CreateLicenseSchema.parse(body)
 
     // Verify vehicle exists
     const vehicle = await prisma.vehicles.findUnique({
@@ -130,20 +135,27 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check if an active license exists for this vehicle and type
-    const existingLicense = await prisma.vehicleLicenses.findFirst({
-      where: {
-        vehicleId: validatedData.vehicleId,
-        licenseType: validatedData.licenseType,
-        isActive: true
-      }
-    })
+    // Explicit renewal (from the "Renew License" flow) names the exact
+    // license it replaces — look that one up directly rather than relying
+    // on findFirst, which would be ambiguous if more than one active
+    // license of this type ever exists for the vehicle.
+    const existingLicense = supersedesLicenseId
+      ? await prisma.vehicleLicenses.findFirst({
+          where: { id: supersedesLicenseId, vehicleId: validatedData.vehicleId, licenseType: validatedData.licenseType, isActive: true },
+        })
+      : await prisma.vehicleLicenses.findFirst({
+          where: { vehicleId: validatedData.vehicleId, licenseType: validatedData.licenseType, isActive: true },
+        })
 
     const now = new Date()
 
     if (existingLicense) {
-      // If the existing active license is expired, automatically deactivate it and create the new license
-      if (existingLicense.expiryDate && new Date(existingLicense.expiryDate) < now) {
+      // Deactivate + create the replacement when either the old one has
+      // already expired, or this is an explicit renewal of that exact
+      // license (which may still have time left — renewing ahead of expiry
+      // is the common case, not just catching up on an overdue one).
+      const isExplicitRenewal = supersedesLicenseId === existingLicense.id
+      if (isExplicitRenewal || (existingLicense.expiryDate && new Date(existingLicense.expiryDate) < now)) {
         const newLicenseId = crypto.randomUUID()
 
         // Do the deactivation + creation transactionally
@@ -180,7 +192,7 @@ export async function POST(request: NextRequest) {
             ...vehicleIdentity,
             licenseType: existingLicense.licenseType,
             licenseNumber: existingLicense.licenseNumber,
-            reason: 'Auto-deactivated: expired license replaced by new one',
+            reason: isExplicitRenewal ? 'Deactivated: renewed via Renew License' : 'Auto-deactivated: expired license replaced by new one',
           },
         }).catch((e) => console.error('Failed to write audit log for vehicle license deactivation', e))
 

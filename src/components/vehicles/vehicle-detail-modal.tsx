@@ -60,6 +60,7 @@ export function VehicleDetailModal({ vehicle, onClose, onUpdate }: VehicleDetail
   const [selectedLicenseIds, setSelectedLicenseIds] = useState<string[]>([])
   const [showAllLicenses, setShowAllLicenses] = useState(false)
   const [viewingLicense, setViewingLicense] = useState<VehicleLicense | null>(null)
+  const [renewingLicense, setRenewingLicense] = useState<VehicleLicense | null>(null)
   const [showRenewalForm, setShowRenewalForm] = useState(false)
   const [showExemptionForm, setShowExemptionForm] = useState(false)
   const [renewalReceipts, setRenewalReceipts] = useState<VehicleRenewalReceipt[]>([])
@@ -185,6 +186,13 @@ export function VehicleDetailModal({ vehicle, onClose, onUpdate }: VehicleDetail
     setShowLicenseModal(false)
     setEditingLicense(undefined)
     setSuccess('License saved successfully!')
+    setTimeout(() => setSuccess(''), 3000)
+  }
+
+  const handleLicenseRenewed = async () => {
+    await refreshVehicleData()
+    setRenewingLicense(null)
+    setSuccess('License renewed successfully!')
     setTimeout(() => setSuccess(''), 3000)
   }
 
@@ -1217,6 +1225,18 @@ export function VehicleDetailModal({ vehicle, onClose, onUpdate }: VehicleDetail
         }}
         onDelete={handleDeleteLicense}
         canEdit={canEdit}
+        canRenew={canEdit}
+        onRenew={(license) => setRenewingLicense(license)}
+      />
+    )}
+
+    {renewingLicense && (
+      <LicenseFormModal
+        vehicleId={vehicle.id}
+        renewFrom={renewingLicense}
+        isOpen={true}
+        onClose={() => setRenewingLicense(null)}
+        onSave={handleLicenseRenewed}
       />
     )}
 

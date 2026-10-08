@@ -7,7 +7,8 @@ import { useToastContext } from '@/components/ui/toast'
 import { Vehicle, VehicleApiResponse, VehicleLicense } from '@/types/vehicle'
 import { LicenseStatusIndicator } from './license-status-indicator'
 import { LicenseDetailModal } from './license-detail-modal'
-import { isSystemAdmin, SessionUser } from '@/lib/permission-utils'
+import { LicenseFormModal } from './license-form-modal'
+import { isSystemAdmin, hasPermission, SessionUser } from '@/lib/permission-utils'
 
 interface VehicleListProps {
   onVehicleSelect?: (vehicle: Vehicle) => void
@@ -25,12 +26,15 @@ export function VehicleList({ onVehicleSelect, onAddVehicle, refreshSignal, upda
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [viewingLicense, setViewingLicense] = useState<VehicleLicense | null>(null)
+  const [renewingLicense, setRenewingLicense] = useState<VehicleLicense | null>(null)
   const [exportPdfVehicle, setExportPdfVehicle] = useState<Vehicle | null>(null)
   // Keep a ref to the current in-flight request so we can cancel it
   const controllerRef = useRef<AbortController | null>(null)
 
   // Check if user has permission to delete vehicles
   const canDeleteVehicles = session?.user && isSystemAdmin(session.user as SessionUser)
+  // Same permission the rest of Fleet Management gates adding/editing on
+  const canManageVehicles = session?.user && (isSystemAdmin(session.user as SessionUser) || hasPermission(session.user as SessionUser, 'canManageVehicles'))
 
   // Check if vehicle can be deleted (has no related data)
   const canDeleteVehicle = (vehicle: Vehicle): boolean => {
@@ -450,6 +454,23 @@ ${licenseRows ? `<table>
           license={viewingLicense}
           onClose={() => setViewingLicense(null)}
           canEdit={false}
+          canRenew={!!canManageVehicles}
+          onRenew={(license) => setRenewingLicense(license)}
+        />
+      )}
+
+      {/* Renew License Modal — captures the new license number/dates while
+          leaving the old record as history (auto-deactivated on save). */}
+      {renewingLicense && (
+        <LicenseFormModal
+          vehicleId={renewingLicense.vehicleId}
+          renewFrom={renewingLicense}
+          isOpen={true}
+          onClose={() => setRenewingLicense(null)}
+          onSave={() => {
+            setRenewingLicense(null)
+            fetchVehicles()
+          }}
         />
       )}
 

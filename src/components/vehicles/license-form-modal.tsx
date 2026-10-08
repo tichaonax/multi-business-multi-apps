@@ -11,6 +11,12 @@ import { DocumentUpload } from '@/components/ui/document-upload'
 interface LicenseFormModalProps {
   vehicleId: string
   license?: VehicleLicense
+  // Renewing an expired/expiring license: pre-fills type/authority/usage
+  // from the old record but leaves number, dates, and cost blank for the
+  // new ones — unlike `license`, this still submits as a new record (POST),
+  // so the old one stays as history and gets auto-deactivated by the API
+  // once the new one is saved (see POST /api/vehicles/licenses).
+  renewFrom?: VehicleLicense
   isOpen: boolean
   onClose: () => void
   onSave: () => void
@@ -24,16 +30,16 @@ const LICENSE_TYPES = [
   { value: 'INSPECTION', label: 'Inspection' }
 ]
 
-export function LicenseFormModal({ vehicleId, license, isOpen, onClose, onSave }: LicenseFormModalProps) {
+export function LicenseFormModal({ vehicleId, license, renewFrom, isOpen, onClose, onSave }: LicenseFormModalProps) {
   const [formData, setFormData] = useState({
-    licenseType: license?.licenseType || 'REGISTRATION',
+    licenseType: license?.licenseType || renewFrom?.licenseType || 'REGISTRATION',
     licenseNumber: license?.licenseNumber || '',
     issueDate: license?.issueDate || '',
     expiryDate: license?.expiryDate || '',
-    issuingAuthority: license?.issuingAuthority || '',
+    issuingAuthority: license?.issuingAuthority || renewFrom?.issuingAuthority || '',
     renewalCost: license?.renewalCost?.toString() || '0',
     lateFee: license?.lateFee?.toString() || '0',
-    usage: license?.usage || '',
+    usage: license?.usage || renewFrom?.usage || '',
     isExempt: license?.isExempt || false,
     // VehicleLicense type doesn't declare `notes` but the form supports it; use a
     // safe cast to avoid TypeScript errors while preserving runtime behavior.
@@ -170,7 +176,8 @@ export function LicenseFormModal({ vehicleId, license, isOpen, onClose, onSave }
       const checkBody = await fetchWithValidation(`/api/vehicles/licenses?vehicleId=${vehicleId}&licenseType=${formData.licenseType}`)
 
       if (checkBody?.success) {
-        const existingLicenses = checkBody.data.filter((l: any) => license ? l.id !== license.id : true)
+        const excludeId = license?.id || renewFrom?.id
+        const existingLicenses = checkBody.data.filter((l: any) => excludeId ? l.id !== excludeId : true)
 
         const hasOverlap = existingLicenses.some((existingLicense: any) => {
           const existingStart = new Date(existingLicense.issueDate)
@@ -212,7 +219,11 @@ export function LicenseFormModal({ vehicleId, license, isOpen, onClose, onSave }
             ...formData,
             vehicleId,
             renewalCost: parseFloat(formData.renewalCost),
-            lateFee: parseFloat(formData.lateFee || '0')
+            lateFee: parseFloat(formData.lateFee || '0'),
+            // Explicitly renewing a specific license — deactivate it even if
+            // it hasn't expired yet (the normal "Add License" 409-on-active-
+            // duplicate guard still applies when this isn't set).
+            ...(renewFrom ? { supersedesLicenseId: renewFrom.id } : {})
           }
 
       const body = await fetchWithValidation(url, {
@@ -221,7 +232,7 @@ export function LicenseFormModal({ vehicleId, license, isOpen, onClose, onSave }
         body: JSON.stringify(payload)
       })
 
-      const successMsg = body?.message || (license ? 'License updated' : 'License created')
+      const successMsg = body?.message || (license ? 'License updated' : renewFrom ? 'License renewed' : 'License created')
       try { toast.push(successMsg) } catch (e) {}
       onSave()
       onClose()
@@ -245,7 +256,7 @@ export function LicenseFormModal({ vehicleId, license, isOpen, onClose, onSave }
         {/* Sticky Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-gray-700 shrink-0">
           <h2 className="text-base font-semibold text-primary">
-            {license ? 'Edit License' : 'Add New License'}
+            {license ? 'Edit License' : renewFrom ? `Renew ${renewFrom.licenseType.replace('_', ' ')} License` : 'Add New License'}
           </h2>
           <button onClick={onClose} className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-secondary">
             <X className="h-5 w-5" />
