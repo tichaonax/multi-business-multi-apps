@@ -244,12 +244,13 @@ export function FloatingChat() {
     }
   }
 
-  // Manual open: clear unread, record last-opened time, cancel any pending auto-close
-  const openManually = useCallback(() => {
-    if (autoCloseTimerRef.current) {
-      clearTimeout(autoCloseTimerRef.current)
-      autoCloseTimerRef.current = null
-    }
+  // Marks Team/General as read — called only when that view is actually
+  // opened (switchRoom(null), or openManually() when it lands straight on
+  // Team), not just because the hub bubble was clicked. Previously
+  // openManually() cleared this unconditionally, so a message stayed
+  // flagged "new" only until you opened the hub panel at all — even if you
+  // landed on the DM list and never actually looked at Team/General.
+  const markTeamRead = useCallback(() => {
     // Capture what "new" meant for this session before clearing it, so the
     // Team Chat message list can show a divider at the first message that
     // arrived since last time — see unreadSinceSnapshot above.
@@ -257,9 +258,20 @@ export function FloatingChat() {
     setUnread(0)
     setUnreadDirect(0)
     localStorage.setItem(LAST_OPENED_KEY, new Date().toISOString())
-    setView(chatSettingsRef.current.defaultView)
-    setIsOpen(true)
   }, [])
+
+  // Manual open: cancel any pending auto-close; only marks Team/General read
+  // if that's the view the panel actually opens into.
+  const openManually = useCallback(() => {
+    if (autoCloseTimerRef.current) {
+      clearTimeout(autoCloseTimerRef.current)
+      autoCloseTimerRef.current = null
+    }
+    const defaultView = chatSettingsRef.current.defaultView
+    if (defaultView === 'team') markTeamRead()
+    setView(defaultView)
+    setIsOpen(true)
+  }, [markTeamRead])
 
   // Cancel auto-close on unmount
   useEffect(() => () => cancelAutoClose(), [])
@@ -408,9 +420,8 @@ export function FloatingChat() {
     setReplyScope('ALL')
     loadMessages(null).then((data: Message[]) => { setMessages(data || []); setTimeout(scrollToBottom, 50) })
     loadOlderMonths(null)
-    setUnread(0)
-    setUnreadDirect(0)
-  }, [loadMessages, loadOlderMonths, scrollToBottom, openConversationWindow])
+    markTeamRead()
+  }, [loadMessages, loadOlderMonths, scrollToBottom, openConversationWindow, markTeamRead])
 
   // Fetch message history and seed unread counts from messages received since last open
   useEffect(() => {
