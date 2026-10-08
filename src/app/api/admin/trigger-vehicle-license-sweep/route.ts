@@ -22,7 +22,7 @@ export async function POST() {
 
     console.log(`[VehicleLicenseSweep] Manual trigger by ${user.email}`)
 
-    const result = await sweepVehicleLicenseReminders()
+    const result = await sweepVehicleLicenseReminders({ forceChatDigest: true })
 
     return NextResponse.json({
       success: true,

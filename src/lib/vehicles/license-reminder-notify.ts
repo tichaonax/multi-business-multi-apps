@@ -38,7 +38,7 @@ function vehicleLicenseComplianceSummaryGroupKey(): string {
 
 const VEHICLES_OVERVIEW_LINK = '/vehicles?tab=overview'
 
-export async function sweepVehicleLicenseReminders(): Promise<{ vehicleLicenses: number; driverLicenses: number; notificationsSent: number }> {
+export async function sweepVehicleLicenseReminders(options: { forceChatDigest?: boolean } = {}): Promise<{ vehicleLicenses: number; driverLicenses: number; notificationsSent: number }> {
   try {
     const [vehicleAlerts, driverAlerts, recipientIds] = await Promise.all([
       getVehicleLicenseAlerts(),
@@ -95,7 +95,7 @@ export async function sweepVehicleLicenseReminders(): Promise<{ vehicleLicenses:
       }
     }
 
-    await postLicenseComplianceChatDigest(vehicleAlerts, driverAlerts, recipientIds)
+    await postLicenseComplianceChatDigest(vehicleAlerts, driverAlerts, recipientIds, options.forceChatDigest)
 
     return { vehicleLicenses: vehicleAlerts.length, driverLicenses: driverAlerts.length, notificationsSent }
   } catch (err) {
@@ -143,24 +143,30 @@ function formatDriverLine(a: DriverLicenseAlert): string {
  * opening the chat and seeing it is the "acknowledgement" — same
  * read-tracking every other message already gets, no separate mechanism
  * needed. Deduped to at most once per ~20h (one calendar sweep) regardless
- * of how many times the throttled lazy trigger fires in between.
+ * of how many times the throttled lazy trigger fires in between — unless
+ * `force` is set (the manual admin test button), since a deliberate human
+ * click isn't the automated-polling case this throttle exists to protect
+ * against, and "nothing visibly happened" makes the button useless for
+ * testing.
  */
-export async function postLicenseComplianceChatDigest(vehicleAlerts: VehicleLicenseAlert[], driverAlerts: DriverLicenseAlert[], recipientUserIds: string[]): Promise<void> {
+export async function postLicenseComplianceChatDigest(vehicleAlerts: VehicleLicenseAlert[], driverAlerts: DriverLicenseAlert[], recipientUserIds: string[], force = false): Promise<void> {
   if (vehicleAlerts.length === 0 && driverAlerts.length === 0) return
   if (recipientUserIds.length === 0) return
   try {
     const room = await getOrCreateSystemAlertsRoom(recipientUserIds)
 
-    const recent = await prisma.chatMessages.findFirst({
-      where: {
-        roomId: room.id,
-        userId: null,
-        message: { startsWith: CHAT_DIGEST_MARKER },
-        createdAt: { gte: new Date(Date.now() - CHAT_DIGEST_MIN_INTERVAL_MS) },
-      },
-      select: { id: true },
-    })
-    if (recent) return // already posted a digest recently — avoid spamming the room
+    if (!force) {
+      const recent = await prisma.chatMessages.findFirst({
+        where: {
+          roomId: room.id,
+          userId: null,
+          message: { startsWith: CHAT_DIGEST_MARKER },
+          createdAt: { gte: new Date(Date.now() - CHAT_DIGEST_MIN_INTERVAL_MS) },
+        },
+        select: { id: true },
+      })
+      if (recent) return // already posted a digest recently — avoid spamming the room
+    }
 
     const overdueVehicles = vehicleAlerts.filter(a => a.urgency === 'OVERDUE')
     const soonVehicles = vehicleAlerts.filter(a => a.urgency !== 'OVERDUE')
