@@ -60,6 +60,7 @@
 18. [Batch EOD Catch-Up — Manager and Cashier Roles](#18-batch-eod-catch-up--manager-and-cashier-roles)
 19. [Employee Termination Checklist](#employee-termination--full-checklist)
 20. [Team Chat](#20-team-chat)
+    - [System Alerts (Read-Only)](#system-alerts-read-only)
 21. [Grocery POS — Desk Mode](#21-grocery-pos--desk-mode)
 22. [Expense Account — Quick Payment & My Payment Queue](#22-expense-account--quick-payment--my-payment-queue)
     - [Recent Payments to Payee](#recent-payments-to-payee)
@@ -111,6 +112,9 @@
     - [Uploading a Licence Document](#uploading-a-licence-document)
     - [Issuing Authorities](#issuing-authorities)
     - [Driver Licence Documents](#driver-licence-documents)
+43a. [Vehicle & Driver License Compliance Alerts](#43a-vehicle--driver-license-compliance-alerts)
+    - [The Renewal Workflow](#the-renewal-workflow)
+    - [Manually Triggering a Check (Admin)](#manually-triggering-a-check-admin)
 44. [Stock Additions Report](#44-stock-additions-report)
     - [Opening the Report](#opening-the-report-1)
     - [Date Range Filters](#date-range-filters)
@@ -354,6 +358,17 @@ Click the **🔔 bell** to open your notifications panel.
 - Unread notifications appear in **bold**.
 - Click a notification to go directly to the item it relates to.
 - Click **Mark all as read** to clear the list.
+- Click the **×** that appears on a notification row to **dismiss** it — unlike marking it read, dismissing removes it from the list immediately rather than leaving it sitting there (read) for up to 30 days. Dismissing is per-notification and only affects your own list.
+
+#### Grouped by Category
+
+Notifications are grouped into labelled sections — e.g. **Vehicle & Licensing**, **Payments**, **Petty Cash**, **Combo Requests**, **Receipts**, **Jobs**, **Inventory**, **Chat**, **Other** — so a busy day doesn't turn into one long unsorted list. Each section:
+
+- Starts **collapsed**, showing just its icon, name, an unread count, and a total count in parentheses.
+- Expands when you click its header, revealing the individual notifications underneath.
+- Searching (see below) automatically expands every matching section so results aren't hidden behind a collapsed header.
+
+Some notification types are also pre-grouped at the source — for example, vehicle/driver licence alerts collapse into a single summary notification (*"3 Licenses Overdue, 2 Expiring Soon"*) that refreshes in place as the underlying list changes, instead of adding a new row per vehicle every time the check runs. See [Vehicle & Driver License Compliance Alerts](#43a-vehicle--driver-license-compliance-alerts).
 
 #### Searching Notifications
 
@@ -1054,6 +1069,8 @@ Click the bell or go to **Pending Actions** to see everything in one place. Item
 - Eco-Cash to Cash conversion requests (cashiers only)
 
 Click any item to review and approve or decline it.
+
+**Grouped by category:** the bell preview organises items into collapsed sections (Payment Batches, Petty Cash, Cash Allocations, Supplier Payments, and so on), each showing just a count until you click its header to expand it — so a large queue stays manageable instead of one long scroll. Searching automatically expands any section with a match.
 
 **Searching the bell dropdown:** When there are more than 4 pending items, a search box appears at the top of the bell preview. Type to filter by name, amount, account, or note. Click **×** to clear.
 
@@ -6965,11 +6982,12 @@ Click **Lock Allocation**. The report is locked, Cash Bucket INFLOW and OUTFLOW 
 
 ### What is Team Chat?
 
-Team Chat is a built-in **company-wide messaging tool** — no need for WhatsApp groups or external apps. It covers three kinds of conversation, all from the same panel:
+Team Chat is a built-in **company-wide messaging tool** — no need for WhatsApp groups or external apps. It covers four kinds of conversation, all from the same panel:
 
 - **Team Chat (General)** — one shared, company-wide room everyone with a system account can see and post in.
 - **Direct Messages** — a persistent, private 1:1 conversation with one other person.
 - **Groups** — a persistent, private conversation with several people you choose, with a name.
+- **System Alerts** — a read-only, automated channel (currently used for vehicle & driver licence compliance alerts) visible only to the people who need to act on it. See [System Alerts (Read-Only)](#system-alerts-read-only) below, and [Vehicle & Driver License Compliance Alerts](#43a-vehicle--driver-license-compliance-alerts) for the full alert workflow.
 
 Direct Messages and Groups are real, ongoing conversations you can return to any time — not a one-off tag on a single message.
 
@@ -6996,6 +7014,20 @@ Click the **⌄ back arrow** at the top-left of the chat header to see your conv
 - **Search** at the top of the list: type a name to instantly filter the list, or type a phrase to also search message content — matching conversations appear below with a short snippet of the matching message; click one to open it.
 
 Click **Team Chat** or any conversation row to open it.
+
+If you receive vehicle/driver licence compliance alerts, a **🔔 System Alerts** row also appears in the list, with its own unread count — see [System Alerts (Read-Only)](#system-alerts-read-only).
+
+---
+
+### System Alerts (Read-Only)
+
+Some automated alerts are delivered as chat messages instead of (or in addition to) a bell notification — currently this is used for **vehicle and driver licence compliance alerts** (see [Vehicle & Driver License Compliance Alerts](#43a-vehicle--driver-license-compliance-alerts)). These arrive in a dedicated **System Alerts** conversation, separate from Team Chat.
+
+- **Who sees it:** only people who need to act on the alert — for licence compliance, that's users with the **Manage Vehicles** permission plus system admins. Nobody else sees this conversation at all, including other chat users. It is **not** part of Team Chat, so people who don't manage vehicles are never shown licence information through chat.
+- **Read-only:** nobody can reply here, including admins — there's no message box, just a note confirming *"Read-only system channel — nobody can reply here."*
+- **Collapsed by default:** each alert shows as a one-line summary (icon, headline, item count, and a chevron) so a room that accumulates alerts over weeks doesn't turn into a wall of text. Click a summary line to expand it and see the full detail — every affected vehicle/driver, its licence number, exact expiry date, and days overdue or remaining — plus an **Open in Fleet Management →** link that takes you straight to the vehicle.
+- **Delete — only for you:** each alert card has its own 🗑 delete button. This removes it from **your** view only — it has no effect on what other admins/cashiers in the room see. If the same vehicle is still outstanding next time the alert sweep runs, you'll see it again.
+- **Auto-expiry:** messages in this channel are automatically removed after **30 days**, regardless of whether anyone dismissed them.
 
 ---
 
@@ -7102,7 +7134,8 @@ The indicator clears itself a few seconds after the other person stops typing or
 
 - **Team Chat** automatically prunes anything older than **7 days** — it's for day-to-day coordination, not a permanent record.
 - **Direct Messages and Groups are not auto-pruned** — their full history stays available for as long as you're a participant.
-- You can delete your **own most recent** message (replaced with *🚫 This message was deleted* for everyone who saw it) — you can't delete anyone else's.
+- **System Alerts** automatically prunes anything older than **30 days** — see [System Alerts (Read-Only)](#system-alerts-read-only) for its own per-user delete button, which works differently from the rule below.
+- You can delete your **own most recent** message (replaced with *🚫 This message was deleted* for everyone who saw it) — you can't delete anyone else's. (System Alerts messages are the one exception — see above: deleting one only hides it for you.)
 
 #### Older Messages
 
@@ -7140,6 +7173,8 @@ You can correct a typo or fix your most recent message without deleting and rese
 | Read receipts | Not yet |
 | Message editing | ✅ Yes — own most recent message only, within 15 minutes, shows an edit count |
 | Collapsed older-than-30-days history (per-month, loaded on demand) | ✅ Yes — Direct Messages & Groups |
+| System Alerts — read-only automated channel, visible only to the relevant people | ✅ Yes |
+| Per-user "delete for me" (System Alerts only) | ✅ Yes |
 
 ---
 
@@ -10591,6 +10626,82 @@ The document is stored against the driver's record and is visible in their detai
 ---
 
 *For technical support, contact your system administrator.*
+
+---
+
+## 43a. Vehicle & Driver License Compliance Alerts
+
+> **Who reads this:** Users with the **Manage Vehicles** permission, and system admins — the people this feature actually notifies. Everyone else can skip this section.
+
+### Overview
+
+Vehicle licences (registration, insurance, radio/TV) and driver licences all have expiry dates, and a lapsed one can mean a fine, an uninsured vehicle on the road, or a driver who legally shouldn't be driving. This feature automatically watches every vehicle and driver licence in the system and makes sure the right people are told **before** and **after** a licence lapses — not just once, but repeatedly until it's actually renewed.
+
+### Who Gets Notified
+
+Alerts go to every **active** user who is either:
+- a **system admin**, or
+- granted the **Manage Vehicles** permission.
+
+This is a fixed list resolved automatically each time the check runs — there's nothing to configure per-vehicle or per-driver.
+
+### Urgency Levels
+
+| Level | Meaning |
+|---|---|
+| ⛔ **Overdue** | The licence has already expired. Shown with how many days overdue. |
+| ⚠️ **Expiring Soon** | The licence expires within the next **30 days** (includes the more urgent ≤7-day cases). Shown with how many days remain. |
+
+A licence stops being flagged the moment its expiry date is pushed out past the 30-day window by a renewal — see [The Renewal Workflow](#the-renewal-workflow) below.
+
+### Where You'll See an Alert
+
+The same information surfaces in three places, from quickest glance to most detail:
+
+| Where | What it shows | Detail level |
+|---|---|---|
+| **🔔 Bell notification** | One collapsed summary per recipient, e.g. *"⚠️ Action Needed: 3 Licenses Overdue, 2 Expiring Soon"* — refreshes in place as the real count changes, rather than adding a new row every time the check runs. | Summary only — click it to go to the Compliance Alerts panel. |
+| **💬 System Alerts chat** | A read-only message listing every affected vehicle and driver — licence type, licence number, make/model, exact expiry date, and days overdue/remaining — grouped under OVERDUE and Expiring Soon headings. Posted at most once every ~20 hours so it doesn't spam the channel. | Full detail, with a link straight into Fleet Management. See [System Alerts (Read-Only)](#system-alerts-read-only). |
+| **Compliance Alerts panel** (Fleet Management → Overview tab) | A live, itemised list recalculated every time you open the page — always reflects the current state, not a snapshot. | Full detail, interactive (click through to the vehicle or driver). |
+
+All three are driven by the same underlying check, so they never disagree with each other about what's currently outstanding.
+
+### How Often It Checks
+
+- **Nightly** — an automatic scheduled sweep runs once a day.
+- **On demand** — every time anyone loads their notifications (opens the bell), the system opportunistically re-checks if it's been more than 5 minutes since the last check, so a licence that just lapsed doesn't sit undetected until the next scheduled run.
+- **Admins can force a check immediately** — see [Manually Triggering a Check (Admin)](#manually-triggering-a-check-admin) below.
+
+### The Renewal Workflow
+
+1. Renew the licence at the licensing office as normal.
+2. Record it in the system using **[Record a Renewal Receipt](#41-vehicle-renewal-receipts)** (Fleet Management → Vehicles tab → select the vehicle → **Record Renewal Receipt**) — or, for a standalone licence update without a receipt, edit the licence directly and set its new expiry date.
+3. **That's it — no separate "clear alert" step.** Saving a new expiry date automatically re-runs the check immediately for that vehicle/driver:
+   - If the new expiry date is now more than 30 days away, the bell summary count drops, the vehicle/driver disappears from the Compliance Alerts panel, and (once nothing is outstanding for anyone) the bell notification clears itself entirely.
+   - If it's still within the 30-day window (e.g. renewed for a short period), it simply shows with its new, later date and updated days-remaining.
+4. The **System Alerts chat** message isn't retroactively edited (chat messages are a point-in-time record of what the sweep found), but the *next* scheduled digest will reflect the renewal — or you can [force one immediately](#manually-triggering-a-check-admin) to confirm right away.
+
+Driver licences work the same way — update the **Licence Expiry** date on the driver's record and the same automatic re-check applies.
+
+### Manually Triggering a Check (Admin)
+
+System admins can force an immediate check — useful right after a renewal, or to verify the whole pipeline is working — from **Admin → Vehicle License Compliance Sweep**:
+
+1. Go to the **Admin** page.
+2. Find the **Vehicle License Compliance Sweep** card.
+3. Click **Run License Compliance Sweep**.
+4. A result summary shows how many vehicle licences, driver licences, and notifications were processed.
+
+This manual trigger always posts a fresh System Alerts chat message if anything is outstanding, bypassing the normal ~20-hour spacing — the automatic nightly/on-demand checks still apply that spacing so the chat channel doesn't fill up with repeats.
+
+### Permissions
+
+| Action | Who can do it |
+|---|---|
+| Receive compliance alerts (bell, chat, panel) | System admins, and users with Manage Vehicles permission |
+| View the Compliance Alerts panel | Same as above |
+| Manually trigger a compliance sweep | System admins only |
+| Clear an alert (by renewing) | Users with Manage Vehicles permission |
 
 ---
 
