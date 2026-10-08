@@ -373,6 +373,7 @@ export const RESTORE_ORDER = [
   'chatMessages',            // Depends on chatRooms, users
   'chatParticipants',        // Depends on chatRooms, users
   'chatMessageRecipients',   // Depends on chatMessages, users (MBM-210 targeted replies)
+  'chatMessageDismissals',   // Depends on chatMessages, users — per-user "delete for me" on a system alert
 
   // Notifications
   'appNotifications',   // Depends on users
@@ -549,6 +550,16 @@ const UNIQUE_CONSTRAINT_FIELDS: Record<string, string | { fields: string[] }> = 
 
   // Chat Message Recipients: composite unique on (messageId, userId)
   'chatMessageRecipients': { fields: ['messageId', 'userId'] },
+
+  // Chat Message Dismissals: composite unique on (messageId, userId) — a
+  // per-user "delete for me" on a system alert (MBM-304 follow-up)
+  'chatMessageDismissals': { fields: ['messageId', 'userId'] },
+
+  // Chat Participants: composite unique on (roomId, userId), added
+  // 2026-10-08 after duplicate rows were found flooding the chat list
+  // (createMany's skipDuplicates had no constraint to dedupe against) —
+  // restore must upsert by natural key too, not blind-insert.
+  'chatParticipants': { fields: ['roomId', 'userId'] },
 
   // Warehouse Reference Locks: composite unique on (referenceType, referenceValue)
   'warehouseReferenceLocks': { fields: ['referenceType', 'referenceValue'] },

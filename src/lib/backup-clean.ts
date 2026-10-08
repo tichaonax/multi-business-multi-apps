@@ -1333,6 +1333,7 @@ export async function createCleanBackup(
   businessData.chatMessages = await prisma.chatMessages.findMany()
   businessData.chatParticipants = await prisma.chatParticipants.findMany()
   businessData.chatMessageRecipients = await prisma.chatMessageRecipients.findMany()
+  businessData.chatMessageDismissals = await prisma.chatMessageDismissals.findMany()
 
   // 37. Employee Absences
   businessData.employeeAbsences = await prisma.employeeAbsences.findMany({
@@ -1892,7 +1893,7 @@ export async function createCleanBackup(
     },
     // 6.42.0 (2026-09-09): added attributeOptions (sizes/colors preset
     // picker, migration 20260907080000) — landed without backup coverage.
-    schemaVersion: '6.42.0',
+    schemaVersion: '6.43.0',
     checksums: {
       businessData: businessDataChecksum,
       deviceData: deviceDataChecksum
