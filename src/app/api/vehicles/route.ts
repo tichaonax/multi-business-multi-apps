@@ -25,8 +25,7 @@ const CreateVehicleSchema = z.object({
   purchasePrice: z.number().optional(),
   notes: z.string().optional(),
   taxClass: z.string().optional(),
-  vehicleUsage: z.string().optional(),
-  isExempt: z.boolean().optional().default(false)
+  vehicleUsage: z.string().optional()
 })
 
 const UpdateVehicleSchema = z.object({
@@ -49,8 +48,7 @@ const UpdateVehicleSchema = z.object({
   notes: z.string().optional(),
   isActive: z.boolean().optional(),
   taxClass: z.string().optional(),
-  vehicleUsage: z.string().optional(),
-  isExempt: z.boolean().optional()
+  vehicleUsage: z.string().optional()
 })
 
 // GET - Fetch vehicles

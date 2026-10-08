@@ -115,6 +115,9 @@
 43a. [Vehicle & Driver License Compliance Alerts](#43a-vehicle--driver-license-compliance-alerts)
     - [The Renewal Workflow](#the-renewal-workflow)
     - [Manually Triggering a Check (Admin)](#manually-triggering-a-check-admin)
+43b. [Vehicle Licensing Status, Retirement & Reinstatement](#43b-vehicle-licensing-status-retirement--reinstatement)
+    - [Changing a Vehicle's Status](#changing-a-vehicles-status)
+    - [The One Rule: Retired → Exempt Isn't Allowed Directly](#the-one-rule-retired--exempt-isnt-allowed-directly)
 44. [Stock Additions Report](#44-stock-additions-report)
     - [Opening the Report](#opening-the-report-1)
     - [Date Range Filters](#date-range-filters)
@@ -10702,6 +10705,60 @@ This manual trigger always posts a fresh System Alerts chat message if anything 
 | View the Compliance Alerts panel | Same as above |
 | Manually trigger a compliance sweep | System admins only |
 | Clear an alert (by renewing) | Users with Manage Vehicles permission |
+
+---
+
+## 43b. Vehicle Licensing Status, Retirement & Reinstatement
+
+> **Who reads this:** Fleet Management users with the **Manage Vehicles** permission, and system admins.
+
+### Overview
+
+Every vehicle has exactly one **licensing status** at a time:
+
+| Status | Meaning |
+|---|---|
+| **Non-exempt** | Standard — tracks a Registration licence and an Insurance licence, each with its own expiry date, renewal, and compliance alerts (see [§43a](#43a-vehicle--driver-license-compliance-alerts)). The default for every vehicle. |
+| **Exempt** | The vehicle holds a single Exemption licence instead of Registration/Insurance (e.g. "No Use Public Road"). The exemption licence has its own expiry date and is tracked and alerted on exactly like any other licence — just under its own "Vehicle Exemption Expiry" alert title so it's never confused with a standard registration alert. |
+| **Retired** | The vehicle is out of service. All licensing tracking stops — no licences are active, no alerts are generated, and its licence section shows **"Not applicable"** instead of blank or overdue. Nothing is deleted; all past licence and status records remain visible in reports. |
+
+> **Don't confuse this with [Vehicle Exemptions (§42)](#42-vehicle-exemptions)** — that's a separate feature for recording a *fee-certificate* exemption (e.g. no radio/TV fitted) against a vehicle that can be in any licensing status. Licensing status (this section) is about whether the vehicle is tracked as Non-exempt, Exempt, or Retired as a whole.
+
+### Changing a Vehicle's Status
+
+1. Open the vehicle in Fleet Management and click **Change Status**.
+2. Pick a destination from the options offered — only the statuses that vehicle is actually allowed to move to are shown. Nothing changes yet at this point.
+3. Fill in what the new status requires:
+   - **→ Non-exempt**: Registration and Insurance licence details (number, issue/expiry date, issuing authority, renewal cost).
+   - **→ Exempt**: Exemption licence details (number, issue/expiry date, issuing authority, exemption fee).
+   - **→ Retired**: a retirement reason (pick from the list, or **+ Add new reason** to add one for everyone to reuse) — if the reason is "Other", you must also enter a short explanation.
+4. Click **Save**. The change happens all at once — old licences that no longer apply are deactivated, the new licence(s) are created, and the vehicle's status updates together. If anything fails, nothing is changed.
+
+Every status change is recorded with who changed it, when, and why — visible in the vehicle's status history and in reports (below).
+
+### The One Rule: Retired → Exempt Isn't Allowed Directly
+
+A retired vehicle can only become Exempt by first being reinstated to **Non-exempt**, then changed to Exempt as a second step. This is enforced by the system — "Exempt" simply isn't offered as an option while a vehicle is Retired, so there's no illegal transition to even attempt.
+
+| From \ To | Non-exempt | Exempt | Retired |
+|---|---|---|---|
+| Non-exempt | — | ✅ | ✅ |
+| Exempt | ✅ | — | ✅ |
+| Retired | ✅ (reinstate) | ❌ not directly | — |
+
+### Reporting
+
+- **Fleet Overview** report now shows a **Licensing Status** breakdown (Non-exempt / Exempt / Retired counts).
+- **Vehicle Status History** (Fleet Management → Reports) lists every currently-retired vehicle with its retirement reason, date, and status beforehand, plus the full change log of every status transition for every vehicle (who changed it, when, from what, to what, and why). A reinstated vehicle drops off the "currently retired" list immediately but stays fully visible in the change log.
+- Compliance alerts and Fleet Overview totals never include retired vehicles — their licensing is considered not applicable, not overdue.
+
+### Permissions
+
+| Action | Who can do it |
+|---|---|
+| Change a vehicle's licensing status | Users with Manage Vehicles permission, and system admins |
+| Add a new retirement reason | Same as above |
+| View Vehicle Status History / status counts in reports | Same as above |
 
 ---
 

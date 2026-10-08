@@ -136,7 +136,7 @@ export function RenewalReceiptForm({ vehicle, isOpen, onClose, onSave }: Renewal
     deposit: '',
     totalPaid: '',
     currency: 'ZiG',
-    isExempt: vehicle.isExempt || false,
+    isExempt: vehicle.licensingStatus === 'EXEMPT',
     documentUrl: '',
     documentName: '',
     notes: '',

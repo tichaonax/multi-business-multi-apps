@@ -14,14 +14,19 @@ const ReportQuerySchema = z.object({
     'COMPLIANCE_ALERTS',
     'DRIVER_ACTIVITY',
     'BUSINESS_ATTRIBUTION',
-    'REIMBURSEMENT_SUMMARY'
+    'REIMBURSEMENT_SUMMARY',
+    'VEHICLE_STATUS_HISTORY'
   ]),
   dateFrom: z.string().optional(),
   dateTo: z.string().optional(),
   vehicleId: z.string().optional(),
   driverId: z.string().optional(),
   businessId: z.string().optional(),
-  ownershipType: z.enum(['PERSONAL', 'BUSINESS']).optional()
+  ownershipType: z.enum(['PERSONAL', 'BUSINESS']).optional(),
+  // MBM-305 spec §11.5 — VEHICLE_STATUS_HISTORY filters. dateFrom/dateTo
+  // above double as the status-change date range for this report type.
+  status: z.enum(['NON_EXEMPT', 'EXEMPT', 'RETIRED']).optional(),
+  retirementReason: z.string().optional()
 })
 
 // GET - Generate vehicle reports
@@ -36,7 +41,7 @@ export async function GET(request: NextRequest) {
     const queryParams = Object.fromEntries(searchParams.entries())
     const validatedQuery = ReportQuerySchema.parse(queryParams)
 
-    const { reportType, dateFrom, dateTo, vehicleId, driverId, businessId, ownershipType } = validatedQuery
+    const { reportType, dateFrom, dateTo, vehicleId, driverId, businessId, ownershipType, status, retirementReason } = validatedQuery
 
     // Check permissions for financial data access
     const requiresFinancialAccess = ['EXPENSE_SUMMARY', 'REIMBURSEMENT_SUMMARY', 'BUSINESS_ATTRIBUTION'].includes(reportType)
@@ -92,6 +97,10 @@ export async function GET(request: NextRequest) {
 
       case 'REIMBURSEMENT_SUMMARY':
         reportData = await generateReimbursementSummaryReport(dateFilter, businessId, user.id)
+        break
+
+      case 'VEHICLE_STATUS_HISTORY':
+        reportData = await generateVehicleStatusHistoryReport(dateFilter, vehicleId, status, retirementReason)
         break
 
       default:
@@ -169,6 +178,10 @@ async function generateFleetOverviewReport(vehicleId?: string, businessId?: stri
       activeVehicles: vehicles.filter(v => v.isActive).length,
       personalVehicles: vehicles.filter(v => v.ownershipType === 'PERSONAL').length,
       businessVehicles: vehicles.filter(v => v.ownershipType === 'BUSINESS').length,
+      // MBM-305 spec §11.1 — each vehicle counted once off its current status.
+      nonExemptVehicles: vehicles.filter(v => v.licensingStatus === 'NON_EXEMPT').length,
+      exemptVehicles: vehicles.filter(v => v.licensingStatus === 'EXEMPT').length,
+      retiredVehicles: vehicles.filter(v => v.licensingStatus === 'RETIRED').length,
       totalTrips,
       totalExpenses: totalExpenses._sum.amount || 0,
       totalMaintenanceRecords: maintenanceRecords
@@ -628,6 +641,9 @@ async function generateComplianceAlertsReport(vehicleId?: string, driverId?: str
     licenseNumber: a.licenseNumber,
     expiryDate: a.expiryDate,
     urgency: a.urgency,
+    // MBM-305: 'STANDARD' | 'EXEMPTION' — spec §9.1 requires these never be
+    // shown under one ambiguous generic alert label.
+    alertCategory: a.alertCategory,
     vehicle: { licensePlate: a.vehicleLicensePlate, make: a.vehicleMake, model: a.vehicleModel },
   }))
 
@@ -855,4 +871,76 @@ async function generateReimbursementSummaryReport(dateFilter?: any, businessId?:
   })
 
   return { summary, reimbursements: normalizedReimbursements }
+}
+
+// MBM-305 spec §11.4/§11.5 — retirement/reinstatement reporting.
+async function generateVehicleStatusHistoryReport(dateFilter?: any, vehicleId?: string, status?: 'NON_EXEMPT' | 'EXEMPT' | 'RETIRED', retirementReason?: string) {
+  // Currently-retired listing: reason, effective date, and the status
+  // immediately before retirement (from this vehicle's own most recent
+  // ->RETIRED transition). A reinstated vehicle (licensingStatus no longer
+  // RETIRED) naturally drops out of this list (AC-16) while remaining
+  // fully visible in `history` below.
+  const retiredVehicles = await prisma.vehicles.findMany({
+    where: {
+      licensingStatus: 'RETIRED',
+      ...(vehicleId ? { id: vehicleId } : {}),
+      ...(retirementReason ? { retirementReason } : {}),
+    },
+    select: {
+      id: true, licensePlate: true, make: true, model: true,
+      retirementReason: true, retirementReasonDescription: true, retiredAt: true, statusEffectiveAt: true,
+      vehicle_status_history: {
+        where: { newStatus: 'RETIRED' },
+        orderBy: { effectiveAt: 'desc' },
+        take: 1,
+        select: { previousStatus: true },
+      },
+    },
+    orderBy: { retiredAt: 'desc' },
+  })
+
+  const currentlyRetired = retiredVehicles.map(v => ({
+    vehicleId: v.id,
+    licensePlate: v.licensePlate,
+    make: v.make,
+    model: v.model,
+    retirementReason: v.retirementReason,
+    retirementReasonDescription: v.retirementReasonDescription,
+    retiredAt: v.retiredAt,
+    statusBeforeRetirement: v.vehicle_status_history[0]?.previousStatus ?? null,
+  }))
+
+  // Full transition history, filterable per spec §11.5 — status, vehicle,
+  // retirement reason, and status-change date range (dateFilter, matched
+  // against the request's dateFrom/dateTo like every other report here).
+  const history = await prisma.vehicleStatusHistory.findMany({
+    where: {
+      ...(vehicleId ? { vehicleId } : {}),
+      ...(status ? { newStatus: status } : {}),
+      ...(retirementReason ? { retirementReason } : {}),
+      ...(dateFilter ? { effectiveAt: dateFilter } : {}),
+    },
+    include: {
+      vehicles: { select: { licensePlate: true, make: true, model: true } },
+      changedBy: { select: { id: true, name: true } },
+    },
+    orderBy: { effectiveAt: 'desc' },
+  })
+
+  return {
+    currentlyRetired,
+    history: history.map(h => ({
+      id: h.id,
+      vehicleId: h.vehicleId,
+      licensePlate: h.vehicles.licensePlate,
+      make: h.vehicles.make,
+      model: h.vehicles.model,
+      previousStatus: h.previousStatus,
+      newStatus: h.newStatus,
+      effectiveAt: h.effectiveAt,
+      changedBy: h.changedBy,
+      retirementReason: h.retirementReason,
+      retirementReasonDescription: h.retirementReasonDescription,
+    })),
+  }
 }

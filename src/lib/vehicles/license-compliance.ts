@@ -15,6 +15,12 @@ import { createAuditLog } from '@/lib/audit'
 
 export type LicenseUrgency = 'OVERDUE' | 'CRITICAL' | 'HIGH'
 
+// MBM-305: distinguishes a standard registration/insurance/etc. alert from
+// an exempt vehicle's exemption-license alert — spec §9.1 requires they
+// never be merged under one generic label ("Vehicle License Expiry" vs
+// "Vehicle Exemption Expiry").
+export type LicenseAlertCategory = 'STANDARD' | 'EXEMPTION'
+
 export interface VehicleLicenseAlert {
   id: string
   licenseType: string
@@ -22,6 +28,7 @@ export interface VehicleLicenseAlert {
   expiryDate: Date
   daysUntilExpiry: number
   urgency: LicenseUrgency
+  alertCategory: LicenseAlertCategory
   vehicleId: string
   vehicleLicensePlate: string
   vehicleMake: string
@@ -51,12 +58,24 @@ export async function getVehicleLicenseAlerts(vehicleId?: string): Promise<Vehic
       isActive: true,
       expiryDate: { lte: windowEnd },
       ...(vehicleId ? { vehicleId } : {}),
+      // MBM-305: retired vehicles stop all licensing tracking (spec §5.2,
+      // §9.4) — excluded at the query level, not filtered after the fact,
+      // so they can never leak into a count or a report by accident.
+      vehicles: { licensingStatus: { not: 'RETIRED' } },
     },
     include: {
-      vehicles: { select: { id: true, licensePlate: true, make: true, model: true } },
+      vehicles: { select: { id: true, licensePlate: true, make: true, model: true, licensingStatus: true } },
     },
     orderBy: { expiryDate: 'asc' },
-  })
+  }).then(rows => rows.filter(l =>
+    // A non-exempt vehicle is only alerted on its standard licenses; an
+    // exempt vehicle only on its exemption license — defensive filtering
+    // even though a status transition already deactivates whatever doesn't
+    // apply, same self-healing philosophy as the dedupe below.
+    l.vehicles.licensingStatus === 'EXEMPT'
+      ? l.licenseType === 'EXEMPTION'
+      : l.licenseType !== 'EXEMPTION' // NON_EXEMPT
+  ))
 
   // A vehicle should only ever carry one alert per license type. Renewing a
   // license is supposed to deactivate the record it replaces (see POST
@@ -87,6 +106,7 @@ export async function getVehicleLicenseAlerts(vehicleId?: string): Promise<Vehic
       expiryDate: l.expiryDate,
       daysUntilExpiry,
       urgency: classify(daysUntilExpiry),
+      alertCategory: l.licenseType === 'EXEMPTION' ? 'EXEMPTION' : 'STANDARD',
       vehicleId: l.vehicles.id,
       vehicleLicensePlate: l.vehicles.licensePlate,
       vehicleMake: l.vehicles.make,

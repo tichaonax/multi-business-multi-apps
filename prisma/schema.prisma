@@ -3735,6 +3735,7 @@ model Users {
   vehicle_reimbursements_vehicle_reimbursements_approvedByTousers VehicleReimbursements[]           @relation("vehicle_reimbursements_approvedByTousers")
   vehicle_reimbursements_vehicle_reimbursements_userIdTousers     VehicleReimbursements[]           @relation("vehicle_reimbursements_userIdTousers")
   vehicles                                                        Vehicles[]
+  vehicle_status_history                                          VehicleStatusHistory[]
   wifi_token_sales                                                WifiTokenSales[]                  @relation("WifiTokenSaleSeller")
   meal_program_participants_registered                            MealProgramParticipants[]         @relation("MealProgramParticipantRegistrar")
   meal_program_transactions_sold                                  MealProgramTransactions[]         @relation("MealProgramSoldByUser")
@@ -3997,6 +3998,10 @@ model VehicleLicenses {
   usage                    String?
   lateFee                  Decimal?                @db.Decimal(10, 2)
   isExempt                 Boolean                 @default(false)
+  // MBM-305: only meaningful when licenseType = EXEMPTION — kept as its own
+  // field rather than reusing renewalCost so a report summing "renewal
+  // costs" can never accidentally include exemption fees.
+  exemptionFee             Decimal?                @db.Decimal(10, 2)
   renewalReceiptId         String?
   vehicle_renewal_receipts VehicleRenewalReceipts? @relation(fields: [renewalReceiptId], references: [id], onDelete: SetNull)
   vehicles                 Vehicles                @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
@@ -4218,7 +4223,16 @@ model Vehicles {
   titleBookName               String?
   taxClass                    String?
   vehicleUsage                String?
-  isExempt                    Boolean                     @default(false)
+  // MBM-305: replaced by licensingStatus — see VehicleLicensingStatus below.
+  // The old free checkbox ("Exempt vehicle", also auto-set from vehicleUsage
+  // = "NO USE PUBLIC ROAD") had no validation, no required exemption-licence
+  // details, and no history; licensingStatus is now the single authoritative
+  // source of truth, set only via the validated status-transition workflow.
+  licensingStatus              VehicleLicensingStatus      @default(NON_EXEMPT)
+  statusEffectiveAt            DateTime?
+  retirementReason              String?
+  retirementReasonDescription   String?
+  retiredAt                     DateTime?
   driver_authorizations       DriverAuthorizations[]
   vehicle_expenses            VehicleExpenses[]
   vehicle_exemptions          VehicleExemptions[]
@@ -4226,12 +4240,53 @@ model Vehicles {
   vehicle_maintenance_records VehicleMaintenanceRecords[]
   vehicle_reimbursements      VehicleReimbursements[]
   vehicle_renewal_receipts    VehicleRenewalReceipts[]
-  vehicle_trips               VehicleTrips[]
+  vehicle_trips                VehicleTrips[]
+  vehicle_status_history       VehicleStatusHistory[]
   businesses                  Businesses?                 @relation(fields: [businessId], references: [id])
   users                       Users?                      @relation(fields: [userId], references: [id])
   expense_payment_receipts    ExpensePaymentReceipts[]    @relation("ReceiptVehicle")
 
   @@map("vehicles")
+}
+
+// MBM-305: one row per status transition — the authoritative audit trail
+// backing the retirement/reinstatement reports (spec §10, §11.4).
+model VehicleStatusHistory {
+  id                           String                   @id @default(uuid())
+  vehicleId                    String
+  previousStatus                VehicleLicensingStatus?
+  newStatus                     VehicleLicensingStatus
+  effectiveAt                   DateTime
+  changedByUserId                String
+  retirementReason               String?
+  retirementReasonDescription    String?
+  // ids of the VehicleLicenses rows created/deactivated as part of this
+  // transition, for traceability — not a FK (rows can later be superseded
+  // again by a normal renewal), just a point-in-time reference.
+  createdLicenseIds              String[]
+  deactivatedLicenseIds          String[]
+  createdAt                      DateTime                 @default(now())
+  vehicles                       Vehicles                 @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  changedBy                      Users                     @relation(fields: [changedByUserId], references: [id])
+
+  @@index([vehicleId])
+  @@index([newStatus])
+  @@map("vehicle_status_history")
+}
+
+// MBM-305: extensible retirement-reason list, same shared/user-extensible
+// pattern as IssuingAuthorities ("+ Add new reason", selected immediately).
+// "Other" is a fixed sentinel name that always requires
+// Vehicles.retirementReasonDescription; reasons added later behave like the
+// seeded Sold/Off-road (no required description).
+model VehicleRetirementReasons {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  isSystem  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@map("vehicle_retirement_reasons")
 }
 
 model SeedDataTemplates {
@@ -5606,6 +5661,15 @@ enum LicenseType {
   ROAD_USE
   INSURANCE
   INSPECTION
+  EXEMPTION // MBM-305: an exempt vehicle's exemption licence, tracked like any other license type
+}
+
+// MBM-305: a vehicle's single, authoritative licensing status — replaces
+// the old free-floating Vehicles.isExempt checkbox.
+enum VehicleLicensingStatus {
+  NON_EXEMPT
+  EXEMPT
+  RETIRED
 }
 
 enum OrderStatus {

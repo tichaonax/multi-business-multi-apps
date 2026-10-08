@@ -17,6 +17,7 @@ import { useDateFormat } from '@/contexts/settings-context'
 import { LicenseStatusIndicator } from './license-status-indicator'
 import { LicenseFormModal } from './license-form-modal'
 import { LicenseDetailModal } from './license-detail-modal'
+import { VehicleStatusModal } from './vehicle-status-modal'
 import { RenewalReceiptForm } from './renewal-receipt-form'
 import { ExemptionForm } from './exemption-form'
 import { DocumentUpload } from '@/components/ui/document-upload'
@@ -34,7 +35,8 @@ import {
   FileText,
   Plus,
   Pencil,
-  Trash2
+  Trash2,
+  RefreshCw
 } from 'lucide-react'
 
 interface VehicleDetailModalProps {
@@ -61,6 +63,7 @@ export function VehicleDetailModal({ vehicle, onClose, onUpdate }: VehicleDetail
   const [showAllLicenses, setShowAllLicenses] = useState(false)
   const [viewingLicense, setViewingLicense] = useState<VehicleLicense | null>(null)
   const [renewingLicense, setRenewingLicense] = useState<VehicleLicense | null>(null)
+  const [showStatusModal, setShowStatusModal] = useState(false)
   const [showRenewalForm, setShowRenewalForm] = useState(false)
   const [showExemptionForm, setShowExemptionForm] = useState(false)
   const [renewalReceipts, setRenewalReceipts] = useState<VehicleRenewalReceipt[]>([])
@@ -438,10 +441,32 @@ export function VehicleDetailModal({ vehicle, onClose, onUpdate }: VehicleDetail
               <h2 className="text-xl font-semibold text-primary">
                 {vehicle.make} {vehicle.model} ({vehicle.year})
               </h2>
-              <p className="text-sm text-secondary">{vehicle.licensePlate}</p>
+              <div className="flex items-center gap-2 mt-0.5">
+                <p className="text-sm text-secondary">{vehicle.licensePlate}</p>
+                <span className={`text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full ${
+                  vehicleData.licensingStatus === 'RETIRED'
+                    ? 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
+                    : vehicleData.licensingStatus === 'EXEMPT'
+                      ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300'
+                      : 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300'
+                }`}>
+                  {vehicleData.licensingStatus === 'NON_EXEMPT' ? 'Non-exempt' : vehicleData.licensingStatus === 'EXEMPT' ? 'Exempt' : 'Retired'}
+                </span>
+              </div>
             </div>
           </div>
           <div className="flex items-center space-x-2">
+            {canEdit && !isEditing && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowStatusModal(true)}
+                className="flex items-center space-x-1"
+              >
+                <RefreshCw className="h-4 w-4" />
+                <span>Change Status</span>
+              </Button>
+            )}
             {canEdit && !isEditing && (
               <Button
                 variant="outline"
@@ -853,7 +878,7 @@ export function VehicleDetailModal({ vehicle, onClose, onUpdate }: VehicleDetail
                 <FileText className="h-5 w-5" />
                 <span>Vehicle Licenses</span>
               </h3>
-              {canEdit && (
+              {canEdit && vehicleData.licensingStatus !== 'RETIRED' && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -869,7 +894,20 @@ export function VehicleDetailModal({ vehicle, onClose, onUpdate }: VehicleDetail
               )}
             </div>
 
-            {vehicleData.vehicleLicenses && vehicleData.vehicleLicenses.length > 0 ? (
+            {vehicleData.licensingStatus === 'RETIRED' ? (
+              // MBM-305 spec §5.2/§11.5 — retirement stops all licensing
+              // tracking; a retired vehicle's licensing fields show "Not
+              // applicable" rather than blank or overdue styling.
+              <div className="p-4 bg-gray-50 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-secondary">
+                <p className="font-medium text-primary">Not applicable — this vehicle is retired</p>
+                <p className="mt-1">
+                  Retired {vehicleData.retiredAt ? formatDateByFormat(vehicleData.retiredAt, globalDateFormat) : ''}
+                  {vehicleData.retirementReason ? ` — ${vehicleData.retirementReason}` : ''}
+                  {vehicleData.retirementReasonDescription ? `: ${vehicleData.retirementReasonDescription}` : ''}
+                </p>
+                <p className="mt-1">Licensing history before retirement is preserved below and in reports — use Change Status to reinstate.</p>
+              </div>
+            ) : vehicleData.vehicleLicenses && vehicleData.vehicleLicenses.length > 0 ? (
               <div className="space-y-4">
                 {/* Overview - Latest License of Each Type */}
                 <div className="space-y-2">
@@ -1237,6 +1275,15 @@ export function VehicleDetailModal({ vehicle, onClose, onUpdate }: VehicleDetail
         isOpen={true}
         onClose={() => setRenewingLicense(null)}
         onSave={handleLicenseRenewed}
+      />
+    )}
+
+    {showStatusModal && (
+      <VehicleStatusModal
+        vehicle={vehicleData}
+        isOpen={true}
+        onClose={() => setShowStatusModal(false)}
+        onSave={refreshVehicleData}
       />
     )}
 

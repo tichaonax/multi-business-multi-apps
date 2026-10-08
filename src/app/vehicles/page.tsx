@@ -278,9 +278,15 @@ export default function VehiclesPage() {
         const expiry = a.expiryDate || a.vehicle?.expiryDate
         const { expiryStr, daysLabel } = daysUntilAndDate(expiry)
         const licenseTypeLabel = a.licenseType ? String(a.licenseType).replace(/_/g, ' ') : 'License'
+        // MBM-305 spec §9.1 — standard and exemption expiry are never shown
+        // under one ambiguous generic label.
+        const category: 'STANDARD' | 'EXEMPTION' = a.alertCategory || (a.licenseType === 'EXEMPTION' ? 'EXEMPTION' : 'STANDARD')
+        const alertTitle = category === 'EXEMPTION' ? 'Vehicle Exemption Expiry' : 'Vehicle License Expiry'
         return {
           id: a.id || a.vehicle?.id || `${a.vehicle?.licensePlate}-vehicle`,
           type: 'vehicle',
+          category,
+          alertTitle,
           licensePlate: a.vehicle?.licensePlate || a.licensePlate,
           message: `${licenseTypeLabel}${a.licenseNumber ? ` #${a.licenseNumber}` : ''} (${a.vehicle?.make ?? ''} ${a.vehicle?.model ?? ''}) expires ${expiryStr}${daysLabel}`,
           dueDate: expiry,
@@ -741,7 +747,14 @@ export default function VehiclesPage() {
                         ) : (
                           (complianceAlerts || []).map((alert) => (
                             <div key={alert.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-                              <span className="text-sm text-yellow-800 dark:text-yellow-200 break-words">{alert.type === 'vehicle' ? `${alert.licensePlate} - ${alert.message}` : `${alert.name} - ${alert.message}`}</span>
+                              <span className="text-sm text-yellow-800 dark:text-yellow-200 break-words">
+                                {alert.type === 'vehicle' && (alert as any).alertTitle && (
+                                  <span className={`mr-1.5 inline-block text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full ${(alert as any).category === 'EXEMPTION' ? 'bg-purple-200 text-purple-900 dark:bg-purple-900/50 dark:text-purple-200' : 'bg-blue-200 text-blue-900 dark:bg-blue-900/50 dark:text-blue-200'}`}>
+                                    {(alert as any).alertTitle}
+                                  </span>
+                                )}
+                                {alert.type === 'vehicle' ? `${alert.licensePlate} - ${alert.message}` : `${alert.name} - ${alert.message}`}
+                              </span>
                               <div className="flex gap-2 items-center">
                                 {alert.type === 'vehicle' ? (
                                   <>

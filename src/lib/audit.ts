@@ -70,6 +70,7 @@ export type AuditAction =
   | 'VEHICLE_LICENSE_CREATED'
   | 'VEHICLE_LICENSE_UPDATED'
   | 'VEHICLE_LICENSE_DEACTIVATED'
+  | 'VEHICLE_STATUS_CHANGED'
   | 'COMBO_ITEM_NO_RECEIPT_MARKED'
   | 'COMBO_ITEM_NO_RECEIPT_CLEARED';
 
@@ -101,6 +102,7 @@ export type AuditEntityType =
   | 'BusinessTargetCommitment'
   | 'BusinessTargetDayAdjustment'
   | 'VehicleLicense'
+  | 'Vehicle'
   | 'ComboPaymentRequestItem';
 
 export interface AuditLogEntry {

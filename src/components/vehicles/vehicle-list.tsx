@@ -322,6 +322,15 @@ ${licenseRows ? `<table>
                         }`}>
                           {vehicle.ownershipType}
                         </span>
+                        <span className={`px-2 py-1 text-xs font-bold uppercase tracking-wide rounded-full ${
+                          vehicle.licensingStatus === 'RETIRED'
+                            ? 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
+                            : vehicle.licensingStatus === 'EXEMPT'
+                              ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300'
+                              : 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300'
+                        }`}>
+                          {vehicle.licensingStatus === 'NON_EXEMPT' ? 'Non-exempt' : vehicle.licensingStatus === 'EXEMPT' ? 'Exempt' : 'Retired'}
+                        </span>
                         {!vehicle.isActive && (
                           <span className="px-2 py-1 text-xs rounded-full bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300">
                             Inactive

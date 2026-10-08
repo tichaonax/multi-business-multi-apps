@@ -24,7 +24,13 @@ export interface Vehicle {
   titleBookName?: string
   taxClass?: string
   vehicleUsage?: string
-  isExempt: boolean
+  // MBM-305: licensingStatus is now the single authoritative "is this
+  // vehicle exempt" source of truth — the old isExempt checkbox is gone.
+  licensingStatus: 'NON_EXEMPT' | 'EXEMPT' | 'RETIRED'
+  statusEffectiveAt?: string
+  retirementReason?: string
+  retirementReasonDescription?: string
+  retiredAt?: string
   createdAt: string
   updatedAt: string
 
@@ -46,6 +52,22 @@ export interface Vehicle {
   expenseRecords?: VehicleExpense[]
   renewalReceipts?: VehicleRenewalReceipt[]
   exemptions?: VehicleExemption[]
+  statusHistory?: VehicleStatusHistoryEntry[]
+}
+
+export interface VehicleStatusHistoryEntry {
+  id: string
+  vehicleId: string
+  previousStatus: 'NON_EXEMPT' | 'EXEMPT' | 'RETIRED' | null
+  newStatus: 'NON_EXEMPT' | 'EXEMPT' | 'RETIRED'
+  effectiveAt: string
+  changedByUserId: string
+  retirementReason?: string
+  retirementReasonDescription?: string
+  createdLicenseIds: string[]
+  deactivatedLicenseIds: string[]
+  createdAt: string
+  changedBy?: { id: string; name: string }
 }
 
 export interface VehicleDriver {
@@ -81,7 +103,7 @@ export interface VehicleDriver {
 export interface VehicleLicense {
   id: string
   vehicleId: string
-  licenseType: 'REGISTRATION' | 'RADIO' | 'ROAD_USE' | 'INSURANCE' | 'INSPECTION'
+  licenseType: 'REGISTRATION' | 'RADIO' | 'ROAD_USE' | 'INSURANCE' | 'INSPECTION' | 'EXEMPTION'
   licenseNumber: string
   issuingAuthority?: string
   issueDate: string
@@ -90,6 +112,8 @@ export interface VehicleLicense {
   lateFee?: number
   usage?: string
   isExempt: boolean
+  // Only meaningful when licenseType = 'EXEMPTION' — see VehicleLicenses.exemptionFee
+  exemptionFee?: number
   renewalReceiptId?: string
   isActive: boolean
   documentUrl?: string
@@ -334,7 +358,6 @@ export interface CreateVehicleData {
   notes?: string
   taxClass?: string
   vehicleUsage?: string
-  isExempt?: boolean
 }
 
 export interface CreateDriverData {

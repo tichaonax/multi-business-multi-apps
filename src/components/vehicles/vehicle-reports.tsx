@@ -16,6 +16,36 @@ interface VehicleReportsData {
     totalExpenses: number
     maintenanceDue: number
   }
+  licensingStatus: {
+    nonExempt: number
+    exempt: number
+    retired: number
+  }
+  statusHistory: {
+    currentlyRetired: {
+      vehicleId: string
+      licensePlate: string
+      make: string
+      model: string
+      retirementReason: string | null
+      retirementReasonDescription: string | null
+      retiredAt: string | null
+      statusBeforeRetirement: string | null
+    }[]
+    history: {
+      id: string
+      vehicleId: string
+      licensePlate: string
+      make: string
+      model: string
+      previousStatus: string | null
+      newStatus: string
+      effectiveAt: string
+      changedBy: { id: string; name: string } | null
+      retirementReason: string | null
+      retirementReasonDescription: string | null
+    }[]
+  }
   fuelEfficiency: {
     avgEfficiency: number
     avgCostPerDistance: number
@@ -102,13 +132,14 @@ export function VehicleReports() {
       setError('')
 
       // Fetch multiple report types and combine them
-      const [fleetOverview, mileageSummary, expenseSummary, maintenanceSchedule, complianceAlerts, driverActivity] = await Promise.all([
+      const [fleetOverview, mileageSummary, expenseSummary, maintenanceSchedule, complianceAlerts, driverActivity, statusHistory] = await Promise.all([
         fetch(`/api/vehicles/reports?reportType=FLEET_OVERVIEW&dateFrom=${dateRange.startDate}&dateTo=${dateRange.endDate}`, { signal }).then(res => res.json()),
         fetch(`/api/vehicles/reports?reportType=MILEAGE_SUMMARY&dateFrom=${dateRange.startDate}&dateTo=${dateRange.endDate}`, { signal }).then(res => res.json()),
         fetch(`/api/vehicles/reports?reportType=EXPENSE_SUMMARY&dateFrom=${dateRange.startDate}&dateTo=${dateRange.endDate}`, { signal }).then(res => res.json()),
         fetch(`/api/vehicles/reports?reportType=MAINTENANCE_SCHEDULE`, { signal }).then(res => res.json()),
         fetch(`/api/vehicles/reports?reportType=COMPLIANCE_ALERTS`, { signal }).then(res => res.json()),
-        fetch(`/api/vehicles/reports?reportType=DRIVER_ACTIVITY&dateFrom=${dateRange.startDate}&dateTo=${dateRange.endDate}`, { signal }).then(res => res.json())
+        fetch(`/api/vehicles/reports?reportType=DRIVER_ACTIVITY&dateFrom=${dateRange.startDate}&dateTo=${dateRange.endDate}`, { signal }).then(res => res.json()),
+        fetch(`/api/vehicles/reports?reportType=VEHICLE_STATUS_HISTORY&dateFrom=${dateRange.startDate}&dateTo=${dateRange.endDate}`, { signal }).then(res => res.json())
       ])
 
       // Combine all report data into the expected format
@@ -122,6 +153,15 @@ export function VehicleReports() {
           totalMileage: mileageSummary.data?.summary?.totalMileage || 0,
           totalExpenses: expenseSummary.data?.summary?.totalAmount || 0,
           maintenanceDue: maintenanceSchedule.data?.summary?.upcomingCount || 0
+        },
+        licensingStatus: {
+          nonExempt: fleetOverview.data?.summary?.nonExemptVehicles || 0,
+          exempt: fleetOverview.data?.summary?.exemptVehicles || 0,
+          retired: fleetOverview.data?.summary?.retiredVehicles || 0
+        },
+        statusHistory: {
+          currentlyRetired: statusHistory.data?.currentlyRetired || [],
+          history: statusHistory.data?.history || []
         },
         fuelEfficiency: {
           avgEfficiency: mileageSummary.data?.summary?.fuelEfficiency?.avgEfficiency || 0,
@@ -367,6 +407,78 @@ export function VehicleReports() {
           </div>
         </div>
       </div>
+
+      {/* Licensing Status Breakdown (MBM-305, spec §11.1/AC-13) */}
+      <div className="card p-6">
+        <h3 className="text-lg font-semibold text-primary mb-4">🚦 Licensing Status</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+            <p className="text-sm text-secondary">Non-exempt</p>
+            <p className="text-2xl font-bold text-blue-600">{reportsData.licensingStatus.nonExempt}</p>
+          </div>
+          <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+            <p className="text-sm text-secondary">Exempt</p>
+            <p className="text-2xl font-bold text-purple-600">{reportsData.licensingStatus.exempt}</p>
+          </div>
+          <div className="p-4 bg-gray-100 dark:bg-gray-800 rounded-lg">
+            <p className="text-sm text-secondary">Retired</p>
+            <p className="text-2xl font-bold text-gray-600 dark:text-gray-300">{reportsData.licensingStatus.retired}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Retired Vehicles & Status History (MBM-305, spec §11.4/§11.5, AC-15/AC-16) */}
+      {(reportsData.statusHistory.currentlyRetired.length > 0 || reportsData.statusHistory.history.length > 0) && (
+        <div className="card p-6">
+          <h3 className="text-lg font-semibold text-primary mb-4">📜 Vehicle Status History</h3>
+
+          {reportsData.statusHistory.currentlyRetired.length > 0 && (
+            <div className="mb-6">
+              <h4 className="text-sm font-medium text-secondary mb-3">Currently Retired ({reportsData.statusHistory.currentlyRetired.length})</h4>
+              <div className="space-y-2">
+                {reportsData.statusHistory.currentlyRetired.map(v => (
+                  <div key={v.vehicleId} className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <span className="text-sm font-medium text-primary">{v.licensePlate} — {v.make} {v.model}</span>
+                        <p className="text-xs text-secondary mt-0.5">
+                          Reason: {v.retirementReason}
+                          {v.retirementReasonDescription ? ` — ${v.retirementReasonDescription}` : ''}
+                          {v.statusBeforeRetirement ? ` (was ${v.statusBeforeRetirement.replace('_', '-').toLowerCase()})` : ''}
+                        </p>
+                      </div>
+                      <span className="text-xs text-secondary whitespace-nowrap">
+                        {v.retiredAt ? formatDateByFormat(v.retiredAt, globalDateFormat) : ''}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {reportsData.statusHistory.history.length > 0 && (
+            <div>
+              <h4 className="text-sm font-medium text-secondary mb-3">Status Change Log ({reportsData.statusHistory.history.length})</h4>
+              <div className="space-y-2">
+                {reportsData.statusHistory.history.map(h => (
+                  <div key={h.id} className="flex justify-between items-start p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                    <div>
+                      <span className="text-sm font-medium text-primary">{h.licensePlate} — {h.make} {h.model}</span>
+                      <p className="text-xs text-secondary mt-0.5">
+                        {h.previousStatus ? h.previousStatus.replace('_', '-').toLowerCase() : 'new'} → {h.newStatus.replace('_', '-').toLowerCase()}
+                        {h.changedBy?.name ? ` by ${h.changedBy.name}` : ''}
+                        {h.retirementReason ? ` — ${h.retirementReason}` : ''}
+                      </p>
+                    </div>
+                    <span className="text-xs text-secondary whitespace-nowrap">{formatDateByFormat(h.effectiveAt, globalDateFormat)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Fuel Efficiency Metrics */}
       {reportsData.fuelEfficiency.totalFuelConsumed > 0 && (
