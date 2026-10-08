@@ -9,6 +9,13 @@
 
 export const COMPLIANCE_DIGEST_MARKER = '🚨 Vehicle & Driver License Compliance Alert'
 
+// Shared so the collapsed card's fine-print "when was this created" always
+// reads identically wherever it appears (System Alerts chat, notification
+// bell) — one format, not a format each caller invents for itself.
+export function formatAlertTimestamp(iso: string): string {
+  return new Date(iso).toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
+
 // Deterministic per-identifier colour palette — also used for chat message
 // avatars (see getUserColor usage in chat-window.tsx), reused here so a
 // given vehicle/driver always gets the same colour across the chat digest,

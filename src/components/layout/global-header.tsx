@@ -21,7 +21,7 @@ import { usePolicyOverdue } from '@/hooks/use-policy-overdue'
 import { useActiveServerLabel } from '@/hooks/use-active-server-label'
 import { getDefaultPagePath } from '@/lib/business-default-pages'
 import { subscribeChatBadge, ChatBadgeState } from '@/lib/chat-badge'
-import { ComplianceDigestSections, parseComplianceDigest } from '@/components/vehicles/license-compliance-digest'
+import { ComplianceDigestSections, parseComplianceDigest, formatAlertTimestamp } from '@/components/vehicles/license-compliance-digest'
 
 interface GlobalHeaderProps {
   title?: string
@@ -1359,7 +1359,12 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                         )}
                         <div className="max-h-80 overflow-y-auto">
                           {(() => {
-                            const baseList = showUnreadOnly ? notifList.filter(n => !n.isRead) : notifList
+                            // An item the user just expanded gets marked read immediately
+                            // (same as every other notification type here) — but under the
+                            // "Unread" filter that would otherwise make it vanish from the
+                            // list the instant it's clicked, before the user ever sees it
+                            // expand. Keep it visible while expanded regardless of read state.
+                            const baseList = showUnreadOnly ? notifList.filter(n => !n.isRead || expandedComplianceNotifIds.has(n.id)) : notifList
                             const filtered = notifSearch.trim() ? baseList.filter(n => `${n.title ?? ''} ${n.message ?? ''}`.toLowerCase().includes(notifSearch.toLowerCase())) : baseList
                             if (filtered.length === 0) return <div className="px-3 py-4 text-xs text-secondary text-center">{notifSearch ? 'No matching notifications' : showUnreadOnly ? 'No unread notifications' : 'No notifications'}</div>
 
@@ -1387,15 +1392,21 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                                         })
                                       }}
                                     >
-                                      <span className="mt-0.5 shrink-0 text-base">⚠️</span>
+                                      {/* Same collapsible chevron as the System Alerts chat card
+                                          (chat-window.tsx) — collapsed by default, rotates open. */}
+                                      <svg className={`w-3 h-3 mt-1 shrink-0 text-amber-600 dark:text-amber-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                      </svg>
                                       <div className="min-w-0 flex-1">
-                                        <p className={`font-medium truncate ${!n.isRead ? 'text-blue-700 dark:text-blue-300' : 'text-primary'}`}>{n.title}</p>
-                                        {!isExpanded && (
-                                          <p className="text-secondary line-clamp-2">
-                                            {itemCount > 0 ? `${itemCount} license${itemCount === 1 ? '' : 's'} need attention — tap to view` : n.message}
-                                          </p>
-                                        )}
-                                        <p className="text-gray-400 dark:text-gray-500 mt-0.5">{new Date(n.createdAt).toLocaleString()}</p>
+                                        <div className="flex items-center gap-1.5">
+                                          <p className={`font-medium truncate ${!n.isRead ? 'text-blue-700 dark:text-blue-300' : 'text-primary'}`}>{n.title}</p>
+                                          {itemCount > 0 && (
+                                            <span className="shrink-0 text-[9px] font-bold bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200 px-1.5 py-0.5 rounded-full">
+                                              {itemCount}
+                                            </span>
+                                          )}
+                                        </div>
+                                        <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">{formatAlertTimestamp(n.createdAt)}</p>
                                       </div>
                                       {!n.isRead && <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0 mt-1" />}
                                       <button

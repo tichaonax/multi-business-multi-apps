@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import type { Socket } from 'socket.io-client'
 import { useTypingEmitter, useTypingTracker, formatTypingLabel } from '@/hooks/use-typing-indicator'
-import { getUserColor, parseComplianceDigest, ComplianceDigestSections } from '@/components/vehicles/license-compliance-digest'
+import { getUserColor, parseComplianceDigest, ComplianceDigestSections, formatAlertTimestamp } from '@/components/vehicles/license-compliance-digest'
 
 interface Recipient { id: string; name: string }
 
@@ -517,7 +517,7 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
         return (
           <div key={msg.id} className="flex justify-center mb-2 px-1">
             <div className="max-w-full w-full bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl overflow-hidden">
-              <div className="flex items-center gap-1 px-3 py-2">
+              <div className="flex items-start gap-1 px-3 py-2">
                 <button
                   type="button"
                   onClick={() => setExpandedAlerts(prev => {
@@ -525,17 +525,20 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
                     if (next.has(msg.id)) next.delete(msg.id); else next.add(msg.id)
                     return next
                   })}
-                  className="flex-1 min-w-0 flex items-center gap-1.5 text-left"
+                  className="flex-1 min-w-0 flex flex-col text-left"
                 >
-                  <svg className={`w-3 h-3 shrink-0 text-amber-600 dark:text-amber-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                  <span className="text-[11px] font-medium text-amber-900 dark:text-amber-200 truncate">{summaryLine}</span>
-                  {itemCount > 0 && (
-                    <span className="shrink-0 text-[9px] font-bold bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200 px-1.5 py-0.5 rounded-full">
-                      {itemCount}
-                    </span>
-                  )}
+                  <span className="flex items-center gap-1.5">
+                    <svg className={`w-3 h-3 shrink-0 text-amber-600 dark:text-amber-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                    <span className="text-[11px] font-medium text-amber-900 dark:text-amber-200 truncate">{summaryLine}</span>
+                    {itemCount > 0 && (
+                      <span className="shrink-0 text-[9px] font-bold bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200 px-1.5 py-0.5 rounded-full">
+                        {itemCount}
+                      </span>
+                    )}
+                  </span>
+                  <span className="text-[9px] text-amber-600/80 dark:text-amber-400/70 mt-0.5 pl-[18px]">{formatAlertTimestamp(msg.createdAt)}</span>
                 </button>
                 <button
                   type="button"
