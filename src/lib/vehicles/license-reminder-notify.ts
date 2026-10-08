@@ -50,6 +50,21 @@ export async function sweepVehicleLicenseReminders(): Promise<{ vehicleLicenses:
     const totalAlerts = vehicleAlerts.length + driverAlerts.length
     const groupKey = vehicleLicenseComplianceSummaryGroupKey()
 
+    // One-time cleanup (safe to repeat — no-op once done): rows created
+    // under the old per-license/per-driver groupKeys before this sweep
+    // switched to a single combined summary row. Nothing clears those old
+    // keys any more, so without this they sit in the bell forever,
+    // alongside the new summary, making the "Vehicle & Licensing" group
+    // look uncollapsed/ungrouped even though the new code is working.
+    await prisma.appNotification.deleteMany({
+      where: {
+        OR: [
+          { groupKey: { startsWith: 'vehicle-license-reminder:' } },
+          { groupKey: { startsWith: 'driver-license-reminder:' } },
+        ],
+      },
+    })
+
     if (totalAlerts === 0) {
       // Nothing outstanding any more — drop the summary row entirely rather
       // than leave a stale "0 alerts" notification sitting in the bell.

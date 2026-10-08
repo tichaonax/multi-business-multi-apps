@@ -95,6 +95,9 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
   const [canPettyCashRequest, setCanPettyCashRequest] = useState(false)
   const [bellSearch, setBellSearch] = useState('')
   const [notifSearch, setNotifSearch] = useState('')
+  // Notification bell segments default collapsed (header + unread count
+  // only) — explicitly expanded ones live here by key.
+  const [expandedNotifSegments, setExpandedNotifSegments] = useState<Set<string>>(new Set())
   const [chatBadge, setChatBadgeState] = useState<ChatBadgeState>({ unread: 0, unreadDirect: 0, onlineCount: 0 })
 
   // Mirror FloatingChat's unread counts for the mobile header toggle (see below)
@@ -1280,21 +1283,13 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                               return (
                               <div
                                 key={n.id}
-                                className={`group relative flex items-start gap-2 px-3 py-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 text-xs border-b border-border ${
+                                className={`flex items-start gap-2 px-3 py-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 text-xs border-b border-border ${
                                   isUrgent
                                     ? 'bg-red-50/60 dark:bg-red-900/15 border-l-2 border-red-400'
                                     : !n.isRead ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''
                                 }`}
                                 onClick={() => { markRead(n.id); setShowNotifPanel(false); if (n.linkUrl) window.location.href = n.linkUrl }}
                               >
-                                <button
-                                  type="button"
-                                  title="Dismiss"
-                                  onClick={e => { e.stopPropagation(); dismissNotif(n.id) }}
-                                  className="absolute top-1 right-1 w-4 h-4 rounded-full flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-500 dark:hover:bg-gray-600 opacity-0 group-hover:opacity-100 transition-opacity leading-none"
-                                >
-                                  ×
-                                </button>
                                 <span className="mt-0.5 shrink-0 text-base">
                                   {isUrgent ? '🚨' : n.type === 'PAYMENT_APPROVED' ? '✅' : n.type === 'PAYMENT_REJECTED' ? '↩️' : n.type === 'PAYMENT_SUBMITTED' ? '📋' : n.type === 'PAYMENT_PAID' ? '💰' : n.type === 'PETTY_CASH_SUBMITTED' ? '💸' : n.type === 'PETTY_CASH_APPROVED' ? '🪙' : n.type === 'PETTY_CASH_REJECTED' ? '❌' : n.type === 'CHAT_MESSAGE' ? '💬' : n.type === 'LOW_STOCK' ? '📦' : n.type === 'COMBO_REQUEST_SUBMITTED' ? '📋' : n.type === 'COMBO_REQUEST_APPROVED' ? '✅' : n.type === 'COMBO_REQUEST_PARTIALLY_APPROVED' ? '⚠️' : n.type === 'COMBO_REQUEST_CANCELLED' ? '❌' : n.type === 'COMBO_REQUEST_PAID' ? '💯' : n.type === 'JOB_BILLED_AWAITING_PAYMENT' ? '🧾' : n.type === 'JOB_START_ESCALATION' ? '⏰' : '🔔'}
                                 </span>
@@ -1311,6 +1306,14 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                                   <p className="text-gray-400 dark:text-gray-500 mt-0.5">{new Date(n.createdAt).toLocaleString()}</p>
                                 </div>
                                 {!n.isRead && <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0 mt-1" />}
+                                <button
+                                  type="button"
+                                  title="Dismiss"
+                                  onClick={e => { e.stopPropagation(); dismissNotif(n.id) }}
+                                  className="shrink-0 w-6 h-6 -mr-1 -mt-0.5 rounded-full flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-500 dark:hover:bg-gray-600 active:bg-gray-500 text-sm leading-none"
+                                >
+                                  ×
+                                </button>
                               </div>
                               )
                             }
@@ -1329,13 +1332,31 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
 
                             return orderedKeys.map(key => {
                               const seg = segmented.get(key)!
+                              const unread = seg.items.filter(n => !n.isRead).length
                               return (
                                 <div key={key}>
-                                  <div className="px-3 py-1 bg-gray-100 dark:bg-gray-900/60 text-[10px] font-semibold text-secondary uppercase tracking-wide flex items-center gap-1 sticky top-0">
-                                    <span>{seg.icon}</span>{seg.label}
+                                  <button
+                                    type="button"
+                                    onClick={() => setExpandedNotifSegments(prev => {
+                                      const next = new Set(prev)
+                                      if (next.has(key)) next.delete(key); else next.add(key)
+                                      return next
+                                    })}
+                                    className="w-full px-3 py-1.5 bg-gray-100 dark:bg-gray-900/60 hover:bg-gray-200 dark:hover:bg-gray-900 text-[10px] font-semibold text-secondary uppercase tracking-wide flex items-center gap-1 sticky top-0 transition-colors"
+                                  >
+                                    <span>{seg.icon}</span>
+                                    <span className="flex-1 text-left">{seg.label}</span>
+                                    {unread > 0 && (
+                                      <span className="normal-case font-bold bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 px-1.5 py-0.5 rounded-full text-[9px]">
+                                        {unread} unread
+                                      </span>
+                                    )}
                                     <span className="text-gray-400 dark:text-gray-500 font-normal normal-case">({seg.items.length})</span>
-                                  </div>
-                                  {seg.items.map(renderItem)}
+                                    <svg className={`w-3 h-3 shrink-0 transition-transform ${expandedNotifSegments.has(key) ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                  </button>
+                                  {(expandedNotifSegments.has(key) || !!notifSearch.trim()) && seg.items.map(renderItem)}
                                 </div>
                               )
                             })
