@@ -14,7 +14,7 @@
 
 import { emitGroupedNotification, clearGroupedNotifications } from '@/lib/notifications/notification-emitter'
 import { prisma } from '@/lib/prisma'
-import { getGeneralRoom, postSystemMessage } from '@/lib/chat/rooms'
+import { getOrCreateSystemAlertsRoom, postSystemMessage } from '@/lib/chat/rooms'
 import { emitToUsers } from '@/lib/customer-display/socket-server'
 import {
   getVehicleLicenseAlerts,
@@ -127,16 +127,18 @@ function formatDriverLine(a: DriverLicenseAlert): string {
 }
 
 /**
- * Posts a single read-only system message into Team/General, visible ONLY
- * to recipientUserIds (canManageVehicles grantees + admins — the same list
- * the push notifications go to), summarizing every overdue/expiring license
- * in full detail (type, number, exact date, days remaining/overdue) — not
- * just the push notification's one-line-per-license version. Reuses the
- * same ChatMessageRecipients "private message" mechanism a targeted reply
- * already uses (see postSystemMessage), so it's genuinely not visible to
- * everyone in the room, not just visually hidden. No one can reply to it
- * (system messages have no sender; the client hides Reply/Edit/Delete for
- * them); opening the chat and seeing it is the "acknowledgement" — same
+ * Posts a single read-only system message into the dedicated "System
+ * Alerts" room (see getOrCreateSystemAlertsRoom) — a genuinely separate
+ * conversation, not Team/General with a per-message recipient filter —
+ * since not everyone with chat access needs vehicle management visibility.
+ * Room membership (canManageVehicles grantees + admins, the same list the
+ * push notifications go to) is what restricts visibility here, same as any
+ * other group room. Summarizes every overdue/expiring license in full
+ * detail (type, number, exact date, days remaining/overdue) — not just the
+ * push notification's one-line-per-license version. No one can reply (the
+ * POST /api/chat/messages route rejects posts into a 'system' room; system
+ * messages have no sender so the client hides Reply/Edit/Delete for them);
+ * opening the chat and seeing it is the "acknowledgement" — same
  * read-tracking every other message already gets, no separate mechanism
  * needed. Deduped to at most once per ~20h (one calendar sweep) regardless
  * of how many times the throttled lazy trigger fires in between.
@@ -145,7 +147,7 @@ export async function postLicenseComplianceChatDigest(vehicleAlerts: VehicleLice
   if (vehicleAlerts.length === 0 && driverAlerts.length === 0) return
   if (recipientUserIds.length === 0) return
   try {
-    const room = await getGeneralRoom()
+    const room = await getOrCreateSystemAlertsRoom(recipientUserIds)
 
     const recent = await prisma.chatMessages.findFirst({
       where: {
@@ -176,10 +178,10 @@ export async function postLicenseComplianceChatDigest(vehicleAlerts: VehicleLice
       sections.push(...soonDrivers.map(formatDriverLine))
       sections.push('')
     }
-    sections.push('This is a read-only system alert, visible only to vehicle managers and admins — open it to acknowledge, then use the link below to renew in Fleet Management.')
+    sections.push('This is a read-only system alert — open it to acknowledge, then use the link below to renew in Fleet Management.')
 
     const message = sections.join('\n')
-    const payload = await postSystemMessage(room.id, message, VEHICLES_OVERVIEW_LINK, recipientUserIds)
+    const payload = await postSystemMessage(room.id, message, VEHICLES_OVERVIEW_LINK)
     emitToUsers(recipientUserIds, 'chat:message', payload)
   } catch (err) {
     console.error('[license-reminder-notify] postLicenseComplianceChatDigest failed:', err)

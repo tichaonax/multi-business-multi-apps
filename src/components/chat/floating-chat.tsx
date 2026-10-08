@@ -52,7 +52,7 @@ interface UserOption { id: string; name: string; online?: boolean; photoUrl?: st
 // openWindows below) so several can be open side by side.
 interface RoomSummary {
   id: string
-  type: 'direct' | 'group'
+  type: 'direct' | 'group' | 'system'
   name: string
   participants: { id: string; name: string; photoUrl: string | null }[]
   lastMessage: { text: string; at: string; isOwn: boolean } | null
@@ -1344,9 +1344,9 @@ export function FloatingChat() {
                 className="w-full flex items-center gap-3 px-2 py-2.5 rounded-xl hover:bg-white dark:hover:bg-gray-800 transition-colors text-left"
               >
                 <div className={`w-10 h-10 rounded-full shrink-0 relative flex items-center justify-center text-white text-sm font-bold overflow-hidden ${
-                  room.type === 'group' ? 'bg-violet-500' : getUserColor(room.participants[0]?.id ?? room.id).avatar
+                  room.type === 'system' ? 'bg-amber-500' : room.type === 'group' ? 'bg-violet-500' : getUserColor(room.participants[0]?.id ?? room.id).avatar
                 }`}>
-                  {room.type === 'group' ? '👥' : room.name.charAt(0).toUpperCase()}
+                  {room.type === 'system' ? '🔔' : room.type === 'group' ? '👥' : room.name.charAt(0).toUpperCase()}
                   {room.type === 'direct' && room.participants[0]?.photoUrl && (
                     <img src={room.participants[0].photoUrl} alt={room.name} className="absolute inset-0 w-full h-full object-cover"
                       onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />

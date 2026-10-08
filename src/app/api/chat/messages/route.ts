@@ -120,6 +120,12 @@ export async function POST(request: NextRequest) {
       // DM/group room — membership is the audience, so there's no per-message
       // recipient set to compute; a reply just threads under parentId with
       // no OWNER/ALL distinction (everyone in the room already sees it all).
+      const room = await prisma.chatRooms.findUnique({ where: { id: requestedRoomId! }, select: { type: true } })
+      if (room?.type === 'system') {
+        // e.g. the vehicle license compliance "System Alerts" room — nobody
+        // replies to a system broadcast, including admins who are members.
+        return NextResponse.json({ error: 'This is a read-only system channel' }, { status: 403 })
+      }
       const participants = await prisma.chatParticipants.findMany({ where: { roomId: requestedRoomId } })
       const participantIds = participants.map(p => p.userId).filter((id): id is string => !!id)
       if (!participantIds.includes(user.id)) {

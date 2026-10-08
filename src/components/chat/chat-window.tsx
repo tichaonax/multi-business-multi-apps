@@ -15,6 +15,7 @@ interface Message {
   userInitials?: string
   // A system/event message (e.g. "X added Y to the group") has no sender.
   isSystem?: boolean
+  linkUrl?: string | null
   message: string
   createdAt: string
   deletedAt: string | null
@@ -90,7 +91,7 @@ interface Member { id: string; name: string; photoUrl: string | null }
 interface ChatWindowProps {
   roomId: string
   roomName: string
-  roomType: 'direct' | 'group'
+  roomType: 'direct' | 'group' | 'system'
   roomPhotoUrl?: string | null
   currentUserId: string
   currentUserName?: string | null
@@ -509,6 +510,25 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
 
   const renderMessage = (msg: Message, isReply = false) => {
     if (msg.isSystem) {
+      // Multi-line alerts (e.g. the vehicle license compliance digest) get a
+      // readable card instead of the compact one-line pill used for simple
+      // membership-change events — mirrors the hub's own rich-alert styling.
+      const isRichAlert = !!msg.linkUrl || msg.message.includes('\n')
+      if (isRichAlert) {
+        return (
+          <div key={msg.id} className="flex justify-center mb-2 px-1">
+            <div className="max-w-full bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl px-3 py-2">
+              <p className="text-[11px] text-amber-900 dark:text-amber-200 whitespace-pre-wrap leading-relaxed">{msg.message}</p>
+              {msg.linkUrl && (
+                <a href={msg.linkUrl} className="inline-block mt-1.5 text-[11px] font-semibold text-amber-700 dark:text-amber-300 hover:underline">
+                  Open in Fleet Management →
+                </a>
+              )}
+              <p className="text-[9px] text-amber-500 dark:text-amber-500 mt-1">{formatTime(msg.createdAt)} · System · Read-only</p>
+            </div>
+          </div>
+        )
+      }
       return (
         <div key={msg.id} className="flex items-center justify-center my-2">
           <span className="text-[10px] text-secondary bg-gray-100 dark:bg-gray-800 rounded-full px-2.5 py-1 text-center">
@@ -693,6 +713,12 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
               </button>
             )}
           </div>
+        ) : roomType === 'system' ? (
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="w-5 h-5 rounded-full shrink-0 flex items-center justify-center bg-white/20 text-[10px]">🔔</span>
+            <span className="font-semibold text-xs truncate">{roomName}</span>
+            <span className="text-[9px] text-white/70 shrink-0">· Read-only</span>
+          </div>
         ) : (
           <div className="flex items-center gap-1.5 min-w-0">
             <span className="w-5 h-5 rounded-full shrink-0 relative overflow-hidden flex items-center justify-center bg-white/20 text-[10px] font-bold">
@@ -737,6 +763,11 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
         <div ref={bottomRef} />
       </div>
 
+      {roomType === 'system' ? (
+        <div className="border-t border-border bg-gray-50 dark:bg-gray-900 px-2.5 py-2 shrink-0 text-center">
+          <p className="text-[10px] text-secondary">🔒 Read-only system channel — nobody can reply here</p>
+        </div>
+      ) : (
       <div className="relative border-t border-border bg-white dark:bg-gray-900 px-2.5 py-2.5 shrink-0 space-y-1.5">
         {/* Typing indicator */}
         {typingUsers.length > 0 && (
@@ -814,6 +845,7 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
           </button>
         </div>
       </div>
+      )}
 
       {/* Group members panel */}
       {showMembers && (

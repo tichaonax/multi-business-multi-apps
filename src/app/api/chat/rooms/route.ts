@@ -10,7 +10,7 @@ export async function GET() {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const participantRows = await prisma.chatParticipants.findMany({
-      where: { userId: user.id, chat_rooms: { type: { in: ['direct', 'group'] } } },
+      where: { userId: user.id, chat_rooms: { type: { in: ['direct', 'group', 'system'] } } },
       include: {
         chat_rooms: {
           include: {
@@ -53,7 +53,7 @@ export async function GET() {
 
       return {
         id: room.id,
-        type: room.type as 'direct' | 'group',
+        type: room.type as 'direct' | 'group' | 'system',
         name: displayName,
         participants: otherParticipants,
         lastMessage: lastMessage

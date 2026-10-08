@@ -7,6 +7,7 @@
 import { prisma } from '@/lib/prisma'
 
 export const GENERAL_ROOM_NAME = 'General'
+export const SYSTEM_ALERTS_ROOM_NAME = 'System Alerts'
 
 // A message can only be edited by its sender, only while it's still their
 // most recent message in the room, and only within this window of sending.
@@ -46,6 +47,48 @@ export async function getGeneralRoom() {
         throw err
       }
     }
+  }
+  return room!
+}
+
+/** Get or create the single, dedicated read-only "System Alerts" room (e.g.
+ * vehicle license compliance digests) and make sure every given user is a
+ * participant. This is a real, separate ChatRooms row with its own
+ * ChatParticipants membership — NOT messages dropped into General with a
+ * per-message recipient filter layered on top — because membership in
+ * General has nothing to do with who should see vehicle compliance alerts
+ * (not everyone with chat access needs vehicle management visibility), and
+ * mixing them meant the alert never showed as its own distinct source. Same
+ * create-race defense as getGeneralRoom(); see the
+ * chat_rooms_system_alerts_singleton migration for the matching constraint.
+ * Membership only ever grows here — a user who loses canManageVehicles/admin
+ * keeps read access to past alerts rather than being silently evicted. */
+export async function getOrCreateSystemAlertsRoom(participantUserIds: string[]) {
+  let room = await prisma.chatRooms.findFirst({
+    where: { name: SYSTEM_ALERTS_ROOM_NAME, type: 'system' },
+    orderBy: { createdAt: 'asc' },
+  })
+  if (!room) {
+    try {
+      room = await prisma.chatRooms.create({
+        data: { name: SYSTEM_ALERTS_ROOM_NAME, type: 'system' },
+      })
+    } catch (err: any) {
+      if (err?.code === 'P2002') {
+        room = await prisma.chatRooms.findFirst({
+          where: { name: SYSTEM_ALERTS_ROOM_NAME, type: 'system' },
+          orderBy: { createdAt: 'asc' },
+        })
+      } else {
+        throw err
+      }
+    }
+  }
+  if (participantUserIds.length > 0) {
+    await prisma.chatParticipants.createMany({
+      data: participantUserIds.map(userId => ({ roomId: room!.id, userId })),
+      skipDuplicates: true,
+    })
   }
   return room!
 }
