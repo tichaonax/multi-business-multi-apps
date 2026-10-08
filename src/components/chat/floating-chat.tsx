@@ -311,6 +311,18 @@ export function FloatingChat() {
   }
 
   // MBM-301 — fetch the current user's DM/group conversation list.
+  //
+  // isAuthPage MUST be in the dependency array below. Without it, this is a
+  // stale-closure trap: if this component's first render ever happens while
+  // pathname is still briefly "/auth/..." (e.g. mid post-login redirect)
+  // while status is already 'authenticated', useCallback bakes
+  // isAuthPage=true into this function's closure and — since status alone
+  // doesn't change again — never recreates it for the rest of the mounted
+  // session. Every subsequent loadRooms() call then silently no-ops
+  // forever: the room list never populates, AND a brand-new room created
+  // via startNewChat/startDirectChat (which also calls loadRooms()) can
+  // never render either, since the window list does
+  // `rooms.find(r => r.id === roomId)` and bails if it's not there yet.
   const loadRooms = useCallback(() => {
     if (status !== 'authenticated' || isAuthPage) return Promise.resolve([] as RoomSummary[])
     setLoadingRooms(true)
@@ -319,7 +331,7 @@ export function FloatingChat() {
       .then((data: RoomSummary[]) => { setRooms(data); return data })
       .catch(() => [] as RoomSummary[])
       .finally(() => setLoadingRooms(false))
-  }, [status])
+  }, [status, isAuthPage])
 
   // Manual open: cancel any pending auto-close; only marks Team/General read
   // if that's the view the panel actually opens into. Also refreshes the
