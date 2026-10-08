@@ -64,7 +64,7 @@ function canChangeVehicleStatus(user: { role?: string; permissions?: any }): boo
   return isSystemAdmin(user as any) || user?.permissions?.canManageVehicles === true
 }
 
-export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ vehicleId: string }> }) {
   try {
     const user = await getServerUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -72,7 +72,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: 'You do not have permission to change vehicle status' }, { status: 403 })
     }
 
-    const { id: vehicleId } = await params
+    const { vehicleId } = await params
     const body = await request.json()
     const parsed = TransitionSchema.safeParse(body)
     if (!parsed.success) {
