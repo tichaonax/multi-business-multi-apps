@@ -876,9 +876,15 @@ export function FloatingChat() {
   // snapshot (see unreadSinceSnapshot) — gets a "New messages" divider so
   // the unread badge's count has something to actually point at, instead of
   // vanishing the instant the panel opens with no trace of what was new.
+  // Public broadcasts AND targeted system alerts (e.g. the vehicle license
+  // compliance digest — a system message with the admin/manager listed as
+  // a recipient) both qualify: excluding isSystem/recipients here used to
+  // mean a targeted system broadcast could bump the unread badge but could
+  // never actually be pointed at once you opened the panel.
   const firstNewMessageId = unreadSinceSnapshot
     ? messages.find(m =>
-        !m.isSystem && m.userId !== currentUserId && m.recipients.length === 0 &&
+        m.userId !== currentUserId &&
+        (m.recipients.length === 0 || m.recipients.some(r => r.id === currentUserId)) &&
         new Date(m.createdAt) > new Date(unreadSinceSnapshot)
       )?.id ?? null
     : null
