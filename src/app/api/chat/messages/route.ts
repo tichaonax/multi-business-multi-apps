@@ -55,6 +55,9 @@ export async function GET(request: NextRequest) {
             // Explicitly listed as recipient
             { chat_message_recipients: { some: { userId: user.id } } },
           ],
+          // "Delete for me" on a system message (see chat_message_dismissals)
+          // — hides it only for the user who dismissed it.
+          chat_message_dismissals: { none: { userId: user.id } },
         },
         orderBy: { createdAt: 'asc' },
         take: monthRange ? 1000 : 500,
@@ -87,7 +90,14 @@ export async function GET(request: NextRequest) {
     }).catch(() => {})
 
     const messages = await prisma.chatMessages.findMany({
-      where: { roomId: requestedRoomId, parentId: null, createdAt: createdAtFilter },
+      where: {
+        roomId: requestedRoomId,
+        parentId: null,
+        createdAt: createdAtFilter,
+        // "Delete for me" on a system message (see chat_message_dismissals)
+        // — hides it only for the user who dismissed it.
+        chat_message_dismissals: { none: { userId: user.id } },
+      },
       orderBy: { createdAt: 'asc' },
       take: monthRange ? 1000 : 500,
       include: {

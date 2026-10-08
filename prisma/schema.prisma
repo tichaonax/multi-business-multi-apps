@@ -776,6 +776,7 @@ model ChatMessages {
   parent                  ChatMessages?           @relation("ChatReplies", fields: [parentId], references: [id], onDelete: SetNull)
   replies                 ChatMessages[]          @relation("ChatReplies")
   chat_message_recipients ChatMessageRecipients[]
+  chat_message_dismissals ChatMessageDismissals[]
 
   @@index([parentId])
   @@map("chat_messages")
@@ -791,6 +792,25 @@ model ChatMessageRecipients {
   @@unique([messageId, userId])
   @@index([userId])
   @@map("chat_message_recipients")
+}
+
+// A per-user "delete for me" on a shared message — currently only used for
+// read-only system alerts (e.g. "System Alerts" room digests): deleting one
+// must only hide it for the user who deleted it, never for other admins or
+// cashiers still seeing the same shared room. Unlike ChatMessages.deletedAt
+// (a real shared delete, used for normal sender-owned messages), this adds
+// a row per dismisser instead of mutating the shared message.
+model ChatMessageDismissals {
+  id            String       @id @default(uuid())
+  messageId     String
+  userId        String
+  dismissedAt   DateTime     @default(now())
+  chat_messages ChatMessages @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  users         Users        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@index([userId])
+  @@map("chat_message_dismissals")
 }
 
 model ChatParticipants {
@@ -3636,6 +3656,7 @@ model Users {
   business_transactions                                           BusinessTransactions[]
   chat_messages                                                   ChatMessages[]
   chat_message_recipients                                         ChatMessageRecipients[]
+  chat_message_dismissals                                         ChatMessageDismissals[]
   chat_participants                                               ChatParticipants[]
   chat_rooms                                                      ChatRooms[]
   construction_expenses                                           ConstructionExpenses[]

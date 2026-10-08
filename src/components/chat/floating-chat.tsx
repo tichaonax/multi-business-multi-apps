@@ -369,17 +369,6 @@ export function FloatingChat() {
     setOpenWindows(prev => prev.filter(id => id !== roomId))
   }, [])
 
-  // Removes a read-only system channel (e.g. "System Alerts") from this
-  // user's own list — the room and its history are untouched for everyone
-  // else still in it. If it's still in their recipient list next time a
-  // digest fires, they're simply re-added (see getOrCreateSystemAlertsRoom)
-  // — this clears it from view now, it doesn't opt them out permanently.
-  const deleteSystemRoom = useCallback((roomId: string) => {
-    setRooms(prev => prev.filter(r => r.id !== roomId))
-    setOpenWindows(prev => prev.filter(id => id !== roomId))
-    fetch(`/api/chat/rooms/${roomId}/leave`, { method: 'DELETE', credentials: 'include' }).catch(() => {})
-  }, [])
-
   // Load this user's chat preferences once known, and persist on change.
   // Also seeds the initial view from their default-view preference — guarded
   // so it only ever applies once, not every time this effect happens to
@@ -1348,15 +1337,12 @@ export function FloatingChat() {
               <p className="text-center text-xs text-secondary mt-6 px-4">No conversations yet — tap + to start one.</p>
             )}
             {filteredRooms.map(room => (
-              <div
+              <button
                 key={room.id}
-                className="w-full flex items-center gap-1 rounded-xl hover:bg-white dark:hover:bg-gray-800 transition-colors"
+                type="button"
+                onClick={() => switchRoom(room.id)}
+                className="w-full flex items-center gap-3 px-2 py-2.5 rounded-xl hover:bg-white dark:hover:bg-gray-800 transition-colors text-left"
               >
-                <button
-                  type="button"
-                  onClick={() => switchRoom(room.id)}
-                  className="flex items-center gap-3 flex-1 min-w-0 px-2 py-2.5 text-left"
-                >
                   <div className={`w-10 h-10 rounded-full shrink-0 relative flex items-center justify-center text-white text-sm font-bold overflow-hidden ${
                     room.type === 'system' ? 'bg-amber-500' : room.type === 'group' ? 'bg-violet-500' : getUserColor(room.participants[0]?.id ?? room.id).avatar
                   }`}>
@@ -1382,20 +1368,7 @@ export function FloatingChat() {
                       {room.unreadCount > 9 ? '9+' : room.unreadCount}
                     </span>
                   )}
-                </button>
-                {room.type === 'system' && (
-                  <button
-                    type="button"
-                    title="Remove from my chats"
-                    onClick={() => deleteSystemRoom(room.id)}
-                    className="shrink-0 w-7 h-7 mr-1 rounded-full flex items-center justify-center text-gray-400 hover:text-white hover:bg-red-500 transition-colors"
-                  >
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
-                )}
-              </div>
+              </button>
             ))}
 
             {/* Message-content matches — a chat whose name didn't match, but something said in it did */}

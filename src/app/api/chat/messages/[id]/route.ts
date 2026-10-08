@@ -73,7 +73,19 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   }
 }
 
-/** DELETE /api/chat/messages/[id] — soft-delete own message */
+/** DELETE /api/chat/messages/[id] — delete a message. Normally only the
+ * sender can soft-delete their own message, and it disappears (shows a
+ * "deleted" placeholder) for everyone in the room — that's correct for a
+ * message someone actually owns and sent.
+ *
+ * A system message (userId: null) has no sender and no single owner — it's
+ * a shared broadcast every participant of a 'system' room (e.g. "System
+ * Alerts") sees. Deleting one must only clear it for the person who clicked
+ * delete, never for every other admin/cashier still in the room, so this
+ * takes a completely different path for those: a row in
+ * chat_message_dismissals (per messageId+userId) instead of touching the
+ * shared message at all. No socket broadcast either — it's not a change
+ * anyone else needs to know about. */
 export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const user = await getServerUser()
@@ -81,15 +93,42 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
 
     const message = await prisma.chatMessages.findUnique({ where: { id: params.id } })
     if (!message) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-    if (message.userId !== user.id) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+    if (message.userId === null) {
+      const room = await prisma.chatRooms.findUnique({ where: { id: message.roomId! }, select: { type: true } })
+      if (room?.type !== 'system') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      const membership = await prisma.chatParticipants.findFirst({ where: { roomId: message.roomId!, userId: user.id } })
+      if (!membership) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+      await prisma.chatMessageDismissals.upsert({
+        where: { messageId_userId: { messageId: params.id, userId: user.id } },
+        create: { messageId: params.id, userId: user.id },
+        update: {},
+      })
+      return NextResponse.json({ success: true })
+    }
+
+    if (message.userId !== user.id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
 
     await prisma.chatMessages.update({
       where: { id: params.id },
       data: { deletedAt: new Date() },
     })
 
-    // Notify all chat clients to show the deleted placeholder
-    try { emitToRoom('chat:general', 'chat:message:deleted', { id: params.id }) } catch { /* non-critical */ }
+    // Notify the right audience — General broadcasts room-wide, everything
+    // else (DMs/groups) only to its own participants.
+    try {
+      const generalRoom = await getGeneralRoom()
+      if (message.roomId === generalRoom.id) {
+        emitToRoom('chat:general', 'chat:message:deleted', { id: params.id })
+      } else if (message.roomId) {
+        const participants = await prisma.chatParticipants.findMany({ where: { roomId: message.roomId } })
+        const participantIds = participants.map(p => p.userId).filter((id): id is string => !!id)
+        emitToUsers(participantIds, 'chat:message:deleted', { id: params.id })
+      }
+    } catch { /* non-critical */ }
 
     return NextResponse.json({ success: true })
   } catch (err) {

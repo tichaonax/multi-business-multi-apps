@@ -120,6 +120,11 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
   const [expandedThreads, setExpandedThreads] = useState<Record<string, Message[]>>({})
   const [loadingThreads, setLoadingThreads] = useState<Record<string, boolean>>({})
   const [hoveredMsgId, setHoveredMsgId] = useState<string | null>(null)
+  // Rich system alerts (e.g. each vehicle compliance digest) default
+  // collapsed to a one-line summary — a room can accumulate many of these
+  // over time, and showing every one fully expanded floods the window the
+  // same way duplicate rooms flooded the chat list.
+  const [expandedAlerts, setExpandedAlerts] = useState<Set<string>>(new Set())
 
   // Editing own last message
   const [editingMsgId, setEditingMsgId] = useState<string | null>(null)
@@ -317,10 +322,20 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
     }
   }
 
-  const deleteMessage = async (id: string) => {
+  // Deleting a system message (e.g. a System Alerts digest) is a per-user
+  // dismissal server-side (see /api/chat/messages/[id]) — it only hides it
+  // for this user, so it's removed from local state entirely rather than
+  // marked deletedAt (which would be a shared "deleted for everyone" look,
+  // wrong for a message other admins/cashiers can still see). An owned
+  // message deleted normally keeps the existing shared placeholder behavior.
+  const deleteMessage = async (id: string, isSystemMessage = false) => {
     try {
       await fetch(`/api/chat/messages/${id}`, { method: 'DELETE', credentials: 'include' })
-      setMessages(prev => prev.map(m => m.id === id ? { ...m, deletedAt: new Date().toISOString() } : m))
+      if (isSystemMessage) {
+        setMessages(prev => prev.filter(m => m.id !== id))
+      } else {
+        setMessages(prev => prev.map(m => m.id === id ? { ...m, deletedAt: new Date().toISOString() } : m))
+      }
     } catch { /* non-critical */ }
   }
 
@@ -515,16 +530,55 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
       // membership-change events — mirrors the hub's own rich-alert styling.
       const isRichAlert = !!msg.linkUrl || msg.message.includes('\n')
       if (isRichAlert) {
+        const isExpanded = expandedAlerts.has(msg.id)
+        const lines = msg.message.split('\n')
+        const summaryLine = lines[0] || msg.message
+        const itemCount = lines.filter(l => l.trim().startsWith('•')).length
         return (
           <div key={msg.id} className="flex justify-center mb-2 px-1">
-            <div className="max-w-full bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl px-3 py-2">
-              <p className="text-[11px] text-amber-900 dark:text-amber-200 whitespace-pre-wrap leading-relaxed">{msg.message}</p>
-              {msg.linkUrl && (
-                <a href={msg.linkUrl} className="inline-block mt-1.5 text-[11px] font-semibold text-amber-700 dark:text-amber-300 hover:underline">
-                  Open in Fleet Management →
-                </a>
+            <div className="max-w-full w-full bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl overflow-hidden">
+              <div className="flex items-center gap-1 px-3 py-2">
+                <button
+                  type="button"
+                  onClick={() => setExpandedAlerts(prev => {
+                    const next = new Set(prev)
+                    if (next.has(msg.id)) next.delete(msg.id); else next.add(msg.id)
+                    return next
+                  })}
+                  className="flex-1 min-w-0 flex items-center gap-1.5 text-left"
+                >
+                  <svg className={`w-3 h-3 shrink-0 text-amber-600 dark:text-amber-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                  <span className="text-[11px] font-medium text-amber-900 dark:text-amber-200 truncate">{summaryLine}</span>
+                  {itemCount > 0 && (
+                    <span className="shrink-0 text-[9px] font-bold bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200 px-1.5 py-0.5 rounded-full">
+                      {itemCount}
+                    </span>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  title="Delete this alert (only for you)"
+                  onClick={() => deleteMessage(msg.id, true)}
+                  className="shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-amber-500 hover:text-white hover:bg-red-500 transition-colors"
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </button>
+              </div>
+              {isExpanded && (
+                <div className="px-3 pb-2">
+                  <p className="text-[11px] text-amber-900 dark:text-amber-200 whitespace-pre-wrap leading-relaxed">{msg.message}</p>
+                  {msg.linkUrl && (
+                    <a href={msg.linkUrl} className="inline-block mt-1.5 text-[11px] font-semibold text-amber-700 dark:text-amber-300 hover:underline">
+                      Open in Fleet Management →
+                    </a>
+                  )}
+                  <p className="text-[9px] text-amber-500 dark:text-amber-500 mt-1">{formatTime(msg.createdAt)} · System · Read-only</p>
+                </div>
               )}
-              <p className="text-[9px] text-amber-500 dark:text-amber-500 mt-1">{formatTime(msg.createdAt)} · System · Read-only</p>
             </div>
           </div>
         )
