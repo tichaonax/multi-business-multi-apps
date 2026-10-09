@@ -563,7 +563,7 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
         return (
           <div key={msg.id} className="flex justify-center mb-2 px-1">
             <div className="max-w-full w-full bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl overflow-hidden">
-              <div className="flex items-start gap-1 px-3 py-2">
+              <div className="flex flex-col gap-0.5 px-3 py-2">
                 <button
                   type="button"
                   onClick={() => setExpandedAlerts(prev => {
@@ -571,31 +571,44 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
                     if (next.has(msg.id)) next.delete(msg.id); else next.add(msg.id)
                     return next
                   })}
-                  className="flex-1 min-w-0 flex flex-col text-left"
+                  className="w-full flex items-center gap-1.5 text-left"
                 >
-                  <span className="flex items-center gap-1.5">
-                    <svg className={`w-3 h-3 shrink-0 text-amber-600 dark:text-amber-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                    <span className="text-[11px] font-medium text-amber-900 dark:text-amber-200 truncate">{summaryLine}</span>
-                    {itemCount > 0 && (
-                      <span className="shrink-0 text-[9px] font-bold bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200 px-1.5 py-0.5 rounded-full">
-                        {itemCount}
-                      </span>
-                    )}
-                  </span>
-                  <span className="text-[9px] text-amber-600/80 dark:text-amber-400/70 mt-0.5 pl-[18px]">{formatAlertTimestamp(msg.createdAt)}</span>
-                </button>
-                <button
-                  type="button"
-                  title="Delete this alert (only for you)"
-                  onClick={() => deleteMessage(msg.id, true)}
-                  className="shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-amber-500 hover:text-white hover:bg-red-500 transition-colors"
-                >
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  <svg className={`w-3 h-3 shrink-0 text-amber-600 dark:text-amber-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                   </svg>
+                  <span className="min-w-0 flex-1 text-[11px] font-medium text-amber-900 dark:text-amber-200 truncate">{summaryLine}</span>
+                  {itemCount > 0 && (
+                    <span className="shrink-0 text-[9px] font-bold bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200 px-1.5 py-0.5 rounded-full">
+                      {itemCount}
+                    </span>
+                  )}
                 </button>
+                {/* Delete lives on its own row with the timestamp — the
+                    title row above has no spare width to safely fit it
+                    without risking an overlap on a long/narrow title. */}
+                <div className="flex items-center justify-between pl-[18px]">
+                  <button
+                    type="button"
+                    onClick={() => setExpandedAlerts(prev => {
+                      const next = new Set(prev)
+                      if (next.has(msg.id)) next.delete(msg.id); else next.add(msg.id)
+                      return next
+                    })}
+                    className="text-[9px] text-amber-600/80 dark:text-amber-400/70 text-left hover:underline"
+                  >
+                    {formatAlertTimestamp(msg.createdAt)}
+                  </button>
+                  <button
+                    type="button"
+                    title="Delete this alert (only for you)"
+                    onClick={() => deleteMessage(msg.id, true)}
+                    className="shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-amber-500 hover:text-white hover:bg-red-500 transition-colors"
+                  >
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                </div>
               </div>
               {isExpanded && (
                 <div className="px-3 pb-2">
