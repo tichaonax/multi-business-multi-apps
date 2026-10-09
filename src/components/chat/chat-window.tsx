@@ -38,6 +38,25 @@ function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
+// WhatsApp-style read receipt: a single grey check for "sent" (we have no
+// separate delivered signal to distinguish from sent — the message exists
+// in the DB and reached the room, that's as far as our data goes), a
+// double green check once every other participant's lastReadAt has caught
+// up to this message (see isReadByAllOthers above).
+function ReadReceiptTick({ read }: { read: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 16 10"
+      className={`w-3 h-2.5 shrink-0 ${read ? 'text-emerald-500' : 'text-gray-400 dark:text-gray-500'}`}
+      fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round"
+      aria-label={read ? 'Read' : 'Sent'}
+    >
+      <path d="M1 5.5 L4.5 9 L10 1.5" />
+      {read && <path d="M6 5.5 L9.5 9 L15 1.5" />}
+    </svg>
+  )
+}
+
 // 'YYYY-MM' -> "September 2026"
 function formatMonthLabel(month: string) {
   const [y, m] = month.split('-').map(Number)
@@ -66,7 +85,7 @@ function getWindowTheme(roomId: string) {
   return WINDOW_THEMES[Math.abs(hash) % WINDOW_THEMES.length]
 }
 
-interface Member { id: string; name: string; photoUrl: string | null }
+interface Member { id: string; name: string; photoUrl: string | null; lastReadAt?: string | null }
 
 interface ChatWindowProps {
   roomId: string
@@ -387,13 +406,40 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
       .finally(() => { if (showLoading) setLoadingMembers(false) })
   }, [roomId])
 
-  // Prefetch silently so the @-mention picker (below) has the member list
-  // ready the instant someone starts typing "@", not only once they open
-  // the members panel.
+  // Prefetch silently: for a group this has the @-mention picker's member
+  // list ready the instant someone starts typing "@"; for a direct room
+  // it's the only way to get the other participant's lastReadAt for the
+  // read-receipt ticks below (system rooms have no sender, nothing to mark
+  // read, so skip those).
   useEffect(() => {
-    if (roomType === 'group') loadMembers(false)
+    if (roomType === 'group' || roomType === 'direct') loadMembers(false)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomType, roomId])
+
+  // Updated locally the instant our own `/read` POST resolves (optimistic —
+  // don't wait for the other side's socket round trip to reflect reading
+  // our own messages isn't relevant anyway, it's THEIR lastReadAt we show),
+  // and whenever the other participant(s) read via the 'chat:read' socket
+  // event below.
+  useEffect(() => {
+    const onRead = (data: { roomId: string; userId: string; readAt: string }) => {
+      if (data.roomId !== roomId) return
+      setMembers(prev => prev.map(m => m.id === data.userId ? { ...m, lastReadAt: data.readAt } : m))
+    }
+    socket?.on('chat:read', onRead)
+    return () => { socket?.off('chat:read', onRead) }
+  }, [socket, roomId])
+
+  // Read-receipt helper — true once every OTHER participant's lastReadAt is
+  // at or after this message's createdAt. Group rooms only show the tick
+  // once the WHOLE group has read it (same convention most chat apps use —
+  // a partial "read by some" state isn't worth the extra UI here).
+  const isReadByAllOthers = (createdAt: string) => {
+    const others = members.filter(m => m.id !== currentUserId)
+    if (others.length === 0) return false
+    const createdAtMs = new Date(createdAt).getTime()
+    return others.every(m => m.lastReadAt && new Date(m.lastReadAt).getTime() >= createdAtMs)
+  }
 
   const toggleMembers = () => {
     if (roomType !== 'group') return
@@ -647,11 +693,12 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
           )}
           {!isEditing && (
           <div className="flex items-center gap-2 mt-0.5 mx-1">
-            <span className="text-[9px] text-secondary">
+            <span className="text-[9px] text-secondary flex items-center gap-0.5">
               {formatTime(msg.createdAt)}
               {msg.editedAt && !msg.deletedAt && (
                 <span className="italic"> (edited{msg.editCount > 1 ? ` ${msg.editCount}x` : ''})</span>
               )}
+              {isOwn && !msg.deletedAt && <ReadReceiptTick read={isReadByAllOthers(msg.createdAt)} />}
             </span>
             {!msg.deletedAt && !isReply && isHovered && (
               <button type="button" onClick={() => { setReplyingTo({ id: msg.id, userName: msg.userName }); inputRef.current?.focus() }}

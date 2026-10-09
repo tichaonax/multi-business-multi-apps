@@ -7125,6 +7125,24 @@ The indicator clears itself a few seconds after the other person stops typing or
 
 ---
 
+### Read Receipts
+
+Every message you send in a **Direct Message or Group** gets a small checkmark next to its timestamp, the same convention as most chat apps:
+
+| Tick | Meaning |
+|---|---|
+| ✓ (grey) | Sent — it's reached the conversation, but the other person (or, in a group, at least one person) hasn't opened the conversation since you sent it. |
+| ✓✓ (green) | Read — everyone else in the conversation has opened it since you sent this message. |
+
+A few things worth knowing:
+
+- **Groups only show the green double-check once *everyone* in the group has read it** — not just one person. If you want to know exactly who's seen something in a larger group, there's no per-person breakdown; the tick is all-or-nothing.
+- **Updates live** — you don't need to reopen or refresh the conversation. The moment the other person opens it, your tick turns green right in front of you.
+- **Team Chat doesn't show read receipts** — it's a large, company-wide broadcast channel where a per-message read state isn't meaningful; the typing indicator and unread badge still work there as normal.
+- The **System Alerts** channel doesn't show ticks either — it's a read-only automated channel with no sender to show a receipt for.
+
+---
+
 ### Real-Time Updates & Notifications
 
 - Messages, replies, and group membership changes are delivered using **WebSockets** — they appear instantly without refreshing, even if you're on a different page (that's when a Direct Message or Group auto-opens the chat panel for you).
@@ -7173,7 +7191,7 @@ You can correct a typo or fix your most recent message without deleting and rese
 | Notification sound (configurable) | ✅ Yes |
 | Real-time delivery via WebSocket | ✅ Yes |
 | File or image attachments | Not yet |
-| Read receipts | Not yet |
+| Read receipts | ✅ Yes — Direct Messages & Groups (see [Read Receipts](#read-receipts) below) |
 | Message editing | ✅ Yes — own most recent message only, within 15 minutes, shows an edit count |
 | Collapsed older-than-30-days history (per-month, loaded on demand) | ✅ Yes — Direct Messages & Groups |
 | System Alerts — read-only automated channel, visible only to the relevant people | ✅ Yes |

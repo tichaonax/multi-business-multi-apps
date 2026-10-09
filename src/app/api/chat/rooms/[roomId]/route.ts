@@ -35,6 +35,9 @@ export async function GET(
         id: p.users?.id ?? p.userId,
         name: p.users?.name ?? 'Unknown',
         photoUrl: p.users?.profilePhotoUrl ?? null,
+        // Read-receipt ticks (chat-window.tsx) compare each of MY sent
+        // messages' createdAt against every other participant's lastReadAt.
+        lastReadAt: p.lastReadAt,
       })),
     })
   } catch (err) {
