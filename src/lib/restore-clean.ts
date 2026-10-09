@@ -475,7 +475,8 @@ const SELF_REFERENTIAL_TABLES: Record<string, string[]> = {
   'employeeContracts': ['supervisorId'],  // References employees.id - needs deferred insert
   'vehicleServiceJobs': ['reworkOfJobId'],  // References vehicleServiceJobs.id (MBM-262)
   'images': ['thumbnailImageId'],  // References images.id — a full-size image's thumbnail is itself another Images row (MBM-297 Phase C)
-  'chatMessages': ['parentId']  // A thread reply references its own parent chatMessages row (MBM-210/301)
+  'chatMessages': ['parentId'],  // A thread reply references its own parent chatMessages row (MBM-210/301)
+  'vehicleLicenses': ['supersedesLicenseId']  // A renewal references the exact license row it replaces (MBM-306)
 }
 
 /**

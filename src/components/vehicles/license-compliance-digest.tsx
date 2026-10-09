@@ -1,5 +1,7 @@
 'use client'
 
+import { useEffect, useState } from 'react'
+
 // Shared parsing + rendering for the vehicle/driver license compliance
 // digest text (see buildComplianceDigestText in
 // src/lib/vehicles/license-reminder-notify.ts) — used by both the System
@@ -49,6 +51,17 @@ export interface ComplianceItem {
   vehicleId?: string
   licenseId?: string
   driverId?: string
+  driverOldExpiry?: string
+}
+
+// MBM-306 — per-item resolution state, fetched live from
+// POST /api/vehicles/license-alert-status rather than stored on the alert
+// text itself (see that route's own doc comment for why).
+export interface AlertResolution {
+  resolved: boolean
+  renewedAt?: string
+  newLicenseNumber?: string
+  newExpiryDate?: string
 }
 export interface ComplianceSection {
   heading: string
@@ -66,8 +79,15 @@ export interface ParsedComplianceDigest {
 // stored before this existed, so callers must check the line actually
 // starts with 'ref:' before consuming it as part of the item, or an older
 // message's next bullet/heading line would get silently swallowed.
-function parseRef(line: string): { vehicleId?: string; licenseId?: string; driverId?: string } {
-  if (line.startsWith('ref:driver:')) return { driverId: line.slice('ref:driver:'.length) }
+function parseRef(line: string): { vehicleId?: string; licenseId?: string; driverId?: string; driverOldExpiry?: string } {
+  if (line.startsWith('ref:driver:')) {
+    // 'ref:driver:<id>:<ISO old expiry>' — the ISO timestamp itself
+    // contains colons, so split only on the first two after the prefix.
+    const rest = line.slice('ref:driver:'.length)
+    const sep = rest.indexOf(':')
+    if (sep === -1) return { driverId: rest }
+    return { driverId: rest.slice(0, sep), driverOldExpiry: rest.slice(sep + 1) }
+  }
   if (line.startsWith('ref:')) {
     const [, vehicleId, licenseId] = line.split(':')
     return { vehicleId, licenseId }
@@ -123,18 +143,20 @@ export function parseComplianceDigest(message: string): ParsedComplianceDigest |
   return { title, sections, footer }
 }
 
-function ComplianceItemCard({ item }: { item: ComplianceItem }) {
+function ComplianceItemCard({ item, resolution }: { item: ComplianceItem; resolution?: AlertResolution }) {
   const color = getUserColor(item.identifier)
   // Carries the page the user was on back through the deep link — closing
   // the vehicle/driver that opens returns them here instead of stranding
   // them on /vehicles (see the onClose handler in vehicles/page.tsx).
   const returnTo = typeof window !== 'undefined' ? `&returnTo=${encodeURIComponent(window.location.href)}` : ''
+  const resolved = resolution?.resolved === true
+
   return (
-    <div className={`rounded-md border-l-4 ${color.border} bg-white/70 dark:bg-black/25 px-2 py-1.5 mb-1.5 last:mb-0`}>
+    <div className={`rounded-md border-l-4 ${resolved ? 'border-l-emerald-400' : color.border} bg-white/70 dark:bg-black/25 px-2 py-1.5 mb-1.5 last:mb-0`}>
       <div className="flex items-start justify-between gap-2">
-        <span className={`text-[12px] font-bold leading-tight ${color.name}`}>{item.identifier}</span>
+        <span className={`text-[12px] font-bold leading-tight ${resolved ? 'text-secondary' : color.name}`}>{item.identifier}</span>
         {item.daysLabel && (
-          <span className={`shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full ${item.isOverdue ? 'bg-red-600 text-white' : 'bg-amber-400 dark:bg-amber-500 text-amber-950'}`}>
+          <span className={`shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full ${resolved ? 'bg-gray-200 dark:bg-gray-700 text-secondary line-through' : item.isOverdue ? 'bg-red-600 text-white' : 'bg-amber-400 dark:bg-amber-500 text-amber-950'}`}>
             {item.daysLabel}
           </span>
         )}
@@ -142,25 +164,46 @@ function ComplianceItemCard({ item }: { item: ComplianceItem }) {
       {item.subtitle && <div className="text-[10px] text-secondary leading-snug">{item.subtitle}</div>}
       {item.licenseInfo && <div className="text-[10px] text-secondary leading-snug">{item.licenseInfo}</div>}
       {item.dateLine && (
-        <div className={`text-[10px] font-semibold mt-0.5 ${item.isOverdue ? 'text-red-600 dark:text-red-400' : 'text-amber-700 dark:text-amber-400'}`}>
+        // The original overdue/expiry line stays visible but crossed out
+        // once resolved — the point is to show the condition WAS true and
+        // has since been fixed, not to erase that it ever happened.
+        <div className={`text-[10px] font-semibold mt-0.5 ${resolved ? 'text-secondary line-through' : item.isOverdue ? 'text-red-600 dark:text-red-400' : 'text-amber-700 dark:text-amber-400'}`}>
           {item.dateLine}
         </div>
       )}
-      {item.vehicleId && item.licenseId && (
-        <a
-          href={`/vehicles?recordType=vehicle-license-renew&openRecordId=${item.vehicleId}&licenseId=${item.licenseId}${returnTo}`}
-          className="inline-block mt-1 text-[10px] font-semibold text-blue-600 dark:text-blue-400 hover:underline"
-        >
-          Renew →
-        </a>
-      )}
-      {item.driverId && (
-        <a
-          href="/vehicles?tab=drivers"
-          className="inline-block mt-1 text-[10px] font-semibold text-blue-600 dark:text-blue-400 hover:underline"
-        >
-          Open driver →
-        </a>
+
+      {resolved ? (
+        <>
+          <div className="text-[10px] font-semibold mt-1 text-emerald-700 dark:text-emerald-400">
+            ✅ Renewed {resolution?.renewedAt ? formatAlertTimestamp(resolution.renewedAt) : ''}
+            {resolution?.newExpiryDate && ` — new expiry ${new Date(resolution.newExpiryDate).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}`}
+            {resolution?.newLicenseNumber && ` (#${resolution.newLicenseNumber})`}
+          </div>
+          {/* Non-interactive on purpose (AC-03/AC-04) — this period is
+              resolved and cannot be renewed again from here. */}
+          <span className="inline-block mt-1 text-[10px] font-semibold text-secondary cursor-default select-none">
+            Renewed — no further action needed
+          </span>
+        </>
+      ) : (
+        <>
+          {item.vehicleId && item.licenseId && (
+            <a
+              href={`/vehicles?recordType=vehicle-license-renew&openRecordId=${item.vehicleId}&licenseId=${item.licenseId}${returnTo}`}
+              className="inline-block mt-1 text-[10px] font-semibold text-blue-600 dark:text-blue-400 hover:underline"
+            >
+              Renew →
+            </a>
+          )}
+          {item.driverId && (
+            <a
+              href="/vehicles?tab=drivers"
+              className="inline-block mt-1 text-[10px] font-semibold text-blue-600 dark:text-blue-400 hover:underline"
+            >
+              Open driver →
+            </a>
+          )}
+        </>
       )}
     </div>
   )
@@ -176,6 +219,37 @@ function ComplianceItemCard({ item }: { item: ComplianceItem }) {
  */
 export function ComplianceDigestSections({ message }: { message: string }) {
   const parsed = parseComplianceDigest(message)
+  const [resolutions, setResolutions] = useState<{ licenses: Record<string, AlertResolution>; drivers: Record<string, AlertResolution> }>({ licenses: {}, drivers: {} })
+
+  // One batched lookup per rendered message, covering every item in it —
+  // not per-item, so expanding a digest with a dozen vehicles costs one
+  // request, not a dozen. Re-fetches if the message content changes (e.g.
+  // the chat window re-renders a different alert in the same slot).
+  useEffect(() => {
+    if (!parsed) return
+    const licenseIds: string[] = []
+    const drivers: { driverId: string; oldExpiry: string }[] = []
+    for (const section of parsed.sections) {
+      for (const item of section.items) {
+        if (item.licenseId) licenseIds.push(item.licenseId)
+        if (item.driverId && item.driverOldExpiry) drivers.push({ driverId: item.driverId, oldExpiry: item.driverOldExpiry })
+      }
+    }
+    if (licenseIds.length === 0 && drivers.length === 0) return
+    let cancelled = false
+    fetch('/api/vehicles/license-alert-status', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ licenseIds, drivers }),
+    })
+      .then(res => res.json())
+      .then(json => {
+        if (!cancelled && json?.success) setResolutions(json.data)
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [message])
+
   if (!parsed) {
     return <p className="text-[11px] whitespace-pre-wrap leading-relaxed">{message}</p>
   }
@@ -186,7 +260,13 @@ export function ComplianceDigestSections({ message }: { message: string }) {
           <p className={`text-[11px] font-bold mb-1 ${section.isOverdueSection ? 'text-red-700 dark:text-red-400' : 'text-amber-700 dark:text-amber-400'}`}>
             {section.heading}
           </p>
-          {section.items.map((item, idx) => <ComplianceItemCard key={idx} item={item} />)}
+          {section.items.map((item, idx) => (
+            <ComplianceItemCard
+              key={idx}
+              item={item}
+              resolution={item.licenseId ? resolutions.licenses[item.licenseId] : item.driverId ? resolutions.drivers[item.driverId] : undefined}
+            />
+          ))}
         </div>
       ))}
       {parsed.footer && (

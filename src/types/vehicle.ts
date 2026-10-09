@@ -120,6 +120,13 @@ export interface VehicleLicense {
   reminderDays: number
   createdAt: string
   updatedAt: string
+  // MBM-306: set when this record was created to renew another — the id of
+  // the license it replaces. Only present on the NEW record; see
+  // `supersededBy` below for the reverse direction on the OLD one.
+  supersedesLicenseId?: string
+  // Only populated by GET /api/vehicles/licenses?id=... (single lookup) —
+  // present on an inactive license once something has renewed it.
+  supersededBy?: { id: string; licenseNumber: string; expiryDate: string; createdAt: string }
 
   // Relations
   vehicle?: Vehicle

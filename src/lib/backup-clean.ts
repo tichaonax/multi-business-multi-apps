@@ -1906,7 +1906,12 @@ export async function createCleanBackup(
     // 6.44.0 (2026-10-08): MBM-305 vehicle licensing status/retirement —
     // added vehicleStatusHistory (scoped via parent vehicle) and
     // vehicleRetirementReasons (global lookup table, like issuingAuthorities).
-    schemaVersion: '6.44.0',
+    // 6.45.0 (2026-10-09): MBM-306 resolved-alert tracking — vehicleLicenses
+    // gained a self-referential supersedesLicenseId column (a renewal links
+    // back to the exact license it replaces); added to SELF_REFERENTIAL_TABLES
+    // in restore-clean.ts for two-pass restore, same as vehicleServiceJobs
+    // .reworkOfJobId — no new table, but a real restore-ordering fix.
+    schemaVersion: '6.45.0',
     checksums: {
       businessData: businessDataChecksum,
       deviceData: deviceDataChecksum

@@ -4005,6 +4005,16 @@ model VehicleLicenses {
   renewalReceiptId         String?
   vehicle_renewal_receipts VehicleRenewalReceipts? @relation(fields: [renewalReceiptId], references: [id], onDelete: SetNull)
   vehicles                 Vehicles                @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  // MBM-306: persists which license this one renews, so a resolved
+  // compliance alert can be detected and rendered from any already-posted
+  // alert copy (chat digest, bell notification) by looking up the OLD
+  // license's id and following this link forward — no need to mutate
+  // stored alert text. One license can supersede at most one other
+  // (@unique on the FK column) and can itself be superseded by at most one
+  // newer license (the reverse `supersededBy` relation).
+  supersedesLicenseId      String?                 @unique
+  supersedes               VehicleLicenses?        @relation("LicenseRenewal", fields: [supersedesLicenseId], references: [id])
+  supersededBy             VehicleLicenses?        @relation("LicenseRenewal")
 
   @@index([renewalReceiptId])
   @@map("vehicle_licenses")

@@ -51,6 +51,7 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url)
+    const id = searchParams.get('id')
     const vehicleId = searchParams.get('vehicleId')
     const licenseType = searchParams.get('licenseType')
     const isActive = searchParams.get('isActive')
@@ -58,6 +59,23 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1')
     const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100)
     const skip = (page - 1) * limit
+
+    // Single-license-by-id lookup, deliberately ignoring the isActive
+    // filter — used to check a specific license's current state (e.g. "has
+    // this already been renewed?") regardless of whether it's still active,
+    // including the supersession link so the caller can show what it was
+    // renewed into without a second request.
+    if (id) {
+      const single = await prisma.vehicleLicenses.findUnique({
+        where: { id },
+        include: {
+          vehicles: { select: { id: true, licensePlate: true, make: true, model: true, year: true, ownershipType: true } },
+          supersededBy: { select: { id: true, licenseNumber: true, expiryDate: true, createdAt: true } },
+        },
+      })
+      if (!single) return NextResponse.json({ error: 'License not found' }, { status: 404 })
+      return NextResponse.json({ success: true, data: [{ ...single, vehicle: (single as any).vehicles || null }] })
+    }
 
     const where: any = {}
 
@@ -139,6 +157,31 @@ export async function POST(request: NextRequest) {
     // license it replaces — look that one up directly rather than relying
     // on findFirst, which would be ambiguous if more than one active
     // license of this type ever exists for the vehicle.
+    //
+    // MBM-306: validate renewal eligibility server-side, not just by the UI
+    // hiding/disabling the Renew button — a license already renewed (e.g.
+    // from a stale alert someone else actioned first, or a duplicate
+    // double-click) must be rejected, not silently create a second active
+    // record for the same slot. Look the target up regardless of isActive
+    // first so the error can say *why* it's rejected.
+    if (supersedesLicenseId) {
+      const target = await prisma.vehicleLicenses.findUnique({
+        where: { id: supersedesLicenseId },
+        include: { supersededBy: { select: { licenseNumber: true, expiryDate: true, createdAt: true } } },
+      })
+      if (!target || target.vehicleId !== validatedData.vehicleId || target.licenseType !== validatedData.licenseType) {
+        return NextResponse.json({ error: 'The license being renewed could not be found' }, { status: 404 })
+      }
+      if (!target.isActive) {
+        return NextResponse.json({
+          error: target.supersededBy
+            ? `This license was already renewed on ${target.supersededBy.createdAt.toISOString()} — new expiry ${target.supersededBy.expiryDate.toISOString().slice(0, 10)}`
+            : 'This license is no longer active and cannot be renewed',
+          alreadyRenewed: true,
+        }, { status: 409 })
+      }
+    }
+
     const existingLicense = supersedesLicenseId
       ? await prisma.vehicleLicenses.findFirst({
           where: { id: supersedesLicenseId, vehicleId: validatedData.vehicleId, licenseType: validatedData.licenseType, isActive: true },
@@ -167,7 +210,13 @@ export async function POST(request: NextRequest) {
               ...validatedData,
               issueDate: new Date(validatedData.issueDate),
               expiryDate: new Date(validatedData.expiryDate),
-              updatedAt: now
+              updatedAt: now,
+              // MBM-306: links this record back to the one it replaces, so
+              // any already-posted alert referencing the old license's id
+              // (chat digest, bell notification) can detect resolution and
+              // show the new number/expiry/renewal time without having to
+              // rewrite the stored alert text.
+              supersedesLicenseId: existingLicense.id,
             },
             include: { vehicles: { select: { id: true, licensePlate: true, make: true, model: true, year: true, ownershipType: true } } }
           })
@@ -217,6 +266,10 @@ export async function POST(request: NextRequest) {
         }).catch((e) => console.error('Failed to write audit log for vehicle license create (post-transaction)', e))
 
         const normalizedLicense = { ...created, vehicle: (created as any).vehicles || null }
+        // Immediate feedback, not just the next scheduled sweep — the bell
+        // summary and System Alerts chat digest reflect this renewal right
+        // away (same pattern as PUT below).
+        resweepVehicleLicenseReminders().catch(() => {})
         return NextResponse.json({ success: true, data: normalizedLicense, message: 'Vehicle license created successfully' }, { status: 201 })
       }
 

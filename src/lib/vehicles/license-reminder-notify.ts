@@ -148,9 +148,13 @@ function formatVehicleLine(a: VehicleLicenseAlert): string {
 }
 
 function formatDriverLine(a: DriverLicenseAlert): string {
+  // The old expiry date rides along in the ref line (not just the driver
+  // id) so resolution can be detected later by comparing it against the
+  // driver's current licenseExpiry — there's no separate history row for
+  // driver licenses the way vehicle licenses get one via supersedesLicenseId.
   return `• ${a.fullName} — Driver's license\n` +
     `  ${expiryVerb(a.daysUntilExpiry)} ${fmtDate(a.licenseExpiry)} — ${daysLabel(a.daysUntilExpiry)}\n` +
-    `  ref:driver:${a.id}`
+    `  ref:driver:${a.id}:${a.licenseExpiry.toISOString()}`
 }
 
 // Builds the itemized OVERDUE / Expiring soon breakdown shared by the bell

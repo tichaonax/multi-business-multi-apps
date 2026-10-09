@@ -10688,9 +10688,10 @@ Every individual vehicle item — in the bell, the chat, or the panel — has it
 3. **That's it — no separate "clear alert" step.** Saving the new licence automatically re-runs the check immediately for that vehicle/driver:
    - If the new expiry date is now more than 30 days away, the bell summary count drops, the vehicle/driver disappears from the Compliance Alerts panel, and (once nothing is outstanding for anyone) the bell notification clears itself entirely.
    - If it's still within the 30-day window (e.g. renewed for a short period), it simply shows with its new, later date and updated days-remaining.
-4. The **System Alerts chat** message isn't retroactively edited (chat messages are a point-in-time record of what the sweep found), but the *next* scheduled digest will reflect the renewal — or you can [force one immediately](#manually-triggering-a-check-admin) to confirm right away.
+4. **Already-posted alerts update themselves too — you don't have to wait for a new digest.** An alert you already saw (in the bell, the System Alerts chat, or reopened later) shows the overdue line crossed out, a green **"✅ Renewed [date/time] — new expiry [date]"** line, and the **Renew** link replaced with a plain "Renewed — no further action needed" label. This happens live, for everyone who had that alert, the moment the renewal is saved — not just for a fresh digest. The alert's original text is never rewritten (it stays an accurate record of what was found at the time); the resolved look is computed from the vehicle's current data every time the alert is opened.
+5. **A resolved alert can't trigger another renewal for the same licence.** If you (or anyone else) reopen it and click what used to be the Renew link, the system re-checks first — if it's already been renewed since, you'll see a clear "already renewed" message instead of a form, even if your copy of the page hadn't refreshed yet.
 
-Driver licences work the same way — update the **Licence Expiry** date on the driver's record and the same automatic re-check applies.
+Driver licences work the same way — update the **Licence Expiry** date on the driver's record and the same automatic re-check (including the retroactive resolved view) applies.
 
 ### Manually Triggering a Check (Admin)
 

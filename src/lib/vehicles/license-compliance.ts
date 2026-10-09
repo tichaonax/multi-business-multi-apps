@@ -130,7 +130,7 @@ export async function getVehicleLicenseAlerts(vehicleId?: string): Promise<Vehic
 export async function deactivateSupersededVehicleLicenses(): Promise<number> {
   const active = await prisma.vehicleLicenses.findMany({
     where: { isActive: true },
-    select: { id: true, vehicleId: true, licenseType: true, licenseNumber: true, expiryDate: true },
+    select: { id: true, vehicleId: true, licenseType: true, licenseNumber: true, expiryDate: true, supersedesLicenseId: true },
     orderBy: { expiryDate: 'desc' },
   })
 
@@ -148,6 +148,15 @@ export async function deactivateSupersededVehicleLicenses(): Promise<number> {
     // order) within each key's insertion order — re-sort defensively.
     const sorted = [...group].sort((a, b) => b.expiryDate.getTime() - a.expiryDate.getTime())
     const [current, ...superseded] = sorted
+    // MBM-306: link the survivor back to whichever stale record it actually
+    // replaces, as a backstop for renewal paths that don't set this link
+    // explicitly (e.g. the Renewal Receipt flow) — without it, a resolved
+    // alert can never be detected for licenses renewed that way. Only the
+    // single closest (latest-expiry) superseded record is linked, since the
+    // field is one-to-one; never overwrites an explicit link already set.
+    if (!current.supersedesLicenseId) {
+      await prisma.vehicleLicenses.update({ where: { id: current.id }, data: { supersedesLicenseId: superseded[0].id } }).catch(() => {})
+    }
     for (const old of superseded) {
       await prisma.vehicleLicenses.update({ where: { id: old.id }, data: { isActive: false } })
       deactivatedCount++

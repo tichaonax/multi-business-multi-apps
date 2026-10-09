@@ -75,16 +75,37 @@ export function VehicleDetailModal({ vehicle, onClose, onUpdate, autoRenewLicens
   const [loadingReceipts, setLoadingReceipts] = useState(false)
   const [loadingExemptions, setLoadingExemptions] = useState(false)
 
+  // MBM-306 — a "Renew →" deep link can point at a license someone else
+  // (or the same user, in another tab) already renewed since the alert was
+  // posted. vehicleData.vehicleLicenses only ever contains ACTIVE licenses
+  // (see GET /api/vehicles?includeLicenses=true), so an already-renewed
+  // target would never be found there — previously this just silently did
+  // nothing, the same "click it, nothing happens" bug reported earlier.
+  // Fetch the specific license by id directly (ignoring the active filter)
+  // so a resolved one can show a clear message instead of going nowhere.
   const autoRenewTriggeredRef = useRef(false)
   useEffect(() => {
     if (autoRenewTriggeredRef.current || !autoRenewLicenseId) return
-    const license = vehicleData.vehicleLicenses?.find(l => l.id === autoRenewLicenseId)
-    if (license) {
-      autoRenewTriggeredRef.current = true
-      setRenewingLicense(license)
-      setViewingLicense(null)
-    }
-  }, [autoRenewLicenseId, vehicleData.vehicleLicenses])
+    autoRenewTriggeredRef.current = true
+    fetchWithValidation(`/api/vehicles/licenses?id=${autoRenewLicenseId}`)
+      .then(res => {
+        const license = res?.data?.[0]
+        if (!license) {
+          toast.push('That license could not be found')
+          return
+        }
+        if (!license.isActive) {
+          const sb = license.supersededBy
+          toast.push(sb
+            ? `This license was already renewed — new expiry ${formatDateByFormat(sb.expiryDate, globalDateFormat)}`
+            : 'This license is no longer active')
+          return
+        }
+        setRenewingLicense(license)
+        setViewingLicense(null)
+      })
+      .catch(() => toast.push('Could not check this license\'s status'))
+  }, [autoRenewLicenseId])
 
   const [formData, setFormData] = useState({
     licensePlate: vehicle.licensePlate,
