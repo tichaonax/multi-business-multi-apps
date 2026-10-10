@@ -24,6 +24,8 @@ interface DateRangeSelectorProps {
 const presets = [
   { key: 'today',     label: 'Today' },
   { key: 'yesterday', label: 'Yesterday' },
+  { key: 'mtd', label: 'Month to Date' },
+  { key: 'ytd', label: 'Year to Date' },
   { key: '7',  label: 'Last 7 Days',  days: 7 },
   { key: '30', label: 'Last 30 Days', days: 30 },
   { key: '90', label: 'Last 90 Days', days: 90 },
@@ -98,6 +100,18 @@ export function DateRangeSelector({
     if (valueStartDay.getTime() === startOfYesterday.getTime() && daysDiff <= 1) {
       setSelectedPreset('yesterday'); setShowCustom(false); return
     }
+    // Month/Year to Date are identified purely by their start date (the 1st
+    // of the current month/year) — unlike the day-count presets below,
+    // their length varies by when in the month/year "now" falls, so there's
+    // no fixed daysDiff to match against.
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+    if (valueStartDay.getTime() === startOfMonth.getTime()) {
+      setSelectedPreset('mtd'); setShowCustom(false); return
+    }
+    const startOfYear = new Date(now.getFullYear(), 0, 1)
+    if (valueStartDay.getTime() === startOfYear.getTime()) {
+      setSelectedPreset('ytd'); setShowCustom(false); return
+    }
     const dayPreset = presets.find(p => p.days !== undefined && p.days === daysDiff)
     if (dayPreset) { setSelectedPreset(dayPreset.key); setShowCustom(false); return }
 
@@ -139,6 +153,10 @@ export function DateRangeSelector({
       const y = new Date(now); y.setDate(now.getDate() - 1)
       start = new Date(y.getFullYear(), y.getMonth(), y.getDate())
       end   = new Date(y.getFullYear(), y.getMonth(), y.getDate())
+    } else if (key === 'mtd') {
+      start = new Date(now.getFullYear(), now.getMonth(), 1)
+    } else if (key === 'ytd') {
+      start = new Date(now.getFullYear(), 0, 1)
     } else if (months) {
       start = new Date(now); start.setMonth(start.getMonth() - months)
     } else {

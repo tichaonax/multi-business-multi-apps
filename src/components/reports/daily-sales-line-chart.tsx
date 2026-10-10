@@ -26,6 +26,15 @@ function formatMonthLabel(ym: string): string {
   return `${months[m - 1]} '${String(y).slice(2)}`
 }
 
+// A daily report spanning more than one calendar month colors each x-axis
+// date label by its month, cycling through this palette in the order the
+// months first appear — so a long period (e.g. mid-Sep through mid-Oct)
+// shows the month transition as a colour change along the axis rather than
+// requiring the viewer to read every single date label to spot it.
+// Deliberately avoids the sales-line purple (#8b5cf6) and expenses-line red
+// (#ef4444) so axis colours never get confused with the two plotted lines.
+const MONTH_TICK_PALETTE = ['#f59e0b', '#06b6d4', '#10b981', '#d946ef', '#f97316', '#0ea5e9', '#14b8a6', '#84cc16']
+
 // Aggregate daily rows into monthly buckets
 function toMonthly(data: DailySalesData[]): (DailySalesData & { dateFormatted: string })[] {
   const map: Record<string, { date: string; sales: number; orderCount: number; expenses: number }> = {}
@@ -114,6 +123,25 @@ export function DailySalesLineChart({ data, onDotClick, groupBy: controlledGroup
   const totalExpenses = data.reduce((s, d) => s + (d.expenses ?? 0), 0)
   const periodMargin = totalSales > 0 ? (((totalSales - totalExpenses) / totalSales) * 100).toFixed(1) : null
 
+  // Month-coloured date axis (daily view only — in monthly view each tick
+  // IS a month already). monthOrder fixes each month's colour by the order
+  // it first appears in the period, so colours stay stable left-to-right
+  // even if a month's data isn't contiguous.
+  const monthOrder = !isMonthly ? Array.from(new Set(data.map(d => d.date.slice(0, 7)))) : []
+  const spansMultipleMonths = monthOrder.length > 1
+  const monthColor = (ym: string) => MONTH_TICK_PALETTE[monthOrder.indexOf(ym) % MONTH_TICK_PALETTE.length]
+
+  const renderDateTick = (props: any) => {
+    const { x, y, payload, index } = props
+    const ym: string | undefined = chartData[index]?.date?.slice(0, 7)
+    const color = ym ? monthColor(ym) : '#9ca3af'
+    return (
+      <text x={x} y={y} dy={16} textAnchor="end" transform={`rotate(-45, ${x}, ${y})`} fill={color} fontSize={11}>
+        {payload.value}
+      </text>
+    )
+  }
+
   if (data.length === 0) {
     return (
       <div className="flex items-center justify-center h-64 text-gray-500 dark:text-gray-400">
@@ -168,6 +196,17 @@ export function DailySalesLineChart({ data, onDotClick, groupBy: controlledGroup
           Click any dot to see that day&apos;s detail
         </p>
       )}
+      {spansMultipleMonths && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-2">
+          <span className="text-xs text-gray-400 dark:text-gray-500">Date labels by month:</span>
+          {monthOrder.map(ym => (
+            <span key={ym} className="flex items-center gap-1 text-xs font-medium" style={{ color: monthColor(ym) }}>
+              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: monthColor(ym) }} />
+              {formatMonthLabel(ym)}
+            </span>
+          ))}
+        </div>
+      )}
       <ResponsiveContainer width="100%" height={300}>
         <LineChart
           data={chartData}
@@ -180,6 +219,7 @@ export function DailySalesLineChart({ data, onDotClick, groupBy: controlledGroup
             textAnchor="end"
             height={80}
             className="text-xs fill-gray-600 dark:fill-gray-400"
+            tick={spansMultipleMonths ? renderDateTick : undefined}
           />
           <YAxis className="text-xs fill-gray-600 dark:fill-gray-400" />
           <Tooltip content={<CustomTooltip isMonthly={isMonthly} />} />
