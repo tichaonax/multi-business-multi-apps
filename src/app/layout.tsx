@@ -86,12 +86,15 @@ export default function RootLayout({
                                 {children}
                               </main>
                               </PolicyGuard>
+                              {/* FloatingChat (and the ChatWindow satellites it opens) calls
+                                  useConfirm() for its admin delete/clear-chat confirmations, so
+                                  it must render inside ConfirmProvider, not as a sibling below it. */}
+                              <FloatingChat />
                             </ConfirmProvider>
                             <GlobalLoadingSpinner />
                           </div>
                           <GlobalBarcodeModalManager />
                           <R710QuickSellModal />
-                          <FloatingChat />
                           {/* MBM-281 follow-up: needs BusinessPermissionsProvider (for the
                               admin/owner gate on the agent check) and CustomSessionProvider,
                               so it must render inside them, not after </CustomSessionProvider>
