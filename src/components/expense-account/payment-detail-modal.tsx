@@ -30,6 +30,14 @@ interface PaymentDetail {
   destinationAccountId: string | null
   destinationAccountName: string | null
   expenseAccountBusinessId: string | null
+  // Return unused funds (MBM-308)
+  locked: boolean
+  returnRequestedAmount: number | null
+  returnRequestedAt: string | null
+  returnRequestedByName: string | null
+  returnNote: string | null
+  returnConfirmedAt: string | null
+  returnConfirmedByName: string | null
 }
 
 const PAYEE_TYPE_BADGE: Record<string, { label: string; emoji: string; style: string }> = {
@@ -281,7 +289,22 @@ export function PaymentDetailModal({
               })()}
               {nationalId && <Row label="ID" value={nationalId} />}
               {phone && <Row label="Phone" value={phone} />}
-              <Row label="Amount" value={`$${payment.amount.toFixed(2)}`} />
+              {payment.locked && (
+                <div className="flex items-center gap-2 px-3 py-2 bg-teal-50 dark:bg-teal-900/20 border border-teal-200 dark:border-teal-700 rounded-lg">
+                  <span className="text-teal-700 dark:text-teal-400 text-xs">🔒 Returned & confirmed — read-only</span>
+                </div>
+              )}
+              <div className="flex gap-3">
+                <span className="text-xs text-gray-400 w-28 shrink-0 pt-0.5">Amount</span>
+                <div className="flex flex-col gap-0.5 min-w-0">
+                  <span className="text-sm text-primary">${payment.amount.toFixed(2)}</span>
+                  {payment.returnRequestedAmount != null && (
+                    <span className={`text-xs font-medium ${payment.returnConfirmedAt ? 'text-teal-600 dark:text-teal-400' : 'text-purple-600 dark:text-purple-400'}`}>
+                      {payment.returnConfirmedAt ? '↩' : '⏳'} ${payment.returnRequestedAmount.toFixed(2)} returned{payment.returnConfirmedAt ? '' : ' — pending confirmation'} · Net: ${(payment.amount - payment.returnRequestedAmount).toFixed(2)}
+                    </span>
+                  )}
+                </div>
+              </div>
               <Row label="Date" value={payment.paymentDate.slice(0, 10)} />
               {/* Destination account for TRANSFER_OUT */}
               {payment.paymentType === 'TRANSFER_OUT' && (
@@ -336,6 +359,17 @@ export function PaymentDetailModal({
               {payment.receiptNumber && <Row label="Receipt #" value={payment.receiptNumber} />}
               {payment.notes && <Row label="Notes" value={payment.notes} />}
               {payment.createdBy && <Row label="Created by" value={payment.createdBy.name} />}
+              {payment.returnRequestedAt && (
+                <>
+                  <Row label="Return Requested" value={`${payment.returnRequestedByName ?? '—'} on ${payment.returnRequestedAt.slice(0, 10)}`} />
+                  {payment.returnNote && <Row label="Return Note" value={payment.returnNote} />}
+                  {payment.returnConfirmedAt ? (
+                    <Row label="Return Confirmed" value={`${payment.returnConfirmedByName ?? '—'} on ${payment.returnConfirmedAt.slice(0, 10)}`} />
+                  ) : (
+                    <Row label="Return Status" value="⏳ Awaiting cashier confirmation" />
+                  )}
+                </>
+              )}
             </div>
           )}
         </div>

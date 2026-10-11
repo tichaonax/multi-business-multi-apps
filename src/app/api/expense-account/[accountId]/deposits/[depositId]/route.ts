@@ -185,6 +185,11 @@ export async function GET(
           sourceTransferAccountId: (deposit as any).source_transfer_payment?.expenseAccountId ?? null,
           // For COMBO_SETTLE: link to the originating combo request
           comboRequestId,
+          // For PAYMENT_RETURN (MBM-308): link back to the standalone
+          // payment this return was confirmed against — set directly at
+          // creation (return-confirm/route.ts), unlike COMBO_SETTLE above
+          // which has to be inferred by timestamp match.
+          sourcePaymentId: (deposit as any).sourcePaymentId ?? null,
         },
         pettyCashRequest,
       },

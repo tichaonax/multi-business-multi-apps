@@ -394,7 +394,17 @@ export default function ExpensePaymentDetailPage() {
                       Adjusted
                     </span>
                   )}
+                  {payment.locked && (
+                    <span className="px-2 py-0.5 rounded-full bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-300 text-xs font-semibold">
+                      🔒 Returned & Confirmed
+                    </span>
+                  )}
                 </div>
+                {payment.returnRequestedAmount != null && (
+                  <div className={`text-xs font-medium ${payment.returnConfirmedAt ? 'text-teal-600 dark:text-teal-400' : 'text-purple-600 dark:text-purple-400'}`}>
+                    {payment.returnConfirmedAt ? '↩' : '⏳'} {formatCurrency(payment.returnRequestedAmount)} returned{payment.returnConfirmedAt ? '' : ' — pending confirmation'} · Net: {formatCurrency(Number(payment.amount) - payment.returnRequestedAmount)}
+                  </div>
+                )}
                 <div className="text-sm text-secondary">{new Date(payment.paymentDate).toLocaleString()}</div>
               </div>
               <div className="text-right">

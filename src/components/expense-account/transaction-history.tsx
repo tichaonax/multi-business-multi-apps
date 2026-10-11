@@ -1487,6 +1487,14 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
           onClose={() => setReceiptModal(null)}
           onReceiptsChanged={() => {
             const pid = receiptModal.paymentId
+            // Confirming a return creates a new deposit row (and locks the
+            // payment) — neither shows up from the two targeted fetches
+            // below, so bump editVersion to trigger a full list reload
+            // (same trigger the edit-payment/edit-deposit success handlers
+            // use) rather than leaving the new deposit invisible until a
+            // manual page refresh.
+            setEditVersion(v => v + 1)
+            onDataChanged?.()
             // Refresh badge count
             fetch(`/api/expense-account/payments/receipt-counts?paymentIds=${pid}`, { credentials: 'include' })
               .then(r => r.json())

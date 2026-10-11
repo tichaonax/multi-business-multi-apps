@@ -93,10 +93,12 @@ export function VideoTrimModal({ file, onCancel, onTrimmed }: VideoTrimModalProp
       const stream: MediaStream = (v as any).captureStream()
       const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
         ? 'video/webm;codecs=vp9,opus'
-        : 'video/webm'
+        : MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')
+          ? 'video/webm;codecs=vp8,opus'
+          : 'video/webm'
       const recorder = new MediaRecorder(stream, { mimeType })
       const chunks: Blob[] = []
-      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data) }
+      recorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) chunks.push(e.data) }
       const stopped = new Promise<void>((resolve) => { recorder.onstop = () => resolve() })
 
       v.muted = true // capture still records audio; this just silences local playback while trimming
@@ -106,23 +108,45 @@ export function VideoTrimModal({ file, onCancel, onTrimmed }: VideoTrimModalProp
         v.addEventListener('seeked', onSeeked)
       })
 
-      recorder.start()
+      // A 250ms timeslice makes the recorder flush real data periodically
+      // throughout, instead of buffering everything for one single
+      // end-of-recording flush — the previous no-timeslice version could
+      // produce a genuinely empty (0-byte) blob if stop() ever fired before
+      // the encoder had buffered its first frame (e.g. v.paused read true
+      // for a tick right after play() resolved).
+      recorder.start(250)
       await v.play()
 
-      const watch = () => {
-        if (!v) return
-        setTrimProgress(Math.min(1, (v.currentTime - start) / Math.max(0.01, end - start)))
-        if (v.currentTime >= end || v.paused) {
-          if (recorder.state !== 'inactive') recorder.stop()
-          v.pause()
-          return
+      // Stop is driven by wall-clock elapsed time (setTimeout), not just
+      // requestAnimationFrame polling of v.currentTime — rAF can be
+      // throttled when the window loses focus/visibility, which would
+      // otherwise leave the recorder running indefinitely (or exiting too
+      // early/late) instead of stopping at the selected end point.
+      const durationMs = Math.max(200, (end - start) * 1000)
+      const startedAt = performance.now()
+      await new Promise<void>((resolve) => {
+        let settled = false
+        const finish = () => { if (!settled) { settled = true; resolve() } }
+        const poll = () => {
+          if (!v || settled) return
+          setTrimProgress(Math.min(1, (performance.now() - startedAt) / durationMs))
+          if (v.currentTime >= end || v.ended) { finish(); return }
+          requestAnimationFrame(poll)
         }
-        requestAnimationFrame(watch)
-      }
-      requestAnimationFrame(watch)
+        requestAnimationFrame(poll)
+        setTimeout(finish, durationMs + 500)
+      })
 
+      v.pause()
+      if (recorder.state !== 'inactive') recorder.stop()
       await stopped
+
       const blob = new Blob(chunks, { type: 'video/webm' })
+      if (blob.size < 1024) {
+        setError('Trimming produced an empty clip — keep this window focused while trimming, and try again.')
+        setTrimming(false)
+        return
+      }
       if (blob.size > MAX_VIDEO_ATTACHMENT_SIZE) {
         setError(`Trimmed clip is still ${fmtMB(blob.size)} — select a shorter section and try again.`)
         setTrimming(false)

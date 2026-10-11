@@ -127,6 +127,16 @@ export async function GET(
         })
       : null
 
+    // Resolve return-request/confirm names (MBM-308) — also plain scalar
+    // user ID fields, not Prisma relations.
+    const returnUserIds = [(payment as any).returnRequestedBy, (payment as any).returnConfirmedBy].filter(
+      (id): id is string => !!id
+    )
+    const returnUsers = returnUserIds.length > 0
+      ? await prisma.users.findMany({ where: { id: { in: returnUserIds } }, select: { id: true, name: true } })
+      : []
+    const returnUserName = (id: string | null) => returnUsers.find(u => u.id === id)?.name ?? null
+
     // Fetch sub-subcategory separately (no Prisma relation defined on payments model)
     const subSubcategory = payment.subSubcategoryId
       ? await prisma.expenseSubSubcategories.findUnique({
@@ -197,6 +207,14 @@ export async function GET(
           rejectedBy: rejectorUser?.name ?? null,
           rejectedAt: (payment as any).rejectedAt?.toISOString() ?? null,
           rejectionReason: (payment as any).rejectionReason ?? null,
+          // Return unused funds (MBM-308)
+          locked: (payment as any).locked ?? false,
+          returnRequestedAmount: (payment as any).returnRequestedAmount != null ? Number((payment as any).returnRequestedAmount) : null,
+          returnRequestedAt: (payment as any).returnRequestedAt?.toISOString() ?? null,
+          returnRequestedByName: returnUserName((payment as any).returnRequestedBy),
+          returnNote: (payment as any).returnNote ?? null,
+          returnConfirmedAt: (payment as any).returnConfirmedAt?.toISOString() ?? null,
+          returnConfirmedByName: returnUserName((payment as any).returnConfirmedBy),
         },
       },
     })
