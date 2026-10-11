@@ -43,18 +43,34 @@ export async function POST(
     })
     if (!pcRequest) return NextResponse.json({ error: 'Petty cash request not found' }, { status: 404 })
 
-    // Either the approver OR the requester can settle
+    const isEcocash = pcRequest.paymentChannel === 'ECOCASH'
     const canApprove = isSystemAdmin(user) || await hasPettyCashApprove(user.id)
     const isRequester = pcRequest.requestedBy === user.id
-    if (!canApprove && !isRequester) {
-      return NextResponse.json({ error: 'You do not have permission to settle this petty cash request' }, { status: 403 })
-    }
 
-    if (pcRequest.status !== 'APPROVED') {
-      return NextResponse.json(
-        { error: `Only APPROVED requests can be settled. Current status: ${pcRequest.status}` },
-        { status: 400 }
-      )
+    // CASH is a physical handoff — only a cashier/admin may confirm it, and
+    // only after the requester has reported it via request-settle (MBM-308).
+    // EcoCash is a software transfer with no handoff — the requester keeps
+    // today's self-settle from APPROVED directly.
+    if (isEcocash) {
+      if (!canApprove && !isRequester) {
+        return NextResponse.json({ error: 'You do not have permission to settle this petty cash request' }, { status: 403 })
+      }
+      if (pcRequest.status !== 'APPROVED') {
+        return NextResponse.json(
+          { error: `Only APPROVED requests can be settled. Current status: ${pcRequest.status}` },
+          { status: 400 }
+        )
+      }
+    } else {
+      if (!canApprove) {
+        return NextResponse.json({ error: 'Only a cashier or admin can confirm receipt of a CASH petty cash return' }, { status: 403 })
+      }
+      if (pcRequest.status !== 'SETTLE_REQUESTED') {
+        return NextResponse.json(
+          { error: `The requester must submit a settlement request first. Current status: ${pcRequest.status}` },
+          { status: 400 }
+        )
+      }
     }
 
     const approvedAmount = Number(pcRequest.approvedAmount)

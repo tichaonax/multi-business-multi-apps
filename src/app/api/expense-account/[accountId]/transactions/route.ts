@@ -491,6 +491,7 @@ export async function GET(
         destinationAccountName: (payment as any).destinationDeposit?.expenseAccount?.accountName ?? null,
         receiptNumber: payment.receiptNumber,
         status: payment.status,
+        locked: (payment as any).locked ?? false,
         pettyCashRequestId: paymentToPettyCashMap.get(payment.id)?.id ?? null,
         pettyCashPurpose: paymentToPettyCashMap.get(payment.id)?.purpose ?? null,
         comboRequestId: comboRequestMap.get(payment.id) ?? null,

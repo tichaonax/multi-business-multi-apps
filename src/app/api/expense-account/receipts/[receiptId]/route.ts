@@ -49,6 +49,7 @@ export async function PUT(
         expensePayment: {
           select: {
             expenseAccountId: true,
+            locked: true,
             receipt_review: { select: { status: true } },
             payeeType: true, payeePersonId: true, payeeBusinessId: true, payeeSupplierId: true,
             payeeUserId: true, payeeEmployeeId: true,
@@ -57,6 +58,10 @@ export async function PUT(
       },
     })
     if (!receipt) return NextResponse.json({ error: 'Receipt not found' }, { status: 404 })
+
+    if (receipt.expensePayment.locked) {
+      return NextResponse.json({ error: 'This expense is read-only — unused funds have already been returned and confirmed' }, { status: 400 })
+    }
 
     const isAdmin = user.role === 'admin'
     const isOwner = receipt.createdBy === user.id
@@ -298,11 +303,15 @@ export async function DELETE(
         category: { select: { name: true } },
         subcategory: { select: { name: true } },
         creator: { select: { name: true, email: true } },
-        expensePayment: { select: { expenseAccountId: true, receipt_review: { select: { status: true } } } },
+        expensePayment: { select: { expenseAccountId: true, locked: true, receipt_review: { select: { status: true } } } },
       },
     })
 
     if (!receipt) return NextResponse.json({ error: 'Receipt not found' }, { status: 404 })
+
+    if (receipt.expensePayment.locked) {
+      return NextResponse.json({ error: 'This expense is read-only — unused funds have already been returned and confirmed' }, { status: 400 })
+    }
 
     // MBM-302: a vehicle-linked receipt can't be hard-deleted — it has a
     // live VehicleExpenses/VehicleMaintenanceRecords row pointing back at

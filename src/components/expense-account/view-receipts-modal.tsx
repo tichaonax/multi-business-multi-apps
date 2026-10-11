@@ -53,6 +53,19 @@ interface ReceiptReview {
   canReview: boolean
 }
 
+interface ReturnInfo {
+  locked: boolean
+  remainingAmount: number
+  requestedAmount: number | null
+  requestedAt: string | null
+  requestedByName: string | null
+  note: string | null
+  confirmedAt: string | null
+  confirmedByName: string | null
+  canRequestReturn: boolean
+  canConfirmReturn: boolean
+}
+
 interface ViewReceiptsModalProps {
   paymentId: string
   paymentAmount: number
@@ -86,6 +99,7 @@ export function ViewReceiptsModal({
   const [receipts, setReceipts] = useState<Receipt[]>([])
   const [currentPayee, setCurrentPayee] = useState<PayeeRef | null>(paymentPayee ?? null)
   const [review, setReview] = useState<ReceiptReview | null>(null)
+  const [returnInfo, setReturnInfo] = useState<ReturnInfo | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showAddModal, setShowAddModal] = useState(!!presetComboItemId)
@@ -94,6 +108,11 @@ export function ViewReceiptsModal({
   const [approving, setApproving] = useState(false)
   const [reviewNote, setReviewNote] = useState('')
   const [editingReceipt, setEditingReceipt] = useState<Receipt | null>(null)
+  const [showReturnForm, setShowReturnForm] = useState(false)
+  const [returnAmount, setReturnAmount] = useState('')
+  const [returnNote, setReturnNote] = useState('')
+  const [submittingReturn, setSubmittingReturn] = useState(false)
+  const [confirmingReturn, setConfirmingReturn] = useState(false)
 
   useEffect(() => {
     loadReceipts()
@@ -111,6 +130,7 @@ export function ViewReceiptsModal({
         setReceipts(json.data.receipts)
         if (json.data.currentPayee) setCurrentPayee(json.data.currentPayee)
         setReview(json.data.review ?? null)
+        setReturnInfo(json.data.returnInfo ?? null)
       } else {
         setError(json.error || 'Failed to load receipts')
       }
@@ -168,6 +188,59 @@ export function ViewReceiptsModal({
     }
   }
 
+  async function handleSubmitReturn() {
+    const amount = parseFloat(returnAmount)
+    if (!amount || amount <= 0) {
+      alert('Enter a valid return amount')
+      return
+    }
+    setSubmittingReturn(true)
+    try {
+      const res = await fetch(`/api/expense-account/payments/${paymentId}/return-request`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ amount, note: returnNote.trim() || undefined }),
+      })
+      const json = await res.json()
+      if (res.ok) {
+        setShowReturnForm(false)
+        setReturnAmount('')
+        setReturnNote('')
+        await loadReceipts()
+        onReceiptsChanged()
+      } else {
+        alert(json.error || 'Failed to submit return')
+      }
+    } catch {
+      alert('Failed to submit return')
+    } finally {
+      setSubmittingReturn(false)
+    }
+  }
+
+  async function handleConfirmReturn() {
+    if (!window.confirm(`Confirm you have received $${returnInfo?.requestedAmount?.toFixed(2)} in returned funds? This will credit the account and lock this expense.`)) return
+    setConfirmingReturn(true)
+    try {
+      const res = await fetch(`/api/expense-account/payments/${paymentId}/return-confirm`, {
+        method: 'POST',
+        credentials: 'include',
+      })
+      const json = await res.json()
+      if (res.ok) {
+        await loadReceipts()
+        onReceiptsChanged()
+      } else {
+        alert(json.error || 'Failed to confirm return')
+      }
+    } catch {
+      alert('Failed to confirm return')
+    } finally {
+      setConfirmingReturn(false)
+    }
+  }
+
   async function handleDelete(receiptId: string) {
     const reason = window.prompt('Reason for deleting this receipt (required — kept in the audit log):')
     if (!reason?.trim()) return
@@ -199,6 +272,7 @@ export function ViewReceiptsModal({
   // point explaining why delete is unavailable to someone who couldn't
   // have deleted the receipt anyway).
   function canDeleteIgnoringVehicleLink(r: Receipt): boolean {
+    if (returnInfo?.locked) return false // read-only once a return is confirmed
     if (isAdmin) return true
     if (review?.canReview) return true // cashier may delete any receipt during review (MBM-271)
     if (r.createdBy !== currentUserId) return false
@@ -219,6 +293,7 @@ export function ViewReceiptsModal({
   // The submitter can edit their own receipt for as long as it hasn't been
   // approved yet — no 7-day cutoff for editing, only for deleting (MBM-271 follow-up).
   function canEdit(r: Receipt): boolean {
+    if (returnInfo?.locked) return false // read-only once a return is confirmed
     if (isAdmin) return true
     if (review?.canReview) return true // cashier may edit any receipt during review
     if (r.createdBy !== currentUserId) return false
@@ -318,6 +393,30 @@ export function ViewReceiptsModal({
                 </div>
               </div>
             )}
+
+            {returnInfo?.confirmedAt ? (
+              <div className="mt-3 p-3 rounded-lg bg-teal-50 dark:bg-teal-900/20 border border-teal-200 dark:border-teal-800 text-xs">
+                <p className="font-medium text-teal-800 dark:text-teal-300">
+                  🔒 Returned & Confirmed — read-only
+                </p>
+                <p className="text-teal-700 dark:text-teal-400 mt-0.5">
+                  ${returnInfo.requestedAmount?.toFixed(2)} returned
+                  {returnInfo.requestedByName ? ` by ${returnInfo.requestedByName}` : ''}, confirmed
+                  {returnInfo.confirmedByName ? ` by ${returnInfo.confirmedByName}` : ''} on {fmtDate(returnInfo.confirmedAt)}.
+                </p>
+              </div>
+            ) : returnInfo?.requestedAt ? (
+              <div className="mt-3 p-3 rounded-lg bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 text-xs">
+                <p className="font-medium text-purple-800 dark:text-purple-300">
+                  💰 Return Pending Confirmation
+                </p>
+                <p className="text-purple-700 dark:text-purple-400 mt-0.5">
+                  ${returnInfo.requestedAmount?.toFixed(2)} reported returned
+                  {returnInfo.requestedByName ? ` by ${returnInfo.requestedByName}` : ''} on {fmtDate(returnInfo.requestedAt)}
+                  {returnInfo.note ? ` — "${returnInfo.note}"` : ''}. Awaiting cashier confirmation.
+                </p>
+              </div>
+            ) : null}
           </div>
 
           {/* Body */}
@@ -425,26 +524,75 @@ export function ViewReceiptsModal({
             </div>
           )}
 
+          {/* Return unused funds — inline amount/note form */}
+          {showReturnForm && (
+            <div className="px-4 pt-3 flex-shrink-0 space-y-2">
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max={returnInfo?.remainingAmount}
+                  value={returnAmount}
+                  onChange={e => setReturnAmount(e.target.value)}
+                  placeholder={`Amount (up to ${fmt(returnInfo?.remainingAmount ?? 0)})`}
+                  className="input flex-1 px-3 py-1.5 text-sm"
+                  autoFocus
+                />
+                <button
+                  onClick={() => setReturnAmount((returnInfo?.remainingAmount ?? 0).toFixed(2))}
+                  className="btn-secondary text-xs px-2"
+                  title="Fill remaining balance"
+                >
+                  Max
+                </button>
+              </div>
+              <input
+                type="text"
+                value={returnNote}
+                onChange={e => setReturnNote(e.target.value)}
+                placeholder="Note (optional)"
+                className="input w-full px-3 py-1.5 text-sm"
+              />
+              <div className="flex justify-end gap-2">
+                <button onClick={() => setShowReturnForm(false)} className="btn-secondary text-xs px-3 py-1.5">Cancel</button>
+                <button onClick={handleSubmitReturn} disabled={submittingReturn} className="btn-primary text-xs px-3 py-1.5 bg-purple-600 hover:bg-purple-700 disabled:opacity-50">
+                  {submittingReturn ? 'Submitting…' : 'Submit Return'}
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Footer */}
-          <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex-shrink-0 flex justify-between items-center">
+          <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex-shrink-0 flex justify-between items-center flex-wrap gap-2">
             <span className="text-sm text-gray-500 dark:text-gray-400">
               {receipts.length} receipt{receipts.length !== 1 ? 's' : ''}
             </span>
-            <div className="flex gap-3">
+            <div className="flex gap-3 flex-wrap">
               <button onClick={onClose} className="btn-secondary text-sm">Close</button>
-              {review?.status !== 'APPROVED' && (
+              {review?.status !== 'APPROVED' && !returnInfo?.locked && (
                 <button onClick={() => setShowAddModal(true)} className="btn-primary text-sm">
                   + Add Receipt
                 </button>
               )}
-              {review && review.canSubmit && review.status === 'PENDING' && receipts.length > 0 && (
+              {review && review.canSubmit && review.status === 'PENDING' && receipts.length > 0 && !returnInfo?.locked && (
                 <button onClick={handleSubmitToCashier} disabled={submittingReview} className="btn-primary text-sm bg-amber-600 hover:bg-amber-700 disabled:opacity-50">
                   {submittingReview ? 'Submitting…' : 'Submit to Cashier'}
                 </button>
               )}
-              {review && review.canReview && review.status === 'SUBMITTED' && (
+              {review && review.canReview && review.status === 'SUBMITTED' && !returnInfo?.locked && (
                 <button onClick={handleApprove} disabled={approving} className="btn-primary text-sm bg-green-600 hover:bg-green-700 disabled:opacity-50">
                   {approving ? 'Approving…' : '✅ Approve'}
+                </button>
+              )}
+              {returnInfo?.canRequestReturn && !showReturnForm && (
+                <button onClick={() => { setReturnAmount(returnInfo.remainingAmount.toFixed(2)); setShowReturnForm(true) }} className="btn-primary text-sm bg-purple-600 hover:bg-purple-700">
+                  💰 Return unused funds
+                </button>
+              )}
+              {returnInfo?.canConfirmReturn && (
+                <button onClick={handleConfirmReturn} disabled={confirmingReturn} className="btn-primary text-sm bg-teal-600 hover:bg-teal-700 disabled:opacity-50">
+                  {confirmingReturn ? 'Confirming…' : '✅ Confirm Return Received'}
                 </button>
               )}
             </div>

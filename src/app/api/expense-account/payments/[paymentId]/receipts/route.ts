@@ -90,6 +90,14 @@ export async function GET(
         payeeEmployeeId: true,
         expenseAccountId: true,
         createdBy: true,
+        amount: true,
+        locked: true,
+        returnRequestedAmount: true,
+        returnRequestedAt: true,
+        returnRequestedBy: true,
+        returnNote: true,
+        returnConfirmedAt: true,
+        returnConfirmedBy: true,
         combo_request: { select: { createdBy: true } },
         payeePerson: { select: { id: true, fullName: true } },
         payeeBusiness: { select: { id: true, name: true } },
@@ -179,6 +187,41 @@ export async function GET(
       isAdmin || user.id === payment.createdBy || user.id === payment.payeeUserId || user.id === payment.combo_request?.createdBy
     const canReview = isAdmin || await isAccountCashier(user.id, isAdmin, payment.expenseAccountId)
 
+    // Return unused funds (MBM-308) — available to the requester any time
+    // there's a positive remaining balance not yet requested/confirmed back,
+    // regardless of the payment's own status (stays available even after
+    // cancellation, per the requirement). Only a cashier can confirm.
+    const paymentAmount = Number(payment.amount)
+    const remainingAmount = paymentAmount - receiptTotal
+    const returnRequestedByName = payment.returnRequestedBy
+      ? (await prisma.users.findUnique({ where: { id: payment.returnRequestedBy }, select: { name: true } }))?.name ?? null
+      : null
+    const returnConfirmedByName = payment.returnConfirmedBy
+      ? (await prisma.users.findUnique({ where: { id: payment.returnConfirmedBy }, select: { name: true } }))?.name ?? null
+      : null
+    const returnInfo = {
+      locked: payment.locked,
+      remainingAmount,
+      requestedAmount: payment.returnRequestedAmount != null ? Number(payment.returnRequestedAmount) : null,
+      requestedAt: payment.returnRequestedAt,
+      requestedByName: returnRequestedByName,
+      note: payment.returnNote,
+      confirmedAt: payment.returnConfirmedAt,
+      confirmedByName: returnConfirmedByName,
+      // Combo-linked payments have their own dedicated settle-request/
+      // settle-confirm flow (combo-request-detail.tsx) — offering this
+      // standalone return path on top would create a second, conflicting
+      // way to return the same money.
+      canRequestReturn:
+        !payment.combo_request &&
+        !payment.locked &&
+        payment.returnConfirmedAt == null &&
+        payment.returnRequestedAt == null &&
+        remainingAmount > 0.01 &&
+        (isAdmin || user.id === payment.createdBy || user.id === payment.payeeUserId),
+      canConfirmReturn: !payment.locked && payment.returnRequestedAt != null && payment.returnConfirmedAt == null && canReview,
+    }
+
     return NextResponse.json({
       success: true,
       data: {
@@ -202,6 +245,7 @@ export async function GET(
           canSubmit,
           canReview,
         } : null,
+        returnInfo,
       },
     })
   } catch (error) {
@@ -234,9 +278,12 @@ export async function POST(
 
     const payment = await prisma.expenseAccountPayments.findUnique({
       where: { id: paymentId },
-      select: { id: true, expenseAccountId: true },
+      select: { id: true, expenseAccountId: true, locked: true },
     })
     if (!payment) return NextResponse.json({ error: 'Payment not found' }, { status: 404 })
+    if (payment.locked) {
+      return NextResponse.json({ error: 'This expense is read-only — unused funds have already been returned and confirmed' }, { status: 400 })
+    }
 
     const body = await request.json()
     const {

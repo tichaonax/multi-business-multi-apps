@@ -1733,7 +1733,7 @@ function formatBusinessTypeLabel(businessType: string): string {
 // visual segmentation only, not hiding anything.
 const NOTIF_SEGMENTS: { key: string; label: string; icon: string; types: string[] }[] = [
   { key: 'vehicle', label: 'Vehicle & Licensing', icon: '🚗', types: ['VEHICLE_LICENSE_EXPIRING', 'VEHICLE_LICENSE_OVERDUE'] },
-  { key: 'payments', label: 'Payments', icon: '💰', types: ['PAYMENT_SUBMITTED', 'PAYMENT_APPROVED', 'PAYMENT_REJECTED', 'PAYMENT_PAID', 'BATCH_READY', 'PAYMENTS_REVERSED_TO_PETTY_CASH'] },
+  { key: 'payments', label: 'Payments', icon: '💰', types: ['PAYMENT_SUBMITTED', 'PAYMENT_APPROVED', 'PAYMENT_REJECTED', 'PAYMENT_PAID', 'BATCH_READY', 'PAYMENTS_REVERSED_TO_PETTY_CASH', 'PAYMENT_RETURN_REQUESTED', 'PAYMENT_RETURN_CONFIRMED'] },
   { key: 'withdrawals', label: 'Withdrawals', icon: '🏦', types: ['WITHDRAWAL_SUBMITTED', 'WITHDRAWAL_ADMIN_APPROVED', 'WITHDRAWAL_DENIED_LENDER', 'WITHDRAWAL_DENIED_ADMIN', 'WITHDRAWAL_PAID', 'WITHDRAWAL_CASHIER_ALERT'] },
   { key: 'pettycash', label: 'Petty Cash', icon: '💸', types: ['PETTY_CASH_SUBMITTED', 'PETTY_CASH_APPROVED', 'PETTY_CASH_REJECTED', 'PETTY_CASH_SETTLE_REQUESTED', 'CASH_ALLOC_RECONCILED'] },
   { key: 'combo', label: 'Combo Requests', icon: '📋', types: ['COMBO_REQUEST_SUBMITTED', 'COMBO_REQUEST_APPROVED', 'COMBO_REQUEST_PARTIALLY_APPROVED', 'COMBO_REQUEST_CANCELLED', 'COMBO_REQUEST_PAID', 'COMBO_REQUEST_RETURNED', 'COMBO_REQUEST_SETTLE_REQUESTED', 'COMBO_REQUEST_SETTLED', 'COMBO_REQUEST_EXPIRING', 'COMBO_REQUEST_EXPIRED'] },

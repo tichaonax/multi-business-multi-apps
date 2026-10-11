@@ -17,6 +17,7 @@ import { generatePettyCashVoucher } from '@/lib/pdf-utils'
 const STATUS_STYLES: Record<string, string> = {
   PENDING:   'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
   APPROVED:  'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300',
+  SETTLE_REQUESTED: 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300',
   SETTLED:   'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300',
   CANCELLED: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400',
 }
@@ -335,7 +336,7 @@ export default function PettyCashDetailPage() {
 
   // Fetch transactions whenever the request is APPROVED or SETTLED
   useEffect(() => {
-    if (data?.request?.status === 'APPROVED' || data?.request?.status === 'SETTLED') {
+    if (['APPROVED', 'SETTLE_REQUESTED', 'SETTLED'].includes(data?.request?.status ?? '')) {
       fetchTransactions()
     }
   }, [data?.request?.status, fetchTransactions])
@@ -723,7 +724,7 @@ export default function PettyCashDetailPage() {
             <span className={`px-3 py-1 rounded-full text-sm font-medium ${STATUS_STYLES[req.status] || 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'}`}>
               {req.status}
             </span>
-            {(req.status === 'APPROVED' || req.status === 'SETTLED') && req.approver && (
+            {['APPROVED', 'SETTLE_REQUESTED', 'SETTLED'].includes(req.status) && req.approver && (
               <>
                 <button
                   onClick={() => generatePettyCashVoucher({
@@ -805,8 +806,8 @@ export default function PettyCashDetailPage() {
           </div>
         )}
 
-        {/* Balance card — shown while APPROVED */}
-        {isApproved && txSummary && (
+        {/* Balance card — shown while APPROVED or awaiting settlement confirmation */}
+        {(isApproved || req.status === 'SETTLE_REQUESTED') && txSummary && (
           <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-5">
             <h2 className="text-sm font-semibold text-blue-800 dark:text-blue-300 mb-3">💵 Petty Cash Balance</h2>
             <div className="grid grid-cols-3 gap-4 text-center">
@@ -946,19 +947,46 @@ export default function PettyCashDetailPage() {
                 {isEcocashRequest ? '+ Record EcoCash Spend' : '+ Record Spend'}
               </button>
             )}
-            {(canApprove || isRequester) && (
+            {isEcocashRequest && (canApprove || isRequester) && (
               <button
                 onClick={() => canApprove ? setShowSettle(true) : setShowRequesterSettle(true)}
-                className={`px-5 py-2.5 text-white rounded-lg text-sm font-medium ${isEcocashRequest ? 'bg-orange-600 hover:bg-orange-700' : 'bg-green-600 hover:bg-green-700'}`}
+                className="px-5 py-2.5 text-white rounded-lg text-sm font-medium bg-orange-600 hover:bg-orange-700"
               >
-                {isEcocashRequest ? '📱 Settle Request' : 'Settle Request'}
+                📱 Settle Request
+              </button>
+            )}
+            {/* CASH requires a physical handoff — the requester reports it; a
+                cashier/admin must separately confirm receipt before anything
+                is settled (MBM-308). */}
+            {!isEcocashRequest && isRequester && (
+              <button
+                onClick={() => setShowRequesterSettle(true)}
+                className="px-5 py-2.5 text-white rounded-lg text-sm font-medium bg-purple-600 hover:bg-purple-700"
+              >
+                💰 Return unused funds
+              </button>
+            )}
+          </div>
+        )}
+
+        {req.status === 'SETTLE_REQUESTED' && (
+          <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-xl p-4 flex items-center justify-between flex-wrap gap-3">
+            <p className="text-sm text-purple-800 dark:text-purple-300">
+              💰 The requester reported this is ready to settle — awaiting cashier confirmation of funds received.
+            </p>
+            {canApprove && (
+              <button
+                onClick={() => setShowSettle(true)}
+                className="px-5 py-2.5 text-white rounded-lg text-sm font-medium bg-teal-600 hover:bg-teal-700"
+              >
+                ✅ Confirm Receipt & Settle
               </button>
             )}
           </div>
         )}
 
         {/* Spending history panel */}
-        {(isApproved || req.status === 'SETTLED') && (
+        {['APPROVED', 'SETTLE_REQUESTED', 'SETTLED'].includes(req.status) && (
           <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
             <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
               <h2 className="font-semibold text-gray-800 dark:text-gray-200">Spending History</h2>

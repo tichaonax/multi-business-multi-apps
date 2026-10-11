@@ -4,8 +4,10 @@ import { reconciliationStatus } from './receipt-reconciliation-status'
 import { resolveReceiptPayeeName } from './receipt-payee-attribution'
 
 // Cashiers aren't pulled in from day one — the requester gets a grace period
-// to submit receipts before it becomes the cashiers' problem too.
-const CASHIER_GRACE_DAYS = 5
+// to submit receipts or return unused funds before it becomes the cashiers'
+// problem too. Measured from the review's createdAt, which is set at
+// approval time for both advance and combo-linked payments (MBM-308).
+const CASHIER_GRACE_DAYS = 7
 
 export function receiptReminderGroupKey(paymentId: string): string {
   return `receipt-reminder:${paymentId}`
@@ -38,8 +40,11 @@ export async function sweepOutstandingReceiptReminders(): Promise<{ payments: nu
             createdBy: true,
             payeeUserId: true,
             expenseAccountId: true,
+            locked: true,
+            returnRequestedAmount: true,
+            returnConfirmedAt: true,
             creator: { select: { id: true, name: true } },
-            combo_request: { select: { createdBy: true, title: true, creator: { select: { name: true } } } },
+            combo_request: { select: { createdBy: true, title: true, status: true, creator: { select: { name: true } } } },
             expense_payment_receipts: {
               select: {
                 amount: true,
@@ -65,12 +70,24 @@ export async function sweepOutstandingReceiptReminders(): Promise<{ payments: nu
       const status = reconciliationStatus({ expectedAmount: expected, receiptTotal, reviewStatus: review.status })
       if (status === 'FULLY_RECEIPTED') continue // shouldn't occur for PENDING/SUBMITTED, guard anyway
 
+      // Fully read-only (return confirmed) or a combo request already in its
+      // own settle flow — nothing left to remind anyone about (MBM-308).
+      if (payment.locked) continue
+      if (payment.combo_request && ['SETTLE_REQUESTED', 'SETTLED'].includes(payment.combo_request.status)) continue
+
       const requesterId = payment.combo_request?.createdBy ?? payment.createdBy ?? payment.payeeUserId
       if (!requesterId) continue
 
+      // A requested (not yet cashier-confirmed) return covers the gap too —
+      // the requester already did their part; only the cashier's separate
+      // return-confirmation notification (from return-request) is still
+      // outstanding for that slice.
+      const returnCovered = payment.returnRequestedAmount != null ? Number(payment.returnRequestedAmount) : 0
+      const outstandingAmount = expected - receiptTotal - returnCovered
+      if (outstandingAmount <= 0.01) continue
+
       const requesterName = payment.combo_request ? payment.combo_request.creator?.name : payment.creator?.name
       const reference = payment.combo_request?.title ?? `payment ${payment.id.slice(0, 8)}`
-      const outstandingAmount = expected - receiptTotal
       const groupKey = receiptReminderGroupKey(payment.id)
       // tab=transactions lands reliably for every user type, including
       // restricted/PERSONAL-grant requesters — the Overview tab shows a
@@ -81,10 +98,12 @@ export async function sweepOutstandingReceiptReminders(): Promise<{ payments: nu
       const payeeNames = [...new Set(payment.expense_payment_receipts.map((r) => resolveReceiptPayeeName(r)).filter((n): n is string => !!n))]
       const payeeNote = payeeNames.length > 0 ? ` Receipted so far to: ${payeeNames.join(', ')}.` : ''
 
-      const title = `Receipt reconciliation needed — ${reference}`
+      const title = `Submit receipts or return unused funds — ${reference}`
       const message =
         `"${reference}" requested by ${requesterName ?? 'Unknown'}. ` +
-        `Amount provided: $${expected.toFixed(2)}, receipts so far: $${receiptTotal.toFixed(2)}, outstanding: $${outstandingAmount.toFixed(2)}.` +
+        `Amount provided: $${expected.toFixed(2)}, receipts so far: $${receiptTotal.toFixed(2)}` +
+        (returnCovered > 0 ? `, return reported: $${returnCovered.toFixed(2)}` : '') +
+        `, outstanding: $${outstandingAmount.toFixed(2)}. Submit a receipt or return the unused balance.` +
         payeeNote
 
       const metadata = {
@@ -110,9 +129,13 @@ export async function sweepOutstandingReceiptReminders(): Promise<{ payments: nu
       })
       requesterReminders++
 
-      // Cashiers — only once the review has sat unresolved for 5+ days.
+      // Cashiers — escalated once the review has sat unresolved (no receipts
+      // or return covering the full amount) for 7+ days from approval.
       const ageDays = (Date.now() - review.createdAt.getTime()) / (24 * 60 * 60 * 1000)
       if (ageDays >= CASHIER_GRACE_DAYS) {
+        const escalationTitle = `⚠️ Follow-up needed — ${reference}`
+        const escalationMessage =
+          `${Math.floor(ageDays)} days since approval, still outstanding. ` + message
         const grants = await prisma.expenseAccountGrants.findMany({
           where: { expenseAccountId: payment.expenseAccountId, permissionLevel: 'FULL' },
           select: { userId: true },
@@ -121,9 +144,9 @@ export async function sweepOutstandingReceiptReminders(): Promise<{ payments: nu
           if (grant.userId === requesterId) continue // already reminded above
           await emitGroupedNotification({
             userId: grant.userId,
-            type: 'RECEIPT_REMINDER',
-            title,
-            message,
+            type: 'RECEIPT_ESCALATION',
+            title: escalationTitle,
+            message: escalationMessage,
             linkUrl,
             metadata,
             groupKey,

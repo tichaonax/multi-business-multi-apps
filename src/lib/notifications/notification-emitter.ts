@@ -51,6 +51,8 @@ export type NotificationType =
   | 'ALLOCATION_SKIPPED'
   | 'VEHICLE_LICENSE_EXPIRING'
   | 'VEHICLE_LICENSE_OVERDUE'
+  | 'PAYMENT_RETURN_REQUESTED'
+  | 'PAYMENT_RETURN_CONFIRMED'
 
 export interface NotificationPayload {
   userIds: string[]

@@ -20,7 +20,7 @@ export async function POST(
 
     const pcRequest = await prisma.pettyCashRequests.findUnique({
       where: { id: requestId },
-      select: { id: true, requestedBy: true, status: true, approvedAmount: true, purpose: true },
+      select: { id: true, requestedBy: true, status: true, approvedAmount: true, purpose: true, paymentChannel: true },
     })
     if (!pcRequest) return NextResponse.json({ error: 'Petty cash request not found' }, { status: 404 })
 
@@ -33,6 +33,17 @@ export async function POST(
         { error: `Only APPROVED requests can request settlement. Current status: ${pcRequest.status}` },
         { status: 400 }
       )
+    }
+
+    // CASH requires a physical handoff — gate the actual settle behind this
+    // step so a cashier must separately confirm (MBM-308). EcoCash is a
+    // software transfer the requester confirms themselves; it keeps today's
+    // single-step self-settle and this call stays notify-only for it.
+    if (pcRequest.paymentChannel !== 'ECOCASH') {
+      await prisma.pettyCashRequests.update({
+        where: { id: requestId },
+        data: { status: 'SETTLE_REQUESTED', returnRequestedAt: new Date(), returnRequestedBy: user.id },
+      })
     }
 
     // Find all users with petty_cash.approve permission

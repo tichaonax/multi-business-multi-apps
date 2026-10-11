@@ -60,6 +60,7 @@ interface Transaction {
   destinationAccountName?: string | null
   receiptNumber?: string
   status?: string
+  locked?: boolean
   pettyCashRequestId?: string | null
   pettyCashPurpose?: string | null
   comboRequestId?: string | null
@@ -652,7 +653,7 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
   const renderTransactionActions = (transaction: Transaction, isDeposit: boolean) => {
     const rowActions: RowAction[] = []
 
-    if (canEditPayments && !isDeposit && !transaction.isAutoTransfer && !transaction.comboRequestId && !voucherMap[transaction.id] && (isAdmin || isWithin7Days(transaction.createdAt))) {
+    if (canEditPayments && !isDeposit && !transaction.isAutoTransfer && !transaction.comboRequestId && !transaction.locked && !voucherMap[transaction.id] && (isAdmin || isWithin7Days(transaction.createdAt))) {
       rowActions.push({
         key: 'edit',
         label: 'Edit',

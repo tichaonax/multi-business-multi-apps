@@ -29,6 +29,7 @@ export async function POST(
         sections: { include: { items: true } },
       },
     })
+    const linkedPaymentId = comboRequest?.linkedPaymentId ?? null
     if (!comboRequest) return NextResponse.json({ error: 'Combo request not found' }, { status: 404 })
 
     if (comboRequest.status !== 'SETTLE_REQUESTED') {
@@ -69,6 +70,15 @@ export async function POST(
           },
         })
         await updateExpenseAccountBalanceTx(tx, accountId)
+      }
+
+      // Lock the linked payment read-only (MBM-308) — no further receipts
+      // or edits once the cashier has confirmed the unused balance back.
+      if (linkedPaymentId) {
+        await tx.expenseAccountPayments.update({
+          where: { id: linkedPaymentId },
+          data: { locked: true },
+        })
       }
     })
 

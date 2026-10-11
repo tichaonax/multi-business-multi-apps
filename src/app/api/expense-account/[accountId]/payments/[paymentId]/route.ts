@@ -277,6 +277,13 @@ export async function PATCH(
       )
     }
 
+    if ((existingPayment as any).locked) {
+      return NextResponse.json(
+        { error: 'This expense is read-only — unused funds have already been returned and confirmed' },
+        { status: 400 }
+      )
+    }
+
     // --- Mark as Paid action ---
     // Read body once here; re-used below for the standard edit flow
     let body: any = {}

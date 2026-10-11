@@ -1810,6 +1810,14 @@ model ExpenseAccountPayments {
   // Amount override audit trail — set when approver approves a different amount than requested
   approvedAmount                    Decimal?                         @map("approved_amount") @db.Decimal(12, 2)
   amountChangeNote                  String?                          @map("amount_change_note")
+  // Return unused funds (MBM-308) — requester-initiated, cashier-confirmed
+  returnRequestedAmount              Decimal?                         @map("return_requested_amount") @db.Decimal(12, 2)
+  returnRequestedAt                  DateTime?                        @map("return_requested_at")
+  returnRequestedBy                  String?                          @map("return_requested_by")
+  returnNote                         String?                          @map("return_note")
+  returnConfirmedAt                  DateTime?                        @map("return_confirmed_at")
+  returnConfirmedBy                  String?                          @map("return_confirmed_by")
+  locked                             Boolean                          @default(false) @map("locked")
   projectId                         String?                          @map("project_id")
   project                           Projects?                        @relation("ProjectExpensePayments", fields: [projectId], references: [id], onDelete: SetNull)
   payment_voucher                   ExpensePaymentVouchers?
@@ -5993,6 +6001,7 @@ enum SupplierPaymentRequestStatus {
 enum PettyCashStatus {
   PENDING
   APPROVED
+  SETTLE_REQUESTED
   SETTLED
   CANCELLED
 }
@@ -6632,6 +6641,10 @@ model PettyCashRequests {
   // Financial record links set at settlement (only when returnAmount > 0)
   returnPaymentId        String?         @unique // FK ExpenseAccountPayments (PETTY_CASH_RETURN)
   returnTxId             String? // FK BusinessTransactions (CREDIT back to business account)
+  // CASH-channel settlement gate (MBM-308) — requester requests, cashier confirms.
+  // EcoCash keeps the existing single-step self-settle (no physical handoff).
+  returnRequestedAt      DateTime?
+  returnRequestedBy      String?
   // Signature captured at fund handover (base64 PNG data URL, optional)
   signatureData          String?         @db.Text
   paymentChannel         String          @default("CASH") @map("payment_channel")
