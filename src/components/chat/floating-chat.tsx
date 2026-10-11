@@ -18,6 +18,7 @@ import {
   loadChatSettings,
   saveChatSettings,
 } from '@/lib/chat-settings'
+import { AttachButton, PendingAttachmentChip, ChatAttachmentBubble, uploadChatAttachment, type ChatAttachmentMeta } from '@/components/chat/chat-attachments'
 
 interface Recipient { id: string; name: string }
 
@@ -42,6 +43,7 @@ interface Message {
   replyScope: string | null
   replyCount: number
   recipients: Recipient[]
+  attachment?: ChatAttachmentMeta | null
 }
 
 interface UserOption { id: string; name: string; online?: boolean; photoUrl?: string | null }
@@ -133,6 +135,22 @@ export function FloatingChat() {
   const [messages, setMessages] = useState<Message[]>([])
   const [newMessage, setNewMessage] = useState('')
   const [sending, setSending] = useState(false)
+  // Attachment mid-compose for Team Chat's own composer — same pattern as
+  // the satellite ChatWindow (chat-window.tsx), duplicated here because
+  // this file owns Team/General's send flow independently.
+  const [pendingAttachment, setPendingAttachment] = useState<ChatAttachmentMeta | null>(null)
+  const [uploadingAttachment, setUploadingAttachment] = useState(false)
+  const handleFileSelected = async (file: File) => {
+    setUploadingAttachment(true)
+    try {
+      const attachment = await uploadChatAttachment(file)
+      setPendingAttachment(attachment)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Upload failed')
+    } finally {
+      setUploadingAttachment(false)
+    }
+  }
   const [connected, setConnected] = useState(false)
   const [unread, setUnread] = useState(0)
   const [unreadDirect, setUnreadDirect] = useState(0)
@@ -785,9 +803,11 @@ export function FloatingChat() {
   // through their own satellite ChatWindow's identical-in-spirit sendMessage.
   const sendMessage = async () => {
     const text = newMessage.trim()
-    if (!text || sending) return
+    if ((!text && !pendingAttachment) || sending || uploadingAttachment) return
     setSending(true)
     setNewMessage('')
+    const attachmentToSend = pendingAttachment
+    setPendingAttachment(null)
     notifyTeamStopTyping()
     try {
       const body: any = { message: text }
@@ -795,6 +815,7 @@ export function FloatingChat() {
         body.parentId = replyingTo.id
         body.replyScope = replyScope
       }
+      if (attachmentToSend) body.attachmentId = attachmentToSend.id
       const res = await fetch('/api/chat/messages', {
         method: 'POST',
         credentials: 'include',
@@ -803,6 +824,7 @@ export function FloatingChat() {
       })
       if (!res.ok) {
         setNewMessage(text)
+        setPendingAttachment(attachmentToSend)
         return
       }
       if (res.ok) {
@@ -827,6 +849,7 @@ export function FloatingChat() {
       setReplyScope('ALL')
     } catch {
       setNewMessage(text)
+      setPendingAttachment(attachmentToSend)
     } finally {
       setSending(false)
       inputRef.current?.focus()
@@ -1014,15 +1037,20 @@ export function FloatingChat() {
               </div>
             </div>
           ) : (
-            <div className={`px-3 py-1.5 rounded-2xl text-xs leading-relaxed whitespace-pre-wrap break-words ${
-              msg.deletedAt
-                ? 'bg-gray-100 dark:bg-gray-800 text-secondary italic border border-dashed border-gray-300 dark:border-gray-600'
-                : isOwn
-                  ? 'bg-indigo-600 text-white rounded-tr-sm'
-                  : `bg-white dark:bg-gray-800 text-primary border border-border border-l-4 ${color!.border} rounded-tl-sm shadow-sm`
-            }`}>
-              {msg.deletedAt ? '🚫 This message was deleted' : msg.message}
-            </div>
+            <>
+              {(msg.deletedAt || msg.message) && (
+                <div className={`px-3 py-1.5 rounded-2xl text-xs leading-relaxed whitespace-pre-wrap break-words ${
+                  msg.deletedAt
+                    ? 'bg-gray-100 dark:bg-gray-800 text-secondary italic border border-dashed border-gray-300 dark:border-gray-600'
+                    : isOwn
+                      ? 'bg-indigo-600 text-white rounded-tr-sm'
+                      : `bg-white dark:bg-gray-800 text-primary border border-border border-l-4 ${color!.border} rounded-tl-sm shadow-sm`
+                }`}>
+                  {msg.deletedAt ? '🚫 This message was deleted' : msg.message}
+                </div>
+              )}
+              {!msg.deletedAt && msg.attachment && <ChatAttachmentBubble attachment={msg.attachment} />}
+            </>
           )}
           {!isEditing && (
           <div className="flex items-center gap-2 mt-1 mx-1">
@@ -1504,7 +1532,9 @@ export function FloatingChat() {
           </div>
         )}
 
+        <PendingAttachmentChip attachment={pendingAttachment} uploading={uploadingAttachment} onRemove={() => setPendingAttachment(null)} />
         <div className="flex items-end gap-2">
+          <AttachButton onFileSelected={handleFileSelected} disabled={uploadingAttachment || sending} />
           <textarea
             ref={inputRef}
             rows={1}
@@ -1520,7 +1550,7 @@ export function FloatingChat() {
           <button
             type="button"
             onClick={sendMessage}
-            disabled={sending || !newMessage.trim()}
+            disabled={sending || uploadingAttachment || (!newMessage.trim() && !pendingAttachment)}
             className="w-10 h-10 flex items-center justify-center rounded-full bg-indigo-600 hover:bg-indigo-700
               disabled:opacity-40 disabled:cursor-not-allowed text-white transition-colors shrink-0"
             title="Send"

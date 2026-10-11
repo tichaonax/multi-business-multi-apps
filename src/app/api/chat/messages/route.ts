@@ -65,6 +65,7 @@ export async function GET(request: NextRequest) {
           users: { select: { name: true, firstName: true, lastName: true, profilePhotoUrl: true } },
           chat_message_recipients: { include: { users: { select: { id: true, name: true } } } },
           replies: { where: { deletedAt: null }, select: { id: true } },
+          chat_attachments: { select: { id: true, fileName: true, mimeType: true, size: true } },
         },
       })
 
@@ -104,6 +105,7 @@ export async function GET(request: NextRequest) {
         users: { select: { name: true, firstName: true, lastName: true, profilePhotoUrl: true } },
         chat_message_recipients: { include: { users: { select: { id: true, name: true } } } },
         replies: { where: { deletedAt: null }, select: { id: true } },
+        chat_attachments: { select: { id: true, fileName: true, mimeType: true, size: true } },
       },
     })
 
@@ -121,8 +123,22 @@ export async function POST(request: NextRequest) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const body = await request.json()
-    const message: string = body?.message?.trim()
-    if (!message) return NextResponse.json({ error: 'message is required' }, { status: 400 })
+    const message: string = body?.message?.trim() ?? ''
+    // MBM-307 — an attachment-only message (no caption typed) is valid; a
+    // genuinely empty send (no text, no file) is not.
+    const attachmentId: string | null = typeof body?.attachmentId === 'string' ? body.attachmentId : null
+    if (!message && !attachmentId) return NextResponse.json({ error: 'message is required' }, { status: 400 })
+
+    // Validated once up front, before either send path, so a stale/foreign/
+    // already-claimed attachment id is rejected with a clear error instead
+    // of the message silently sending without its attachment.
+    if (attachmentId) {
+      const att = await prisma.chatAttachments.findUnique({ where: { id: attachmentId }, select: { uploadedBy: true, messageId: true } })
+      if (!att || att.uploadedBy !== user.id || att.messageId !== null) {
+        return NextResponse.json({ error: 'Attachment not found or already sent' }, { status: 400 })
+      }
+    }
+    const attachmentSelect = { select: { id: true, fileName: true, mimeType: true, size: true } } as const
 
     const recipientIds: string[] = Array.isArray(body?.recipientIds) ? body.recipientIds : []
     const parentId: string | null = body?.parentId ?? null
@@ -173,13 +189,17 @@ export async function POST(request: NextRequest) {
           skipDuplicates: true,
         })
       }
+      if (attachmentId) {
+        await prisma.chatAttachments.update({ where: { id: attachmentId }, data: { messageId: created.id } })
+      }
 
-      const full = mentionIds.length > 0
+      const full = (mentionIds.length > 0 || attachmentId)
         ? await prisma.chatMessages.findUnique({
             where: { id: created.id },
             include: {
               users: { select: { name: true, firstName: true, lastName: true, profilePhotoUrl: true } },
               chat_message_recipients: { include: { users: { select: { id: true, name: true } } } },
+              chat_attachments: attachmentSelect,
             },
           })
         : created
@@ -263,6 +283,9 @@ export async function POST(request: NextRequest) {
         skipDuplicates: true,
       })
     }
+    if (attachmentId) {
+      await prisma.chatAttachments.update({ where: { id: attachmentId }, data: { messageId: created.id } })
+    }
 
     // Reload with recipients for the payload
     const full = await prisma.chatMessages.findUnique({
@@ -270,6 +293,7 @@ export async function POST(request: NextRequest) {
       include: {
         users: { select: { name: true, firstName: true, lastName: true, profilePhotoUrl: true } },
         chat_message_recipients: { include: { users: { select: { id: true, name: true } } } },
+        chat_attachments: attachmentSelect,
       },
     })
 

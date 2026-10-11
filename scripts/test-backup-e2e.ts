@@ -119,6 +119,8 @@ const NEW_TABLE_KEYS = [
   'attributeOptions',
   // Vehicle Licensing Status, Retirement & Reinstatement (MBM-305)
   'vehicleStatusHistory', 'vehicleRetirementReasons',
+  // Chat Message Attachments — PDF/JPEG/PNG (MBM-307)
+  'chatAttachments',
 ]
 
 async function main() {

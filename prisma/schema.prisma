@@ -777,9 +777,36 @@ model ChatMessages {
   replies                 ChatMessages[]          @relation("ChatReplies")
   chat_message_recipients ChatMessageRecipients[]
   chat_message_dismissals ChatMessageDismissals[]
+  chat_attachments        ChatAttachments?
 
   @@index([parentId])
   @@map("chat_messages")
+}
+
+// MBM-307 — a PDF/JPEG/PNG attached to a chat message. Uploaded first
+// (messageId null — "pending", not yet attached to a sent message) then
+// claimed by POST /api/chat/messages once the message is actually sent, the
+// same two-step pattern as the existing vehicle-license DocumentUpload
+// flow. Stored as bytea in Postgres (not the filesystem) specifically so it
+// flows through the existing backup/restore/validation pipeline like
+// `images` does — a filesystem upload wouldn't survive a restore onto a
+// different server. No `expiresAt` — unlike clock-in photos, attachments
+// don't auto-expire; they only go away if the message carrying them is
+// deleted (same as any other message content).
+model ChatAttachments {
+  id            String        @id @default(uuid())
+  messageId     String?       @unique
+  uploadedBy    String
+  fileName      String
+  mimeType      String
+  size          Int
+  data          Bytes
+  createdAt     DateTime      @default(now())
+  chat_messages ChatMessages? @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  users         Users         @relation(fields: [uploadedBy], references: [id], onDelete: Cascade)
+
+  @@index([uploadedBy])
+  @@map("chat_attachments")
 }
 
 model ChatMessageRecipients {
@@ -3666,6 +3693,7 @@ model Users {
   chat_message_dismissals                                         ChatMessageDismissals[]
   chat_participants                                               ChatParticipants[]
   chat_rooms                                                      ChatRooms[]
+  chat_attachments                                                ChatAttachments[]
   construction_expenses                                           ConstructionExpenses[]
   construction_projects                                           ConstructionProjects[]
   customer_layby_payment_processors                               CustomerLaybyPayment[]            @relation("CustomerLaybyPaymentProcessor")

@@ -376,6 +376,7 @@ export const RESTORE_ORDER = [
   'chatParticipants',        // Depends on chatRooms, users
   'chatMessageRecipients',   // Depends on chatMessages, users (MBM-210 targeted replies)
   'chatMessageDismissals',   // Depends on chatMessages, users — per-user "delete for me" on a system alert
+  'chatAttachments',         // Depends on chatMessages (nullable — unsent at backup time), users (MBM-307)
 
   // Notifications
   'appNotifications',   // Depends on users

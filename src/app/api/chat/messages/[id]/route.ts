@@ -42,6 +42,10 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       include: {
         users: { select: { name: true, firstName: true, lastName: true, profilePhotoUrl: true } },
         chat_message_recipients: { include: { users: { select: { id: true, name: true } } } },
+        // Without this, editing a message's text would make its attachment
+        // disappear client-side — shapeMessage reads m.chat_attachments, and
+        // an unincluded relation comes back undefined, not "unchanged".
+        chat_attachments: { select: { id: true, fileName: true, mimeType: true, size: true } },
       },
     })
 

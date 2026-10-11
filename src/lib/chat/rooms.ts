@@ -176,6 +176,14 @@ export function shapeMessage(m: any, replyCount = 0) {
       id: r.users?.id ?? r.userId,
       name: r.users?.name ?? 'Unknown',
     })),
+    // MBM-307 — only metadata here, never the binary; the client fetches
+    // the actual bytes from GET /api/chat/attachments/[id] on demand (view
+    // inline, or ?download=1 to force a save). Absent on every call site
+    // that doesn't include the chat_attachments relation, which is fine —
+    // this just renders as "no attachment" for those (e.g. system messages).
+    attachment: m.chat_attachments
+      ? { id: m.chat_attachments.id, fileName: m.chat_attachments.fileName, mimeType: m.chat_attachments.mimeType, size: m.chat_attachments.size }
+      : null,
   }
 }
 

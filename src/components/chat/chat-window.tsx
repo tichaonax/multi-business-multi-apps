@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import type { Socket } from 'socket.io-client'
 import { useTypingEmitter, useTypingTracker, formatTypingLabel } from '@/hooks/use-typing-indicator'
 import { getUserColor, parseComplianceDigest, ComplianceDigestSections, formatAlertTimestamp } from '@/components/vehicles/license-compliance-digest'
+import { AttachButton, PendingAttachmentChip, ChatAttachmentBubble, uploadChatAttachment, type ChatAttachmentMeta } from '@/components/chat/chat-attachments'
 
 interface Recipient { id: string; name: string }
 
@@ -25,6 +26,7 @@ interface Message {
   parentId: string | null
   replyCount: number
   recipients: Recipient[]
+  attachment?: ChatAttachmentMeta | null
 }
 
 const WINDOW_W = 300
@@ -124,6 +126,23 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
   // over time, and showing every one fully expanded floods the window the
   // same way duplicate rooms flooded the chat list.
   const [expandedAlerts, setExpandedAlerts] = useState<Set<string>>(new Set())
+
+  // Attachment mid-compose — uploaded immediately on file pick (see
+  // AttachButton), then claimed by sendMessage() when the message actually
+  // goes out. null/false once sent or removed.
+  const [pendingAttachment, setPendingAttachment] = useState<ChatAttachmentMeta | null>(null)
+  const [uploadingAttachment, setUploadingAttachment] = useState(false)
+  const handleFileSelected = async (file: File) => {
+    setUploadingAttachment(true)
+    try {
+      const attachment = await uploadChatAttachment(file)
+      setPendingAttachment(attachment)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Upload failed')
+    } finally {
+      setUploadingAttachment(false)
+    }
+  }
 
   // Editing own last message
   const [editingMsgId, setEditingMsgId] = useState<string | null>(null)
@@ -282,21 +301,24 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
 
   const sendMessage = async () => {
     const text = newMessage.trim()
-    if (!text || sending) return
+    if ((!text && !pendingAttachment) || sending || uploadingAttachment) return
     setSending(true)
     setNewMessage('')
+    const attachmentToSend = pendingAttachment
+    setPendingAttachment(null)
     notifyStopTyping()
     try {
       const body: any = { message: text, roomId }
       if (replyingTo) body.parentId = replyingTo.id
       if (mentionedUsers.length > 0) body.mentionIds = mentionedUsers.map(u => u.id)
+      if (attachmentToSend) body.attachmentId = attachmentToSend.id
       const res = await fetch('/api/chat/messages', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
-      if (!res.ok) { setNewMessage(text); return }
+      if (!res.ok) { setNewMessage(text); setPendingAttachment(attachmentToSend); return }
       const saved: Message = await res.json()
       if (saved.parentId) {
         setExpandedThreads(prev => {
@@ -315,6 +337,7 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
       setMentionedUsers([])
     } catch {
       setNewMessage(text)
+      setPendingAttachment(attachmentToSend)
     } finally {
       setSending(false)
       inputRef.current?.focus()
@@ -692,17 +715,22 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
               </div>
             </div>
           ) : (
-            <div className={`px-2.5 py-1 rounded-2xl text-xs leading-relaxed whitespace-pre-wrap break-words ${
-              msg.deletedAt
-                ? 'bg-gray-100 dark:bg-gray-800 text-secondary italic border border-dashed border-gray-300 dark:border-gray-600'
-                : isFlagged
-                  ? `${isOwn ? 'bg-indigo-600 text-white' : 'bg-white dark:bg-gray-800 text-primary'} border-2 border-amber-400 dark:border-amber-500 ${isOwn ? 'rounded-tr-sm' : 'rounded-tl-sm'} shadow-sm`
-                  : isOwn
-                    ? 'bg-indigo-600 text-white rounded-tr-sm'
-                    : `bg-white dark:bg-gray-800 text-primary border border-border border-l-4 ${color!.border} rounded-tl-sm shadow-sm`
-            }`}>
-              {msg.deletedAt ? '🚫 This message was deleted' : msg.message}
-            </div>
+            <>
+              {(msg.deletedAt || msg.message) && (
+                <div className={`px-2.5 py-1 rounded-2xl text-xs leading-relaxed whitespace-pre-wrap break-words ${
+                  msg.deletedAt
+                    ? 'bg-gray-100 dark:bg-gray-800 text-secondary italic border border-dashed border-gray-300 dark:border-gray-600'
+                    : isFlagged
+                      ? `${isOwn ? 'bg-indigo-600 text-white' : 'bg-white dark:bg-gray-800 text-primary'} border-2 border-amber-400 dark:border-amber-500 ${isOwn ? 'rounded-tr-sm' : 'rounded-tl-sm'} shadow-sm`
+                      : isOwn
+                        ? 'bg-indigo-600 text-white rounded-tr-sm'
+                        : `bg-white dark:bg-gray-800 text-primary border border-border border-l-4 ${color!.border} rounded-tl-sm shadow-sm`
+                }`}>
+                  {msg.deletedAt ? '🚫 This message was deleted' : msg.message}
+                </div>
+              )}
+              {!msg.deletedAt && msg.attachment && <ChatAttachmentBubble attachment={msg.attachment} />}
+            </>
           )}
           {!isEditing && (
           <div className="flex items-center gap-2 mt-0.5 mx-1">
@@ -915,7 +943,9 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
             <button type="button" onClick={() => setReplyingTo(null)} className="text-secondary hover:text-primary" title="Cancel reply">✕</button>
           </div>
         )}
+        <PendingAttachmentChip attachment={pendingAttachment} uploading={uploadingAttachment} onRemove={() => setPendingAttachment(null)} />
         <div className="flex items-end gap-1.5">
+          <AttachButton onFileSelected={handleFileSelected} disabled={uploadingAttachment || sending} />
           <textarea
             ref={inputRef}
             rows={1}
@@ -931,7 +961,7 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
           <button
             type="button"
             onClick={sendMessage}
-            disabled={sending || !newMessage.trim()}
+            disabled={sending || uploadingAttachment || (!newMessage.trim() && !pendingAttachment)}
             className="w-8 h-8 flex items-center justify-center rounded-full bg-indigo-600 hover:bg-indigo-700
               disabled:opacity-40 disabled:cursor-not-allowed text-white transition-colors shrink-0"
             title="Send"

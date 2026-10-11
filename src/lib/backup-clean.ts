@@ -1344,6 +1344,14 @@ export async function createCleanBackup(
   businessData.chatParticipants = await prisma.chatParticipants.findMany()
   businessData.chatMessageRecipients = await prisma.chatMessageRecipients.findMany()
   businessData.chatMessageDismissals = await prisma.chatMessageDismissals.findMany()
+  // MBM-307: chat message attachments (PDF/JPEG/PNG) — bytea like `images`,
+  // but capped at 10MB per file and comparatively low-volume, so a plain
+  // findMany is fine here rather than the images table's own paginated
+  // streaming pass. Buffer.from(...) on `data` for the same reason as
+  // images above — Prisma's Bytes/Uint8Array needs that conversion to
+  // serialize safely through JSON.stringify.
+  businessData.chatAttachments = (await prisma.chatAttachments.findMany())
+    .map((a: any) => ({ ...a, data: Buffer.from(a.data) }))
 
   // 37. Employee Absences
   businessData.employeeAbsences = await prisma.employeeAbsences.findMany({
@@ -1911,7 +1919,10 @@ export async function createCleanBackup(
     // back to the exact license it replaces); added to SELF_REFERENTIAL_TABLES
     // in restore-clean.ts for two-pass restore, same as vehicleServiceJobs
     // .reworkOfJobId — no new table, but a real restore-ordering fix.
-    schemaVersion: '6.45.0',
+    // 6.46.0 (2026-10-11): MBM-307 chat attachments — added chatAttachments
+    // (PDF/JPEG/PNG bytea, like `images`; messageId FK nullable for an
+    // upload not yet attached to a sent message).
+    schemaVersion: '6.46.0',
     checksums: {
       businessData: businessDataChecksum,
       deviceData: deviceDataChecksum

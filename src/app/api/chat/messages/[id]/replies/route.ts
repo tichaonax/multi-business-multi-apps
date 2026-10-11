@@ -39,6 +39,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       include: {
         users: { select: { name: true, firstName: true, lastName: true, profilePhotoUrl: true } },
         chat_message_recipients: { include: { users: { select: { id: true, name: true } } } },
+        chat_attachments: { select: { id: true, fileName: true, mimeType: true, size: true } },
       },
     })
 
@@ -65,6 +66,9 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
           id: r.users?.id ?? r.userId,
           name: r.users?.name ?? 'Unknown',
         })),
+        attachment: (m as any).chat_attachments
+          ? { id: (m as any).chat_attachments.id, fileName: (m as any).chat_attachments.fileName, mimeType: (m as any).chat_attachments.mimeType, size: (m as any).chat_attachments.size }
+          : null,
       }
     })
 
