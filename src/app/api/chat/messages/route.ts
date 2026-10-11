@@ -125,17 +125,30 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const message: string = body?.message?.trim() ?? ''
     // MBM-307 — an attachment-only message (no caption typed) is valid; a
-    // genuinely empty send (no text, no file) is not.
-    const attachmentId: string | null = typeof body?.attachmentId === 'string' ? body.attachmentId : null
-    if (!message && !attachmentId) return NextResponse.json({ error: 'message is required' }, { status: 400 })
+    // genuinely empty send (no text, no files) is not. One message can
+    // carry several files (drag-and-drop / multi-select), capped so a
+    // single send can't claim an unbounded number of uploads.
+    const MAX_ATTACHMENTS_PER_MESSAGE = 10
+    const attachmentIds: string[] = Array.isArray(body?.attachmentIds)
+      ? body.attachmentIds.filter((id: unknown): id is string => typeof id === 'string').slice(0, MAX_ATTACHMENTS_PER_MESSAGE)
+      : []
+    if (!message && attachmentIds.length === 0) return NextResponse.json({ error: 'message is required' }, { status: 400 })
 
     // Validated once up front, before either send path, so a stale/foreign/
     // already-claimed attachment id is rejected with a clear error instead
-    // of the message silently sending without its attachment.
-    if (attachmentId) {
-      const att = await prisma.chatAttachments.findUnique({ where: { id: attachmentId }, select: { uploadedBy: true, messageId: true } })
-      if (!att || att.uploadedBy !== user.id || att.messageId !== null) {
-        return NextResponse.json({ error: 'Attachment not found or already sent' }, { status: 400 })
+    // of the message silently sending with some of its files missing.
+    if (attachmentIds.length > 0) {
+      const atts = await prisma.chatAttachments.findMany({
+        where: { id: { in: attachmentIds } },
+        select: { id: true, uploadedBy: true, messageId: true },
+      })
+      const byId = new Map(atts.map(a => [a.id, a]))
+      const invalid = attachmentIds.find(id => {
+        const a = byId.get(id)
+        return !a || a.uploadedBy !== user.id || a.messageId !== null
+      })
+      if (invalid) {
+        return NextResponse.json({ error: 'One or more attachments could not be found or were already sent' }, { status: 400 })
       }
     }
     const attachmentSelect = { select: { id: true, fileName: true, mimeType: true, size: true } } as const
@@ -189,11 +202,11 @@ export async function POST(request: NextRequest) {
           skipDuplicates: true,
         })
       }
-      if (attachmentId) {
-        await prisma.chatAttachments.update({ where: { id: attachmentId }, data: { messageId: created.id } })
+      if (attachmentIds.length > 0) {
+        await prisma.chatAttachments.updateMany({ where: { id: { in: attachmentIds } }, data: { messageId: created.id } })
       }
 
-      const full = (mentionIds.length > 0 || attachmentId)
+      const full = (mentionIds.length > 0 || attachmentIds.length > 0)
         ? await prisma.chatMessages.findUnique({
             where: { id: created.id },
             include: {
@@ -283,8 +296,8 @@ export async function POST(request: NextRequest) {
         skipDuplicates: true,
       })
     }
-    if (attachmentId) {
-      await prisma.chatAttachments.update({ where: { id: attachmentId }, data: { messageId: created.id } })
+    if (attachmentIds.length > 0) {
+      await prisma.chatAttachments.updateMany({ where: { id: { in: attachmentIds } }, data: { messageId: created.id } })
     }
 
     // Reload with recipients for the payload

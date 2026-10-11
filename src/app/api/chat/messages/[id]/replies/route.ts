@@ -66,9 +66,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
           id: r.users?.id ?? r.userId,
           name: r.users?.name ?? 'Unknown',
         })),
-        attachment: (m as any).chat_attachments
-          ? { id: (m as any).chat_attachments.id, fileName: (m as any).chat_attachments.fileName, mimeType: (m as any).chat_attachments.mimeType, size: (m as any).chat_attachments.size }
-          : null,
+        attachments: ((m as any).chat_attachments ?? []).map((a: any) => ({ id: a.id, fileName: a.fileName, mimeType: a.mimeType, size: a.size })),
       }
     })
 

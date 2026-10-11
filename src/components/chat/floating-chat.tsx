@@ -18,7 +18,7 @@ import {
   loadChatSettings,
   saveChatSettings,
 } from '@/lib/chat-settings'
-import { AttachButton, PendingAttachmentChip, ChatAttachmentBubble, uploadChatAttachment, type ChatAttachmentMeta } from '@/components/chat/chat-attachments'
+import { AttachButton, PendingAttachmentsRow, ChatAttachmentsGroup, uploadChatAttachment, useChatFileDrop, DropOverlay, MAX_ATTACHMENTS_PER_MESSAGE, type ChatAttachmentMeta } from '@/components/chat/chat-attachments'
 
 interface Recipient { id: string; name: string }
 
@@ -43,7 +43,7 @@ interface Message {
   replyScope: string | null
   replyCount: number
   recipients: Recipient[]
-  attachment?: ChatAttachmentMeta | null
+  attachments?: ChatAttachmentMeta[]
 }
 
 interface UserOption { id: string; name: string; online?: boolean; photoUrl?: string | null }
@@ -135,22 +135,24 @@ export function FloatingChat() {
   const [messages, setMessages] = useState<Message[]>([])
   const [newMessage, setNewMessage] = useState('')
   const [sending, setSending] = useState(false)
-  // Attachment mid-compose for Team Chat's own composer — same pattern as
+  // Attachments mid-compose for Team Chat's own composer — same pattern as
   // the satellite ChatWindow (chat-window.tsx), duplicated here because
   // this file owns Team/General's send flow independently.
-  const [pendingAttachment, setPendingAttachment] = useState<ChatAttachmentMeta | null>(null)
-  const [uploadingAttachment, setUploadingAttachment] = useState(false)
-  const handleFileSelected = async (file: File) => {
-    setUploadingAttachment(true)
-    try {
-      const attachment = await uploadChatAttachment(file)
-      setPendingAttachment(attachment)
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'Upload failed')
-    } finally {
-      setUploadingAttachment(false)
-    }
+  const [pendingAttachments, setPendingAttachments] = useState<ChatAttachmentMeta[]>([])
+  const [uploadingNames, setUploadingNames] = useState<string[]>([])
+  const handleFilesSelected = (files: File[]) => {
+    const room = MAX_ATTACHMENTS_PER_MESSAGE - pendingAttachments.length - uploadingNames.length
+    if (room <= 0) { alert(`You can attach up to ${MAX_ATTACHMENTS_PER_MESSAGE} files per message`); return }
+    const accepted = files.slice(0, room)
+    setUploadingNames(prev => [...prev, ...accepted.map(f => f.name)])
+    accepted.forEach(file => {
+      uploadChatAttachment(file)
+        .then(attachment => setPendingAttachments(prev => [...prev, attachment]))
+        .catch(err => alert(err instanceof Error ? err.message : 'Upload failed'))
+        .finally(() => setUploadingNames(prev => prev.filter(n => n !== file.name)))
+    })
   }
+  const { isDraggingFiles, dropZoneProps } = useChatFileDrop(handleFilesSelected)
   const [connected, setConnected] = useState(false)
   const [unread, setUnread] = useState(0)
   const [unreadDirect, setUnreadDirect] = useState(0)
@@ -803,11 +805,11 @@ export function FloatingChat() {
   // through their own satellite ChatWindow's identical-in-spirit sendMessage.
   const sendMessage = async () => {
     const text = newMessage.trim()
-    if ((!text && !pendingAttachment) || sending || uploadingAttachment) return
+    if ((!text && pendingAttachments.length === 0) || sending || uploadingNames.length > 0) return
     setSending(true)
     setNewMessage('')
-    const attachmentToSend = pendingAttachment
-    setPendingAttachment(null)
+    const attachmentsToSend = pendingAttachments
+    setPendingAttachments([])
     notifyTeamStopTyping()
     try {
       const body: any = { message: text }
@@ -815,7 +817,7 @@ export function FloatingChat() {
         body.parentId = replyingTo.id
         body.replyScope = replyScope
       }
-      if (attachmentToSend) body.attachmentId = attachmentToSend.id
+      if (attachmentsToSend.length > 0) body.attachmentIds = attachmentsToSend.map(a => a.id)
       const res = await fetch('/api/chat/messages', {
         method: 'POST',
         credentials: 'include',
@@ -824,7 +826,7 @@ export function FloatingChat() {
       })
       if (!res.ok) {
         setNewMessage(text)
-        setPendingAttachment(attachmentToSend)
+        setPendingAttachments(attachmentsToSend)
         return
       }
       if (res.ok) {
@@ -849,7 +851,7 @@ export function FloatingChat() {
       setReplyScope('ALL')
     } catch {
       setNewMessage(text)
-      setPendingAttachment(attachmentToSend)
+      setPendingAttachments(attachmentsToSend)
     } finally {
       setSending(false)
       inputRef.current?.focus()
@@ -1049,7 +1051,7 @@ export function FloatingChat() {
                   {msg.deletedAt ? '🚫 This message was deleted' : msg.message}
                 </div>
               )}
-              {!msg.deletedAt && msg.attachment && <ChatAttachmentBubble attachment={msg.attachment} />}
+              {!msg.deletedAt && <ChatAttachmentsGroup attachments={msg.attachments ?? []} />}
             </>
           )}
           {!isEditing && (
@@ -1214,8 +1216,10 @@ export function FloatingChat() {
     <>
     <div
       style={{ position: 'fixed', right: 24, bottom: 72, width: PANEL_W, height: PANEL_H, zIndex: 9999, display: hideHubOnMobile ? 'none' : 'flex' }}
-      className="flex-col rounded-2xl shadow-2xl border border-border bg-white dark:bg-gray-900 overflow-hidden"
+      className="relative flex-col rounded-2xl shadow-2xl border border-border bg-white dark:bg-gray-900 overflow-hidden"
+      {...(view === 'team' ? dropZoneProps : {})}
     >
+      {view === 'team' && isDraggingFiles && <DropOverlay />}
       {/* Header — fixed in place; this is the one window that doesn't move */}
       <div
         className="flex items-center justify-between px-4 py-3 bg-indigo-600 text-white select-none shrink-0"
@@ -1532,9 +1536,9 @@ export function FloatingChat() {
           </div>
         )}
 
-        <PendingAttachmentChip attachment={pendingAttachment} uploading={uploadingAttachment} onRemove={() => setPendingAttachment(null)} />
+        <PendingAttachmentsRow attachments={pendingAttachments} uploadingNames={uploadingNames} onRemove={id => setPendingAttachments(prev => prev.filter(a => a.id !== id))} />
         <div className="flex items-end gap-2">
-          <AttachButton onFileSelected={handleFileSelected} disabled={uploadingAttachment || sending} />
+          <AttachButton onFilesSelected={handleFilesSelected} disabled={sending} />
           <textarea
             ref={inputRef}
             rows={1}
@@ -1550,7 +1554,7 @@ export function FloatingChat() {
           <button
             type="button"
             onClick={sendMessage}
-            disabled={sending || uploadingAttachment || (!newMessage.trim() && !pendingAttachment)}
+            disabled={sending || uploadingNames.length > 0 || (!newMessage.trim() && pendingAttachments.length === 0)}
             className="w-10 h-10 flex items-center justify-center rounded-full bg-indigo-600 hover:bg-indigo-700
               disabled:opacity-40 disabled:cursor-not-allowed text-white transition-colors shrink-0"
             title="Send"

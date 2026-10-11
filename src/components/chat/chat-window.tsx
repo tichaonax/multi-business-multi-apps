@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import type { Socket } from 'socket.io-client'
 import { useTypingEmitter, useTypingTracker, formatTypingLabel } from '@/hooks/use-typing-indicator'
 import { getUserColor, parseComplianceDigest, ComplianceDigestSections, formatAlertTimestamp } from '@/components/vehicles/license-compliance-digest'
-import { AttachButton, PendingAttachmentChip, ChatAttachmentBubble, uploadChatAttachment, type ChatAttachmentMeta } from '@/components/chat/chat-attachments'
+import { AttachButton, PendingAttachmentsRow, ChatAttachmentsGroup, uploadChatAttachment, useChatFileDrop, DropOverlay, MAX_ATTACHMENTS_PER_MESSAGE, type ChatAttachmentMeta } from '@/components/chat/chat-attachments'
 
 interface Recipient { id: string; name: string }
 
@@ -26,7 +26,7 @@ interface Message {
   parentId: string | null
   replyCount: number
   recipients: Recipient[]
-  attachment?: ChatAttachmentMeta | null
+  attachments?: ChatAttachmentMeta[]
 }
 
 const WINDOW_W = 300
@@ -127,22 +127,27 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
   // same way duplicate rooms flooded the chat list.
   const [expandedAlerts, setExpandedAlerts] = useState<Set<string>>(new Set())
 
-  // Attachment mid-compose — uploaded immediately on file pick (see
-  // AttachButton), then claimed by sendMessage() when the message actually
-  // goes out. null/false once sent or removed.
-  const [pendingAttachment, setPendingAttachment] = useState<ChatAttachmentMeta | null>(null)
-  const [uploadingAttachment, setUploadingAttachment] = useState(false)
-  const handleFileSelected = async (file: File) => {
-    setUploadingAttachment(true)
-    try {
-      const attachment = await uploadChatAttachment(file)
-      setPendingAttachment(attachment)
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'Upload failed')
-    } finally {
-      setUploadingAttachment(false)
-    }
+  // Attachments mid-compose — each uploads immediately on pick/drop (see
+  // AttachButton / useChatFileDrop below), then all are claimed together by
+  // sendMessage() when the message actually goes out. Uploads run
+  // independently per file so one bad file (wrong type, too large) doesn't
+  // block the rest; uploadingNames tracks filenames still in flight so the
+  // composer can show them as pending chips.
+  const [pendingAttachments, setPendingAttachments] = useState<ChatAttachmentMeta[]>([])
+  const [uploadingNames, setUploadingNames] = useState<string[]>([])
+  const handleFilesSelected = (files: File[]) => {
+    const room = MAX_ATTACHMENTS_PER_MESSAGE - pendingAttachments.length - uploadingNames.length
+    if (room <= 0) { alert(`You can attach up to ${MAX_ATTACHMENTS_PER_MESSAGE} files per message`); return }
+    const accepted = files.slice(0, room)
+    setUploadingNames(prev => [...prev, ...accepted.map(f => f.name)])
+    accepted.forEach(file => {
+      uploadChatAttachment(file)
+        .then(attachment => setPendingAttachments(prev => [...prev, attachment]))
+        .catch(err => alert(err instanceof Error ? err.message : 'Upload failed'))
+        .finally(() => setUploadingNames(prev => prev.filter(n => n !== file.name)))
+    })
   }
+  const { isDraggingFiles, dropZoneProps } = useChatFileDrop(handleFilesSelected)
 
   // Editing own last message
   const [editingMsgId, setEditingMsgId] = useState<string | null>(null)
@@ -301,24 +306,24 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
 
   const sendMessage = async () => {
     const text = newMessage.trim()
-    if ((!text && !pendingAttachment) || sending || uploadingAttachment) return
+    if ((!text && pendingAttachments.length === 0) || sending || uploadingNames.length > 0) return
     setSending(true)
     setNewMessage('')
-    const attachmentToSend = pendingAttachment
-    setPendingAttachment(null)
+    const attachmentsToSend = pendingAttachments
+    setPendingAttachments([])
     notifyStopTyping()
     try {
       const body: any = { message: text, roomId }
       if (replyingTo) body.parentId = replyingTo.id
       if (mentionedUsers.length > 0) body.mentionIds = mentionedUsers.map(u => u.id)
-      if (attachmentToSend) body.attachmentId = attachmentToSend.id
+      if (attachmentsToSend.length > 0) body.attachmentIds = attachmentsToSend.map(a => a.id)
       const res = await fetch('/api/chat/messages', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
-      if (!res.ok) { setNewMessage(text); setPendingAttachment(attachmentToSend); return }
+      if (!res.ok) { setNewMessage(text); setPendingAttachments(attachmentsToSend); return }
       const saved: Message = await res.json()
       if (saved.parentId) {
         setExpandedThreads(prev => {
@@ -337,7 +342,7 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
       setMentionedUsers([])
     } catch {
       setNewMessage(text)
-      setPendingAttachment(attachmentToSend)
+      setPendingAttachments(attachmentsToSend)
     } finally {
       setSending(false)
       inputRef.current?.focus()
@@ -729,7 +734,7 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
                   {msg.deletedAt ? '🚫 This message was deleted' : msg.message}
                 </div>
               )}
-              {!msg.deletedAt && msg.attachment && <ChatAttachmentBubble attachment={msg.attachment} />}
+              {!msg.deletedAt && <ChatAttachmentsGroup attachments={msg.attachments ?? []} />}
             </>
           )}
           {!isEditing && (
@@ -786,8 +791,10 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
   return (
     <div
       style={windowStyle}
-      className="flex flex-col rounded-2xl shadow-2xl border border-border bg-white dark:bg-gray-900 overflow-hidden"
+      className="relative flex flex-col rounded-2xl shadow-2xl border border-border bg-white dark:bg-gray-900 overflow-hidden"
+      {...(roomType === 'system' ? {} : dropZoneProps)}
     >
+      {isDraggingFiles && roomType !== 'system' && <DropOverlay />}
       <div
         onMouseDown={isMobile ? undefined : onHeaderMouseDown}
         className={`flex items-center justify-between px-3 py-2.5 text-white shrink-0 select-none ${isMobile ? '' : 'cursor-grab active:cursor-grabbing'} ${getWindowTheme(roomId)}`}
@@ -943,9 +950,9 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
             <button type="button" onClick={() => setReplyingTo(null)} className="text-secondary hover:text-primary" title="Cancel reply">✕</button>
           </div>
         )}
-        <PendingAttachmentChip attachment={pendingAttachment} uploading={uploadingAttachment} onRemove={() => setPendingAttachment(null)} />
+        <PendingAttachmentsRow attachments={pendingAttachments} uploadingNames={uploadingNames} onRemove={id => setPendingAttachments(prev => prev.filter(a => a.id !== id))} />
         <div className="flex items-end gap-1.5">
-          <AttachButton onFileSelected={handleFileSelected} disabled={uploadingAttachment || sending} />
+          <AttachButton onFilesSelected={handleFilesSelected} disabled={sending} />
           <textarea
             ref={inputRef}
             rows={1}
@@ -961,7 +968,7 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
           <button
             type="button"
             onClick={sendMessage}
-            disabled={sending || uploadingAttachment || (!newMessage.trim() && !pendingAttachment)}
+            disabled={sending || uploadingNames.length > 0 || (!newMessage.trim() && pendingAttachments.length === 0)}
             className="w-8 h-8 flex items-center justify-center rounded-full bg-indigo-600 hover:bg-indigo-700
               disabled:opacity-40 disabled:cursor-not-allowed text-white transition-colors shrink-0"
             title="Send"

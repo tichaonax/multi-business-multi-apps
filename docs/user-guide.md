@@ -7174,6 +7174,19 @@ You can correct a typo or fix your most recent message without deleting and rese
 
 ---
 
+### Attachments
+
+You can attach PDFs and images (JPEG or PNG) to a message in any Direct Message, Group, or Team Chat conversation:
+
+- **Attach a file** — click the 📎 (paperclip) icon next to the message box and pick one or more files, or **drag and drop** them straight onto the chat window (a "Drop to attach" overlay appears while dragging). You can send a message with just an attachment and no typed text, or combine both.
+- **Multiple files at once** — up to **10 files per message**, any mix of PDFs and images. Each shows as its own small chip while it uploads; remove one before sending by clicking its ✕.
+- **Limits** — PDF, JPEG, or PNG only, up to **10MB per file**.
+- **Viewing** — once sent, an image shows as a thumbnail right in the chat (click it to open full-size); a PDF shows as a file card. Both the sender and everyone else in the conversation see the exact same preview — it's not just visible to the person who sent it.
+- **Download** — for an image, downloading is optional (a small download icon sits next to the thumbnail, since the image is already viewable in the chat). A **PDF always shows a clear Download button** alongside View, since a PDF is the kind of file you'll usually want to open in your own PDF reader outside the browser.
+- **Deleting the message removes the attachment** — same as any other message content; there's no separate step.
+
+---
+
 ### Feature Summary
 
 | Feature | Available? |

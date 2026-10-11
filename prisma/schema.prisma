@@ -777,7 +777,7 @@ model ChatMessages {
   replies                 ChatMessages[]          @relation("ChatReplies")
   chat_message_recipients ChatMessageRecipients[]
   chat_message_dismissals ChatMessageDismissals[]
-  chat_attachments        ChatAttachments?
+  chat_attachments        ChatAttachments[]
 
   @@index([parentId])
   @@map("chat_messages")
@@ -795,7 +795,7 @@ model ChatMessages {
 // deleted (same as any other message content).
 model ChatAttachments {
   id            String        @id @default(uuid())
-  messageId     String?       @unique
+  messageId     String?
   uploadedBy    String
   fileName      String
   mimeType      String
@@ -805,6 +805,7 @@ model ChatAttachments {
   chat_messages ChatMessages? @relation(fields: [messageId], references: [id], onDelete: Cascade)
   users         Users         @relation(fields: [uploadedBy], references: [id], onDelete: Cascade)
 
+  @@index([messageId])
   @@index([uploadedBy])
   @@map("chat_attachments")
 }
