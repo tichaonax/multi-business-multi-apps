@@ -131,9 +131,18 @@ export function DailySalesLineChart({ data, onDotClick, groupBy: controlledGroup
   const spansMultipleMonths = monthOrder.length > 1
   const monthColor = (ym: string) => MONTH_TICK_PALETTE[monthOrder.indexOf(ym) % MONTH_TICK_PALETTE.length]
 
+  // Looked up by the tick's own displayed label rather than Recharts'
+  // `index` prop — that index is the position within whatever subset of
+  // ticks Recharts decides to render (it can drop/reorder relative to the
+  // source array), not reliably a 1:1 index into chartData, which made
+  // every tick resolve to chartData[0] and render as a single colour.
+  // Each day's formatted label is unique within one chart, so this is an
+  // exact lookup regardless of how Recharts orders/samples ticks.
+  const labelToMonth = new Map(chartData.map(d => [(d as any).dateFormatted, (d as any).date.slice(0, 7)]))
+
   const renderDateTick = (props: any) => {
-    const { x, y, payload, index } = props
-    const ym: string | undefined = chartData[index]?.date?.slice(0, 7)
+    const { x, y, payload } = props
+    const ym = labelToMonth.get(payload.value)
     const color = ym ? monthColor(ym) : '#9ca3af'
     return (
       <text x={x} y={y} dy={16} textAnchor="end" transform={`rotate(-45, ${x}, ${y})`} fill={color} fontSize={11}>
