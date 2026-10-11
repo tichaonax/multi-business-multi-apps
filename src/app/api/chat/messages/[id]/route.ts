@@ -84,19 +84,56 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
  *
  * A system message (userId: null) has no sender and no single owner — it's
  * a shared broadcast every participant of a 'system' room (e.g. "System
- * Alerts") sees. Deleting one must only clear it for the person who clicked
- * delete, never for every other admin/cashier still in the room, so this
- * takes a completely different path for those: a row in
- * chat_message_dismissals (per messageId+userId) instead of touching the
- * shared message at all. No socket broadcast either — it's not a change
- * anyone else needs to know about. */
+ * Alerts") sees. For a regular user, deleting one only clears it for them
+ * (a row in chat_message_dismissals), never for every other admin/cashier
+ * still in the room.
+ *
+ * In Team Chat (General) and System Alerts specifically, admins get a real,
+ * room-wide delete instead of either restriction above — a genuine removal
+ * (the row is actually deleted, not soft-deleted with a placeholder),
+ * broadcast as chat:message:removed so it's fully gone for everyone, not
+ * left as a "this message was deleted" bubble cluttering a channel an
+ * admin is specifically trying to keep clean. This does NOT extend to a
+ * Direct Message or Group — an admin deleting there still only follows the
+ * regular own-message rules above, same as anyone else; this is message
+ * hygiene for the two broadcast/shared channels, not general moderation
+ * power over other people's private conversations. */
 export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const user = await getServerUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const isAdmin = user.role === 'admin'
 
     const message = await prisma.chatMessages.findUnique({ where: { id: params.id } })
     if (!message) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+    if (isAdmin) {
+      // Deliberately restricted to the two broadcast/shared channels (same
+      // boundary the bulk-clear route uses) — an admin can keep Team Chat
+      // and System Alerts clean, but this is not a general moderation power
+      // over other people's private Direct Messages or Groups.
+      const generalRoom = await getGeneralRoom()
+      const isGeneral = message.roomId === generalRoom.id
+      let isSystemRoom = false
+      if (!isGeneral && message.roomId) {
+        const room = await prisma.chatRooms.findUnique({ where: { id: message.roomId }, select: { type: true } })
+        isSystemRoom = room?.type === 'system'
+      }
+      if (isGeneral || isSystemRoom) {
+        await prisma.chatMessages.delete({ where: { id: params.id } })
+        try {
+          if (isGeneral) {
+            emitToRoom('chat:general', 'chat:message:removed', { id: params.id })
+          } else if (message.roomId) {
+            const participants = await prisma.chatParticipants.findMany({ where: { roomId: message.roomId } })
+            const participantIds = participants.map(p => p.userId).filter((id): id is string => !!id)
+            emitToUsers(participantIds, 'chat:message:removed', { id: params.id })
+          }
+        } catch { /* non-critical */ }
+        return NextResponse.json({ success: true })
+      }
+      // Falls through to the regular rules below for a DM/Group message.
+    }
 
     if (message.userId === null) {
       const room = await prisma.chatRooms.findUnique({ where: { id: message.roomId! }, select: { type: true } })

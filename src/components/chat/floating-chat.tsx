@@ -20,6 +20,8 @@ import {
 } from '@/lib/chat-settings'
 import { AttachButton, PendingAttachmentsRow, ChatAttachmentsGroup, uploadChatAttachment, useChatFileDrop, DropOverlay, MAX_ATTACHMENTS_PER_MESSAGE, isOversizedVideo, type ChatAttachmentMeta } from '@/components/chat/chat-attachments'
 import { VideoTrimModal } from '@/components/chat/video-trim-modal'
+import { useConfirm } from '@/components/ui/confirm-modal'
+import { useToastContext } from '@/components/ui/toast'
 
 interface Recipient { id: string; name: string }
 
@@ -139,6 +141,9 @@ export function FloatingChat() {
   const isAuthPage = !!pathname?.startsWith('/auth')
   const currentUserId = (session?.user as any)?.id as string | undefined
   const currentUserName = (session?.user as any)?.name as string | undefined
+  const isAdmin = (session?.user as any)?.role === 'admin'
+  const confirmModal = useConfirm()
+  const toast = useToastContext()
   // Cascading satellite windows only make sense with room to cascade into —
   // mobile is capped to a single open conversation regardless of the
   // maxOpenWindows preference (that setting is desktop-only in effect).
@@ -660,6 +665,35 @@ export function FloatingChat() {
       setMessages(prev => prev.map(m => m.id === id ? { ...m, deletedAt: new Date().toISOString() } : m))
     })
 
+    // Admin hard-delete (MBM-309) — the message is actually gone, not just
+    // marked deleted, so it's spliced out entirely rather than replaced
+    // with a placeholder. Also drop it from any thread it was a reply in.
+    socket.on('chat:message:removed', ({ id }: { id: string }) => {
+      setMessages(prev => prev.filter(m => m.id !== id))
+      setExpandedThreads(prev => {
+        let changed = false
+        const next: typeof prev = {}
+        for (const [parentId, replies] of Object.entries(prev)) {
+          const filtered = replies.filter(r => r.id !== id)
+          if (filtered.length !== replies.length) changed = true
+          next[parentId] = filtered
+        }
+        return changed ? next : prev
+      })
+    })
+
+    // Admin bulk-clear (MBM-309) — this socket is shared with any open
+    // ChatWindow satellite too (e.g. System Alerts), so only react when the
+    // cleared room is actually General — a System Alerts clear reaches
+    // this listener as well (emitToUsers targets the whole connection, not
+    // a specific window) but is irrelevant to this panel's own messages.
+    socket.on('chat:room:cleared', ({ roomId }: { roomId: string }) => {
+      if (roomId === generalRoomIdRef.current) {
+        setMessages([])
+        setExpandedThreads({})
+      }
+    })
+
     socket.on('chat:message:edited', (msg: { id: string; message: string; editedAt: string | null; editCount: number }) => {
       setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, message: msg.message, editedAt: msg.editedAt, editCount: msg.editCount } : m))
     })
@@ -1003,6 +1037,50 @@ export function FloatingChat() {
     } catch { /* non-critical */ }
   }
 
+  // Admin-only (MBM-309) — the backend hard-deletes the row (not a
+  // soft-delete) for an admin regardless of whose message it is, so the
+  // local update splices it out entirely rather than showing a "deleted"
+  // placeholder; the chat:message:removed socket event syncs other clients.
+  const adminDeleteMessage = async (id: string) => {
+    try {
+      await fetch(`/api/chat/messages/${id}`, { method: 'DELETE', credentials: 'include' })
+      setMessages(prev => prev.filter(m => m.id !== id))
+      setExpandedThreads(prev => {
+        const next: typeof prev = {}
+        for (const [parentId, replies] of Object.entries(prev)) next[parentId] = replies.filter(r => r.id !== id)
+        return next
+      })
+    } catch { /* non-critical */ }
+  }
+
+  const clearingChatRef = useRef(false)
+  const clearTeamChat = async () => {
+    if (clearingChatRef.current) return
+    const ok = await confirmModal({
+      title: 'Clear Team Chat',
+      description: 'Permanently delete every message in Team Chat for everyone? This cannot be undone.',
+      confirmText: 'Delete All',
+    })
+    if (!ok) return
+    const roomId = generalRoomIdRef.current
+    if (!roomId) return
+    clearingChatRef.current = true
+    try {
+      const res = await fetch(`/api/chat/rooms/${roomId}/messages`, { method: 'DELETE', credentials: 'include' })
+      if (res.ok) {
+        setMessages([])
+        setExpandedThreads({})
+      } else {
+        const json = await res.json().catch(() => ({}))
+        toast.error(json?.error || 'Failed to clear Team Chat')
+      }
+    } catch {
+      toast.error('Failed to clear Team Chat')
+    } finally {
+      clearingChatRef.current = false
+    }
+  }
+
   const startEdit = (msg: Message) => {
     setEditingMsgId(msg.id)
     setEditText(msg.message)
@@ -1102,16 +1180,28 @@ export function FloatingChat() {
                   Open in Fleet Management →
                 </a>
               )}
-              <p className="text-[9px] text-amber-500 dark:text-amber-500 mt-1">{formatTime(msg.createdAt)} · System · Read-only</p>
+              <div className="flex items-center justify-between mt-1">
+                <p className="text-[9px] text-amber-500 dark:text-amber-500">{formatTime(msg.createdAt)} · System · Read-only</p>
+                {isAdmin && (
+                  <button type="button" onClick={() => adminDeleteMessage(msg.id)} title="Delete for everyone (admin)" className="text-[9px] text-red-400 hover:text-red-600 font-medium">
+                    Delete
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         )
       }
       return (
-        <div key={msg.id} id={`chat-msg-${msg.id}`} className="flex items-center justify-center mb-2">
+        <div key={msg.id} id={`chat-msg-${msg.id}`} className="flex items-center justify-center mb-2 gap-1.5 group">
           <span className={`text-[10px] text-secondary bg-gray-100 dark:bg-gray-800 rounded-full px-2.5 py-1 text-center transition-shadow ${highlightedMsgId === msg.id ? 'ring-2 ring-indigo-400' : ''}`}>
             🔔 {msg.message}
           </span>
+          {isAdmin && (
+            <button type="button" onClick={() => adminDeleteMessage(msg.id)} title="Delete for everyone (admin)" className="opacity-0 group-hover:opacity-100 text-[10px] text-red-400 hover:text-red-600 transition-opacity">
+              ✕
+            </button>
+          )}
         </div>
       )
     }
@@ -1223,12 +1313,12 @@ export function FloatingChat() {
                 ✎ Edit
               </button>
             )}
-            {isLatestOwn && !msg.deletedAt && (
+            {(isLatestOwn || isAdmin) && !msg.deletedAt && (
               <button
                 type="button"
-                onClick={() => deleteMessage(msg.id)}
+                onClick={() => isAdmin ? adminDeleteMessage(msg.id) : deleteMessage(msg.id)}
                 className="flex items-center gap-1 text-[11px] text-red-400 hover:text-red-600 transition-colors font-medium"
-                title="Delete message"
+                title={isAdmin && !isLatestOwn ? 'Delete message (admin)' : 'Delete message'}
               >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -1440,6 +1530,19 @@ export function FloatingChat() {
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </button>
+          )}
+          {view === 'team' && isAdmin && (
+            <button
+              type="button"
+              onMouseDown={e => e.stopPropagation()}
+              onClick={clearTeamChat}
+              className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-white/20 transition-colors"
+              title="Clear Team Chat (admin — deletes every message for everyone)"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
               </svg>
             </button>
           )}
@@ -1947,6 +2050,7 @@ export function FloatingChat() {
           roomPhotoUrl={room.type === 'direct' ? room.participants[0]?.photoUrl : null}
           currentUserId={currentUserId || ''}
           currentUserName={currentUserName}
+          isAdmin={isAdmin}
           socket={socketRef.current}
           onClose={() => closeConversationWindow(roomId)}
           rightOffset={rightOffset}

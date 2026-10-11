@@ -6,6 +6,8 @@ import { useTypingEmitter, useTypingTracker, formatTypingLabel } from '@/hooks/u
 import { getUserColor, parseComplianceDigest, ComplianceDigestSections, formatAlertTimestamp } from '@/components/vehicles/license-compliance-digest'
 import { AttachButton, PendingAttachmentsRow, ChatAttachmentsGroup, uploadChatAttachment, useChatFileDrop, DropOverlay, MAX_ATTACHMENTS_PER_MESSAGE, isOversizedVideo, type ChatAttachmentMeta } from '@/components/chat/chat-attachments'
 import { VideoTrimModal } from '@/components/chat/video-trim-modal'
+import { useConfirm } from '@/components/ui/confirm-modal'
+import { useToastContext } from '@/components/ui/toast'
 
 interface Recipient { id: string; name: string }
 
@@ -106,6 +108,7 @@ interface ChatWindowProps {
   roomPhotoUrl?: string | null
   currentUserId: string
   currentUserName?: string | null
+  isAdmin?: boolean
   socket: Socket | null
   onClose: () => void
   rightOffset: number
@@ -128,7 +131,9 @@ interface ChatWindowProps {
  * floating-chat.tsx), each tracking its own messages/composer/threads, so
  * switching between DMs/groups never loses what you were doing in another.
  */
-export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUserId, currentUserName, socket, onClose, rightOffset, isMobile = false, customPosition, onPositionChange, onMessageSent, initialJumpTarget, onJumpHandled }: ChatWindowProps) {
+export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUserId, currentUserName, isAdmin = false, socket, onClose, rightOffset, isMobile = false, customPosition, onPositionChange, onMessageSent, initialJumpTarget, onJumpHandled }: ChatWindowProps) {
+  const confirmModal = useConfirm()
+  const toast = useToastContext()
   const [messages, setMessages] = useState<Message[]>([])
   const [newMessage, setNewMessage] = useState('')
   const [sending, setSending] = useState(false)
@@ -397,13 +402,35 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
     const onEdited = (msg: { id: string; message: string; editedAt: string | null; editCount: number }) => {
       setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, message: msg.message, editedAt: msg.editedAt, editCount: msg.editCount } : m))
     }
+    // Admin hard-delete (MBM-309) — the message is actually gone, so it's
+    // spliced out entirely (a no-op filter for any window the message
+    // doesn't belong to, since this shared socket reaches every open
+    // window regardless of room).
+    const onRemoved = ({ id }: { id: string }) => {
+      setMessages(prev => prev.filter(m => m.id !== id))
+      setExpandedThreads(prev => {
+        const next: typeof prev = {}
+        for (const [parentId, replies] of Object.entries(prev)) next[parentId] = replies.filter(r => r.id !== id)
+        return next
+      })
+    }
+    const onRoomCleared = ({ roomId: clearedRoomId }: { roomId: string }) => {
+      if (clearedRoomId === roomId) {
+        setMessages([])
+        setExpandedThreads({})
+      }
+    }
     socket.on('chat:message', onMessage)
     socket.on('chat:message:deleted', onDeleted)
     socket.on('chat:message:edited', onEdited)
+    socket.on('chat:message:removed', onRemoved)
+    socket.on('chat:room:cleared', onRoomCleared)
     return () => {
       socket.off('chat:message', onMessage)
       socket.off('chat:message:deleted', onDeleted)
       socket.off('chat:message:edited', onEdited)
+      socket.off('chat:message:removed', onRemoved)
+      socket.off('chat:room:cleared', onRoomCleared)
     }
   }, [socket, roomId, currentUserId, scrollToBottom])
 
@@ -475,6 +502,34 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
         setMessages(prev => prev.map(m => m.id === id ? { ...m, deletedAt: new Date().toISOString() } : m))
       }
     } catch { /* non-critical */ }
+  }
+
+  // Admin-only (MBM-309) — bulk-clears every message in this System Alerts
+  // room, a genuine removal for everyone (not a per-user dismissal).
+  const clearingChatRef = useRef(false)
+  const clearSystemChat = async () => {
+    if (clearingChatRef.current) return
+    const ok = await confirmModal({
+      title: 'Clear System Alerts',
+      description: 'Permanently delete every alert in System Alerts for everyone? This cannot be undone.',
+      confirmText: 'Delete All',
+    })
+    if (!ok) return
+    clearingChatRef.current = true
+    try {
+      const res = await fetch(`/api/chat/rooms/${roomId}/messages`, { method: 'DELETE', credentials: 'include' })
+      if (res.ok) {
+        setMessages([])
+        setExpandedThreads({})
+      } else {
+        const json = await res.json().catch(() => ({}))
+        toast.error(json?.error || 'Failed to clear System Alerts')
+      }
+    } catch {
+      toast.error('Failed to clear System Alerts')
+    } finally {
+      clearingChatRef.current = false
+    }
   }
 
   const startEdit = (msg: Message) => {
@@ -739,7 +794,7 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
                   </button>
                   <button
                     type="button"
-                    title="Delete this alert (only for you)"
+                    title={isAdmin ? 'Delete this alert for everyone (admin)' : 'Delete this alert (only for you)'}
                     onClick={() => deleteMessage(msg.id, true)}
                     className="shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-amber-500 hover:text-white hover:bg-red-500 transition-colors"
                   >
@@ -765,10 +820,15 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
         )
       }
       return (
-        <div key={msg.id} id={`chat-msg-${msg.id}`} className="flex items-center justify-center my-2">
+        <div key={msg.id} id={`chat-msg-${msg.id}`} className="flex items-center justify-center my-2 gap-1.5 group">
           <span className={`text-[10px] text-secondary bg-gray-100 dark:bg-gray-800 rounded-full px-2.5 py-1 text-center transition-shadow ${highlightedMsgId === msg.id ? 'ring-2 ring-indigo-400' : ''}`}>
             🔔 {msg.message}
           </span>
+          {isAdmin && roomType === 'system' && (
+            <button type="button" onClick={() => deleteMessage(msg.id, true)} title="Delete for everyone (admin)" className="opacity-0 group-hover:opacity-100 text-[10px] text-red-400 hover:text-red-600 transition-opacity">
+              ✕
+            </button>
+          )}
         </div>
       )
     }
@@ -988,6 +1048,19 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </button>
+          )}
+          {roomType === 'system' && isAdmin && (
+            <button
+              type="button"
+              onMouseDown={e => e.stopPropagation()}
+              onClick={clearSystemChat}
+              className="w-6 h-6 flex items-center justify-center rounded-full hover:bg-white/20 transition-colors"
+              title="Clear System Alerts (admin — deletes every alert for everyone)"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
               </svg>
             </button>
           )}

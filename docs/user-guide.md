@@ -7169,6 +7169,15 @@ A few things worth knowing:
 - **System Alerts** automatically prunes anything older than **30 days** — see [System Alerts (Read-Only)](#system-alerts-read-only) for its own per-user delete button, which works differently from the rule below.
 - You can delete your **own most recent** message (replaced with *🚫 This message was deleted* for everyone who saw it) — you can't delete anyone else's. (System Alerts messages are the one exception — see above: deleting one only hides it for you.)
 
+#### Admin Message Management (Team Chat & System Alerts)
+
+> **Who reads this:** System admins only — this section doesn't apply to anyone else.
+
+Team Chat and System Alerts are shared, company-wide channels, so admins get extra cleanup powers there that nobody else has — **this does not extend to anyone's Direct Messages or Groups**, which stay private even from admins.
+
+- **Delete any message** — hover over any message (or, in System Alerts, any alert) and click **Delete**. Unlike a normal self-delete, this is a genuine removal — the message is gone immediately for everyone, with no *"this message was deleted"* placeholder left behind, since the point is keeping the channel clean, not leaving a visible trail.
+- **Clear the whole channel** — click the 🗑️ icon in the Team Chat or System Alerts window header to permanently delete **every** message in that channel for everyone. You'll be asked to confirm — this cannot be undone.
+
 #### Older Messages
 
 Opening a conversation only loads the **last 30 days** of messages right away, so long-running Direct Messages and Groups stay fast to open. Anything older sits behind a collapsed placeholder above the loaded messages, showing the month and how many messages it has (e.g. *"September 2026 (14) — click to load"*) — click it to load that month in place. This is per-session: closing and reopening the conversation collapses older months again, so you're not stuck scrolling past old history every time. (Team Chat never shows this, since it already prunes everything past 7 days.)
