@@ -1629,10 +1629,14 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
         />
       )}
 
-      {/* Test Barcode Generator — admin only, localhost:8080 */}
+      {/* Test Barcode Generator — admin only, localhost:8080. Restricted to
+          businesses with "TEST" in the name (see standard below) so this
+          can never again inject [TEST] products into a real business's
+          live inventory/reports — see src/lib/test-product-data.ts and the
+          generate route's matching server-side guard. */}
       {showTestBarcodeGenerator && (
         <TestBarcodeGeneratorModal
-          businesses={businesses.filter((b: any) => ['grocery', 'hardware', 'restaurant', 'clothing'].includes(b.businessType))}
+          businesses={businesses.filter((b: any) => ['grocery', 'hardware', 'restaurant', 'clothing'].includes(b.businessType) && /test/i.test(b.businessName || ''))}
           onClose={() => setShowTestBarcodeGenerator(false)}
         />
       )}

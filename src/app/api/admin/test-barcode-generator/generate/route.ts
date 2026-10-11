@@ -48,9 +48,31 @@ export async function POST(request: NextRequest) {
       const shouldStock = item.autoStock ?? autoStock
 
       try {
+        // Hard server-side guard — this generator injects [TEST]-prefixed
+        // products directly into live inventory tables with real stock
+        // quantities, which then get sold through the real POS and taint
+        // real sales reports and the business's ledger if targeted at a
+        // real business. Restricting to businesses with "TEST" in the name
+        // is the standard going forward (MBM-310) — the client already
+        // filters its business picker the same way, but that's bypassable,
+        // so this check is the one that actually matters.
+        const targetBusiness = await prisma.businesses.findUnique({
+          where: { id: businessId },
+          select: { shortName: true, name: true },
+        })
+        if (!targetBusiness || !/test/i.test(targetBusiness.name)) {
+          results.push({
+            businessId,
+            businessType,
+            success: false,
+            error: 'This generator can only target a business with "TEST" in its name — it writes real [TEST] inventory that can end up in real sales reports otherwise.',
+          })
+          continue
+        }
+
         // ── Fetch reference data ─────────────────────────────────────────────
 
-        const [categoriesRaw, suppliersRaw, baleCategoriesRaw, businessRaw] = await Promise.all([
+        const [categoriesRaw, suppliersRaw, baleCategoriesRaw] = await Promise.all([
           prisma.businessCategories.findMany({
             where: {
               isActive: true,
@@ -72,13 +94,9 @@ export async function POST(request: NextRequest) {
                 select: { id: true },
               })
             : Promise.resolve([]),
-          prisma.businesses.findUnique({
-            where: { id: businessId },
-            select: { shortName: true },
-          }),
         ])
 
-        const bizShortName = (businessRaw?.shortName || 'CLO').toUpperCase().slice(0, 4)
+        const bizShortName = (targetBusiness.shortName || 'CLO').toUpperCase().slice(0, 4)
 
         // Group categories by domainId for domain-aware generation
         const domainMap = new Map<string, string[]>()
