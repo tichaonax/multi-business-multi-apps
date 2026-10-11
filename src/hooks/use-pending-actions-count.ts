@@ -3,6 +3,8 @@ import { useSession } from 'next-auth/react'
 
 export interface PendingActionsData {
   total: number
+  pendingReturnConfirmations: { id: string; amount: number; returnRequestedAmount: number; returnRequestedAt: string | null; returnNote: string | null; notes: string | null; expenseAccountId: string; accountName: string; businessName: string; requesterName: string | null }[]
+  pendingPettyCashReturns: { id: string; purpose: string; remainingBalance: number; returnRequestedAt: string | null; requesterName: string; businessName: string }[]
   pendingSupplierPayments: { id: string; supplierName?: string; amount?: number }[]
   pendingPettyCash: { id: string; purpose?: string; requestedAmount?: number; requesterName?: string; paymentChannel?: string; priority?: string; requester?: { name: string }; business?: { name: string } }[]
   outstandingPettyCash: {

@@ -1344,13 +1344,19 @@ export async function createCleanBackup(
   businessData.chatParticipants = await prisma.chatParticipants.findMany()
   businessData.chatMessageRecipients = await prisma.chatMessageRecipients.findMany()
   businessData.chatMessageDismissals = await prisma.chatMessageDismissals.findMany()
-  // MBM-307: chat message attachments (PDF/JPEG/PNG) — bytea like `images`,
-  // but capped at 10MB per file and comparatively low-volume, so a plain
-  // findMany is fine here rather than the images table's own paginated
-  // streaming pass. Buffer.from(...) on `data` for the same reason as
-  // images above — Prisma's Bytes/Uint8Array needs that conversion to
-  // serialize safely through JSON.stringify.
-  businessData.chatAttachments = (await prisma.chatAttachments.findMany())
+  // MBM-307/MBM-308+: chat message attachments (PDF/JPEG/PNG/audio/video) —
+  // bytea like `images`, but capped per-type and comparatively low-volume,
+  // so a plain findMany is fine here rather than the images table's own
+  // paginated streaming pass. Buffer.from(...) on `data` for the same
+  // reason as images above — Prisma's Bytes/Uint8Array needs that
+  // conversion to serialize safely through JSON.stringify.
+  // Video is deliberately excluded (images and audio are kept) — videos are
+  // the largest files this table can hold (up to 25MB each) and are not
+  // essential to preserve across a restore the way documents/photos/voice
+  // clips are; excluding them keeps the backup pipeline's size bounded.
+  businessData.chatAttachments = (await prisma.chatAttachments.findMany({
+    where: { NOT: { mimeType: { startsWith: 'video/' } } },
+  }))
     .map((a: any) => ({ ...a, data: Buffer.from(a.data) }))
 
   // 37. Employee Absences

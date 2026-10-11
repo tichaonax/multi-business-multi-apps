@@ -11,6 +11,7 @@ import { useConfirm } from '@/components/ui/confirm-modal'
 import Link from 'next/link'
 import { formatDateTimeZim } from '@/lib/date-utils'
 import { ExpensePaymentVoucherModal, PaymentSummary } from '@/components/expense-account/expense-payment-voucher-modal'
+import { matchesAmountSearch } from '@/lib/amount-search'
 
 // Approved standalone payment returned by direct-approve API — used to drive per-payment voucher panel
 interface ApprovedStandalonePayment {
@@ -131,6 +132,28 @@ interface PendingMealProgram {
   business: { id: string; name: string } | null
 }
 
+interface PendingReturnConfirmation {
+  id: string
+  amount: number
+  returnRequestedAmount: number
+  returnRequestedAt: string | null
+  returnNote: string | null
+  notes: string | null
+  expenseAccountId: string
+  accountName: string
+  businessName: string
+  requesterName: string | null
+}
+
+interface PendingPettyCashReturn {
+  id: string
+  purpose: string
+  remainingBalance: number
+  returnRequestedAt: string | null
+  requesterName: string
+  businessName: string
+}
+
 interface PersonalPaymentRequest {
   id: string
   amount: number
@@ -186,6 +209,8 @@ export default function PendingActionsPage() {
   const [myApprovedPettyCash, setMyApprovedPettyCash] = useState<any[]>([])
   const [pendingMealPrograms, setPendingMealPrograms] = useState<PendingMealProgram[]>([])
   const [personalPaymentRequests, setPersonalPaymentRequests] = useState<PersonalPaymentRequest[]>([])
+  const [pendingReturnConfirmations, setPendingReturnConfirmations] = useState<PendingReturnConfirmation[]>([])
+  const [pendingPettyCashReturns, setPendingPettyCashReturns] = useState<PendingPettyCashReturn[]>([])
   const [pendingEcocashConversions, setPendingEcocashConversions] = useState<PendingEcocashConversion[]>([])
   const [withdrawalRequests, setWithdrawalRequests] = useState<any[]>([])
   const [withdrawalActionState, setWithdrawalActionState] = useState<Record<string, boolean>>({})
@@ -205,7 +230,8 @@ export default function PendingActionsPage() {
   const isAdminUser = currentUser?.role === 'admin'
   const total = loanLockRequests.length + pendingSupplierPayments.length + pendingPettyCash.length +
     pendingCashAllocations.length + pendingPaymentBatches.length + pendingPaymentRequests.length +
-    pendingMealPrograms.length + personalPaymentRequests.length + pendingEcocashConversions.length
+    pendingMealPrograms.length + personalPaymentRequests.length + pendingEcocashConversions.length +
+    pendingReturnConfirmations.length + pendingPettyCashReturns.length
   const [approvingId, setApprovingId] = useState<string | null>(null)
   const [batchingId, setBatchingId] = useState<string | null>(null)
   const [approvingMealId, setApprovingMealId] = useState<string | null>(null)
@@ -254,6 +280,8 @@ export default function PendingActionsPage() {
         setPendingMealPrograms(json.pendingMealPrograms || [])
         setPersonalPaymentRequests(json.personalPaymentRequests || [])
         setPendingEcocashConversions(json.pendingEcocashConversions || [])
+        setPendingReturnConfirmations(json.pendingReturnConfirmations || [])
+        setPendingPettyCashReturns(json.pendingPettyCashReturns || [])
       }
       if (wRes.ok) {
         const wJson = await wRes.json()
@@ -533,7 +561,7 @@ export default function PendingActionsPage() {
             )})()}
 
             {/* Pending Petty Cash Requests */}
-            {(() => { const _ps = pageSearch.toLowerCase().trim(); const items = _ps ? pendingPettyCash.filter(i => [i.purpose, i.notes, i.requester?.name, i.business?.name].some(v => v?.toLowerCase().includes(_ps))) : pendingPettyCash; return items.length > 0 && (
+            {(() => { const _ps = pageSearch.toLowerCase().trim(); const items = _ps ? pendingPettyCash.filter(i => matchesAmountSearch(Number(i.requestedAmount), _ps) || [i.purpose, i.notes, i.requester?.name, i.business?.name].some(v => v?.toLowerCase().includes(_ps))) : pendingPettyCash; return items.length > 0 && (
               <div>
                 <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
                   <span>💵</span> Petty Cash Requests
@@ -579,7 +607,7 @@ export default function PendingActionsPage() {
             )})()}
 
             {/* Pending Eco-Cash Conversions */}
-            {(() => { const _ps = pageSearch.toLowerCase().trim(); const items = _ps ? pendingEcocashConversions.filter(i => [i.business?.name, i.requester?.name, i.notes].some(v => v?.toLowerCase().includes(_ps))) : pendingEcocashConversions; return items.length > 0 && (
+            {(() => { const _ps = pageSearch.toLowerCase().trim(); const items = _ps ? pendingEcocashConversions.filter(i => matchesAmountSearch(i.amount, _ps) || [i.business?.name, i.requester?.name, i.notes].some(v => v?.toLowerCase().includes(_ps))) : pendingEcocashConversions; return items.length > 0 && (
               <div>
                 <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
                   <span>📱</span> Eco-Cash to Cash Conversions
@@ -618,7 +646,7 @@ export default function PendingActionsPage() {
             )})()}
 
             {/* Loan Withdrawal Requests */}
-            {(() => { const _ps = pageSearch.toLowerCase().trim(); const items = _ps ? withdrawalRequests.filter((i: any) => [i.creator?.name, i.loan?.loanNumber, i.requestMonth, i.notes].some((v: any) => typeof v === 'string' && v.toLowerCase().includes(_ps))) : withdrawalRequests; return items.length > 0 && (
+            {(() => { const _ps = pageSearch.toLowerCase().trim(); const items = _ps ? withdrawalRequests.filter((i: any) => matchesAmountSearch(i.requestedAmount, _ps) || [i.creator?.name, i.loan?.loanNumber, i.requestMonth, i.notes].some((v: any) => typeof v === 'string' && v.toLowerCase().includes(_ps))) : withdrawalRequests; return items.length > 0 && (
               <div>
                 <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
                   <span>💸</span> Loan Withdrawal Requests
@@ -801,7 +829,7 @@ export default function PendingActionsPage() {
             )})()}
 
             {/* EOD Payment Batches awaiting cashier review */}
-            {(() => { const _ps = pageSearch.toLowerCase().trim(); const items = _ps ? pendingPaymentBatches.filter(i => [i.business?.name, i.eodDate].some(v => v?.toLowerCase().includes(_ps))) : pendingPaymentBatches; return items.length > 0 && (
+            {(() => { const _ps = pageSearch.toLowerCase().trim(); const items = _ps ? pendingPaymentBatches.filter(i => matchesAmountSearch((i as any).totalAmount, _ps) || [i.business?.name, i.eodDate].some(v => v?.toLowerCase().includes(_ps))) : pendingPaymentBatches; return items.length > 0 && (
               <div>
                 <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
                   <span>📋</span> EOD Payment Batches
@@ -847,8 +875,91 @@ export default function PendingActionsPage() {
               </div>
             )})()}
 
+            {/* Return Confirmations Needed — standalone/advance payments where the requester reported a return but a cashier hasn't confirmed receipt yet (MBM-308) */}
+            {(() => { const _ps = pageSearch.toLowerCase().trim(); const items = _ps ? pendingReturnConfirmations.filter(i => matchesAmountSearch(i.returnRequestedAmount, _ps) || [i.requesterName, i.accountName, i.businessName, i.notes, i.returnNote].some(v => v?.toLowerCase().includes(_ps))) : pendingReturnConfirmations; return items.length > 0 && (
+              <div>
+                <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                  <span>💰</span> Return Confirmations Needed
+                  <span className="bg-purple-500 text-white text-xs font-bold rounded-full px-1.5 py-0.5">
+                    {items.length}
+                  </span>
+                </h2>
+                <div className="space-y-3">
+                  {items.map(item => {
+                    const isHighlighted = highlightId === item.id
+                    return (
+                      <div id={`request-${item.id}`} key={item.id} className={`bg-white dark:bg-gray-800 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center gap-4 transition-shadow border border-purple-300 dark:border-purple-700 ${isHighlighted ? 'ring-4 ring-indigo-400 ring-offset-2' : ''}`}>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-semibold text-gray-900 dark:text-white">${item.returnRequestedAmount.toFixed(2)}</span>
+                            <span className="bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300 text-xs font-medium px-2 py-0.5 rounded">💰 Awaiting Confirmation</span>
+                          </div>
+                          {item.returnNote && <p className="text-sm text-gray-700 dark:text-gray-300 mt-0.5">{item.returnNote}</p>}
+                          <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+                            <span>Account: <span className="font-medium text-gray-700 dark:text-gray-300">{item.accountName}</span></span>
+                            <span>Business: <span className="font-medium text-gray-700 dark:text-gray-300">{item.businessName}</span></span>
+                            {item.requesterName && <span>Returned by: <span className="font-medium text-gray-700 dark:text-gray-300">{item.requesterName}</span></span>}
+                            {item.returnRequestedAt && <span>At: <span className="font-medium text-gray-700 dark:text-gray-300">{formatDateTimeZim(item.returnRequestedAt)}</span></span>}
+                          </div>
+                        </div>
+                        <div className="flex gap-2 shrink-0">
+                          <Link
+                            href={`/expense-accounts/${item.expenseAccountId}?tab=transactions&openReceiptsForPayment=${item.id}`}
+                            className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium rounded transition-colors"
+                          >
+                            View &amp; Confirm
+                          </Link>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )})()}
+
+            {/* Petty Cash Return Confirmations Needed (CASH channel) */}
+            {(() => { const _ps = pageSearch.toLowerCase().trim(); const items = _ps ? pendingPettyCashReturns.filter(i => matchesAmountSearch(i.remainingBalance, _ps) || [i.requesterName, i.purpose, i.businessName].some(v => v?.toLowerCase().includes(_ps))) : pendingPettyCashReturns; return items.length > 0 && (
+              <div>
+                <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                  <span>💰</span> Petty Cash Return Confirmations
+                  <span className="bg-purple-500 text-white text-xs font-bold rounded-full px-1.5 py-0.5">
+                    {items.length}
+                  </span>
+                </h2>
+                <div className="space-y-3">
+                  {items.map(item => {
+                    const isHighlighted = highlightId === item.id
+                    return (
+                      <div id={`request-${item.id}`} key={item.id} className={`bg-white dark:bg-gray-800 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center gap-4 transition-shadow border border-purple-300 dark:border-purple-700 ${isHighlighted ? 'ring-4 ring-indigo-400 ring-offset-2' : ''}`}>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-semibold text-gray-900 dark:text-white">${item.remainingBalance.toFixed(2)}</span>
+                            <span className="bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300 text-xs font-medium px-2 py-0.5 rounded">💰 Awaiting Confirmation</span>
+                          </div>
+                          <p className="text-sm text-gray-700 dark:text-gray-300 mt-0.5">{item.purpose}</p>
+                          <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+                            <span>Business: <span className="font-medium text-gray-700 dark:text-gray-300">{item.businessName}</span></span>
+                            <span>Returned by: <span className="font-medium text-gray-700 dark:text-gray-300">{item.requesterName}</span></span>
+                            {item.returnRequestedAt && <span>At: <span className="font-medium text-gray-700 dark:text-gray-300">{formatDateTimeZim(item.returnRequestedAt)}</span></span>}
+                          </div>
+                        </div>
+                        <div className="flex gap-2 shrink-0">
+                          <Link
+                            href={`/petty-cash/${item.id}`}
+                            className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium rounded transition-colors"
+                          >
+                            View &amp; Confirm
+                          </Link>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )})()}
+
             {/* Personal Payment Requests — cashier-assisted payments awaiting approval */}
-            {(() => { const _ps = pageSearch.toLowerCase().trim(); const items = _ps ? personalPaymentRequests.filter(i => [i.accountName, i.payeeName, i.creatorName, i.notes, i.categoryName].some(v => v?.toLowerCase().includes(_ps))) : personalPaymentRequests; return items.length > 0 && (
+            {(() => { const _ps = pageSearch.toLowerCase().trim(); const items = _ps ? personalPaymentRequests.filter(i => matchesAmountSearch(i.amount, _ps) || [i.accountName, i.payeeName, i.creatorName, i.notes, i.categoryName].some(v => v?.toLowerCase().includes(_ps))) : personalPaymentRequests; return items.length > 0 && (
               <div>
                 <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
                   <span>🙋</span> Personal Payment Requests
@@ -907,7 +1018,7 @@ export default function PendingActionsPage() {
             )})()}
 
             {/* Pending Payment Batch Requests */}
-            {(() => { const _ps = pageSearch.toLowerCase().trim(); const items = _ps ? pendingPaymentRequests.filter(i => [i.accountName, i.business?.name].some(v => v?.toLowerCase().includes(_ps))) : pendingPaymentRequests; return items.length > 0 && (
+            {(() => { const _ps = pageSearch.toLowerCase().trim(); const items = _ps ? pendingPaymentRequests.filter(i => matchesAmountSearch((i as any).totalAmount, _ps) || [i.accountName, i.business?.name].some(v => v?.toLowerCase().includes(_ps))) : pendingPaymentRequests; return items.length > 0 && (
               <div>
                 <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
                   <span>📦</span> Payment Requests
@@ -952,7 +1063,7 @@ export default function PendingActionsPage() {
             )})()}
 
             {/* My Pending Payment Requests — own QUEUED payments awaiting cashier batching */}
-            {(() => { const _ps = pageSearch.toLowerCase().trim(); const items = _ps ? myPendingPayments.filter(i => [i.accountName, i.business?.name].some(v => v?.toLowerCase().includes(_ps))) : myPendingPayments; return items.length > 0 && (
+            {(() => { const _ps = pageSearch.toLowerCase().trim(); const items = _ps ? myPendingPayments.filter(i => matchesAmountSearch((i as any).totalAmount, _ps) || [i.accountName, i.business?.name].some(v => v?.toLowerCase().includes(_ps))) : myPendingPayments; return items.length > 0 && (
               <div>
                 <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
                   <span>📤</span> My Payment Requests
@@ -990,7 +1101,7 @@ export default function PendingActionsPage() {
             )})()}
 
             {/* My Approved Petty Cash — collect cash */}
-            {(() => { const _ps = pageSearch.toLowerCase().trim(); const items = _ps ? myApprovedPettyCash.filter((i: any) => [i.purpose, i.business?.name].some((v: any) => typeof v === 'string' && v.toLowerCase().includes(_ps))) : myApprovedPettyCash; return items.length > 0 && (
+            {(() => { const _ps = pageSearch.toLowerCase().trim(); const items = _ps ? myApprovedPettyCash.filter((i: any) => matchesAmountSearch(i.approvedAmount, _ps) || [i.purpose, i.business?.name].some((v: any) => typeof v === 'string' && v.toLowerCase().includes(_ps))) : myApprovedPettyCash; return items.length > 0 && (
               <div>
                 <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
                   <span>🪙</span> Petty Cash Approved — Collect Cash
@@ -1027,7 +1138,7 @@ export default function PendingActionsPage() {
             )})()}
 
             {/* My Approved Payments — collect cash */}
-            {(() => { const _ps = pageSearch.toLowerCase().trim(); const items = _ps ? myApprovedPayments.filter((i: any) => [i.businessName, i.payeeName, i.categoryName, i.notes].some((v: any) => typeof v === 'string' && v.toLowerCase().includes(_ps))) : myApprovedPayments; return items.length > 0 && (
+            {(() => { const _ps = pageSearch.toLowerCase().trim(); const items = _ps ? myApprovedPayments.filter((i: any) => matchesAmountSearch(i.amount, _ps) || [i.businessName, i.payeeName, i.categoryName, i.notes].some((v: any) => typeof v === 'string' && v.toLowerCase().includes(_ps))) : myApprovedPayments; return items.length > 0 && (
               <div>
                 <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
                   <span>✅</span> Payment Approved — Collect Cash
@@ -1064,7 +1175,7 @@ export default function PendingActionsPage() {
             )})()}
 
             {/* Pending Meal Program Approvals */}
-            {(() => { const _ps = pageSearch.toLowerCase().trim(); const items = _ps ? pendingMealPrograms.filter(i => [i.accountName, i.business?.name].some(v => v?.toLowerCase().includes(_ps))) : pendingMealPrograms; return items.length > 0 && (
+            {(() => { const _ps = pageSearch.toLowerCase().trim(); const items = _ps ? pendingMealPrograms.filter(i => matchesAmountSearch((i as any).totalAmount, _ps) || [i.accountName, i.business?.name].some(v => v?.toLowerCase().includes(_ps))) : pendingMealPrograms; return items.length > 0 && (
               <div>
                 <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
                   <span>🍽️</span> Meal Program Approvals
@@ -1101,7 +1212,7 @@ export default function PendingActionsPage() {
             )})()}
 
             {/* Pending Supplier Payment Requests */}
-            {(() => { const _ps = pageSearch.toLowerCase().trim(); const items = _ps ? pendingSupplierPayments.filter(i => [i.supplier?.name, i.business?.name, i.notes, i.submitter?.name].some(v => v?.toLowerCase().includes(_ps))) : pendingSupplierPayments; return items.length > 0 && (
+            {(() => { const _ps = pageSearch.toLowerCase().trim(); const items = _ps ? pendingSupplierPayments.filter(i => matchesAmountSearch((i as any).amount, _ps) || [i.supplier?.name, i.business?.name, i.notes, i.submitter?.name].some(v => v?.toLowerCase().includes(_ps))) : pendingSupplierPayments; return items.length > 0 && (
               <div>
                 <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
                   <span>🧾</span> Supplier Payment Requests

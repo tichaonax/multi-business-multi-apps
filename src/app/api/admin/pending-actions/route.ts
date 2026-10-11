@@ -550,8 +550,93 @@ export async function GET() {
       }
     }
 
+    // Pending return confirmations (MBM-308) — standalone/advance payments
+    // where the requester reported a return but a cashier hasn't confirmed
+    // receipt yet. Scoped to accounts the user is a cashier for (FULL
+    // grant) — the same recipients the return-request notification went to.
+    let pendingReturnConfirmations: object[] = []
+    {
+      const candidates = await prisma.expenseAccountPayments.findMany({
+        where: { returnRequestedAt: { not: null }, returnConfirmedAt: null, locked: false },
+        select: {
+          id: true,
+          amount: true,
+          notes: true,
+          returnRequestedAmount: true,
+          returnRequestedAt: true,
+          returnRequestedBy: true,
+          returnNote: true,
+          expenseAccountId: true,
+          expenseAccount: { select: { accountName: true, business: { select: { id: true, name: true } } } },
+        },
+        orderBy: { returnRequestedAt: 'asc' },
+        take: 50,
+      })
+      if (candidates.length > 0) {
+        let allowedAccountIds: Set<string> | null = null
+        if (!sysAdmin) {
+          const grants = await prisma.expenseAccountGrants.findMany({
+            where: {
+              userId: user.id,
+              permissionLevel: 'FULL',
+              expenseAccountId: { in: [...new Set(candidates.map((c) => c.expenseAccountId))] },
+            },
+            select: { expenseAccountId: true },
+          })
+          allowedAccountIds = new Set(grants.map((g) => g.expenseAccountId))
+        }
+        const visible = sysAdmin ? candidates : candidates.filter((c) => allowedAccountIds!.has(c.expenseAccountId))
+        const requesterIds = [...new Set(visible.map((c) => c.returnRequestedBy).filter((id): id is string => !!id))]
+        const requesters = requesterIds.length > 0
+          ? await prisma.users.findMany({ where: { id: { in: requesterIds } }, select: { id: true, name: true } })
+          : []
+        const requesterNameById = new Map(requesters.map((r) => [r.id, r.name]))
+        pendingReturnConfirmations = visible.map((c) => ({
+          id: c.id,
+          amount: Number(c.amount),
+          returnRequestedAmount: Number(c.returnRequestedAmount ?? 0),
+          returnRequestedAt: c.returnRequestedAt?.toISOString() ?? null,
+          returnNote: c.returnNote,
+          notes: c.notes,
+          expenseAccountId: c.expenseAccountId,
+          accountName: c.expenseAccount?.accountName ?? '—',
+          businessName: c.expenseAccount?.business?.name ?? '—',
+          requesterName: c.returnRequestedBy ? requesterNameById.get(c.returnRequestedBy) ?? null : null,
+        }))
+      }
+    }
+
+    // Pending CASH petty cash return confirmations (MBM-308) — same gap as
+    // above, for petty cash's own SETTLE_REQUESTED gate.
+    let pendingPettyCashReturns: object[] = []
+    if (canApprovePettyCash) {
+      const rows = await prisma.pettyCashRequests.findMany({
+        where: { status: 'SETTLE_REQUESTED' },
+        select: {
+          id: true,
+          purpose: true,
+          approvedAmount: true,
+          spentAmount: true,
+          returnRequestedAt: true,
+          requester: { select: { id: true, name: true } },
+          business: { select: { id: true, name: true } },
+        },
+        orderBy: { returnRequestedAt: 'asc' },
+      })
+      pendingPettyCashReturns = rows.map((r) => ({
+        id: r.id,
+        purpose: r.purpose,
+        remainingBalance: Number(r.approvedAmount ?? 0) - Number(r.spentAmount),
+        returnRequestedAt: r.returnRequestedAt?.toISOString() ?? null,
+        requesterName: r.requester?.name ?? '—',
+        businessName: r.business?.name ?? '—',
+      }))
+    }
+
     const total =
       (loanLockRequests as unknown[]).length +
+      pendingReturnConfirmations.length +
+      pendingPettyCashReturns.length +
       (pendingSupplierPayments as unknown[]).length +
       (pendingPettyCash as unknown[]).length +
       (outstandingPettyCash as unknown[]).length +
@@ -568,6 +653,8 @@ export async function GET() {
 
     return NextResponse.json({
       loanLockRequests,
+      pendingReturnConfirmations,
+      pendingPettyCashReturns,
       pendingSupplierPayments,
       pendingPettyCash,
       outstandingPettyCash,

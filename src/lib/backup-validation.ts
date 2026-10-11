@@ -206,7 +206,7 @@ const TABLE_TO_MODEL_MAPPING: Record<string, string> = {
  * Differences for these tables are expected and should not be flagged as errors.
  * - images: only employee profile photos are backed up (not clock-in photos, product images, etc.)
  */
-const KNOWN_PARTIAL_BACKUP_TABLES = new Set(['images', 'clothingLabelPrintHistory'])
+const KNOWN_PARTIAL_BACKUP_TABLES = new Set(['images', 'clothingLabelPrintHistory', 'chatAttachments'])
 
 /**
  * Tables that have a businessId field but should NOT be scoped by backedUpBusinessIds

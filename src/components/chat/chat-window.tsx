@@ -8,6 +8,15 @@ import { AttachButton, PendingAttachmentsRow, ChatAttachmentsGroup, uploadChatAt
 
 interface Recipient { id: string; name: string }
 
+interface InRoomSearchResult {
+  messageId: string
+  jumpToId: string
+  isReply: boolean
+  month: string
+  snippet: string
+  createdAt: string
+}
+
 interface Message {
   id: string
   roomId: string | null
@@ -105,6 +114,11 @@ interface ChatWindowProps {
   customPosition: { right: number; bottom: number } | null
   onPositionChange: (pos: { right: number; bottom: number }) => void
   onMessageSent: (preview: { text: string; at: string }) => void
+  // Set when this window was opened from a cross-conversation search result
+  // (floating-chat.tsx) — jumped to once on mount, then cleared via
+  // onJumpHandled so re-renders/re-opens don't re-trigger it.
+  initialJumpTarget?: InRoomSearchResult | null
+  onJumpHandled?: () => void
 }
 
 /**
@@ -113,7 +127,7 @@ interface ChatWindowProps {
  * floating-chat.tsx), each tracking its own messages/composer/threads, so
  * switching between DMs/groups never loses what you were doing in another.
  */
-export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUserId, currentUserName, socket, onClose, rightOffset, isMobile = false, customPosition, onPositionChange, onMessageSent }: ChatWindowProps) {
+export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUserId, currentUserName, socket, onClose, rightOffset, isMobile = false, customPosition, onPositionChange, onMessageSent, initialJumpTarget, onJumpHandled }: ChatWindowProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [newMessage, setNewMessage] = useState('')
   const [sending, setSending] = useState(false)
@@ -167,6 +181,14 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
   const [olderMonths, setOlderMonths] = useState<{ month: string; count: number }[]>([])
   const [loadedMonths, setLoadedMonths] = useState<Set<string>>(new Set())
   const [loadingMonth, setLoadingMonth] = useState<string | null>(null)
+
+  // In-conversation search — every match within this room (unlike the hub's
+  // cross-conversation search, which collapses to one result per room).
+  const [showSearch, setShowSearch] = useState(false)
+  const [inRoomSearch, setInRoomSearch] = useState('')
+  const [inRoomResults, setInRoomResults] = useState<InRoomSearchResult[]>([])
+  const [searchingInRoom, setSearchingInRoom] = useState(false)
+  const [highlightedMsgId, setHighlightedMsgId] = useState<string | null>(null)
 
   // Group membership panel — who's in it, and (creator only) add/remove
   const [showMembers, setShowMembers] = useState(false)
@@ -226,20 +248,61 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [])
 
-  // Load history + mark read on mount
+  // Load history + mark read on mount. When opened from a cross-conversation
+  // search result (floating-chat.tsx), also jump straight to that message.
+  // Deliberately one sequential async chain (not two independent effects)
+  // keyed on BOTH roomId and initialJumpTarget — re-opening an ALREADY-
+  // mounted window's search result changes initialJumpTarget without
+  // roomId changing, and a second effect racing this one would risk its
+  // unconditional base setMessages(data) stomping on the jump's merge
+  // (whichever finishes last wins). Sequencing everything here, written
+  // against each fetch's own freshly-returned data rather than component
+  // state, avoids that race entirely.
   useEffect(() => {
-    fetch(`/api/chat/messages?roomId=${encodeURIComponent(roomId)}`, { credentials: 'include' })
-      .then(r => r.ok ? r.json() : [])
-      .then((data: Message[]) => { setMessages(data || []); setTimeout(scrollToBottom, 50) })
-      .catch(() => {})
-    fetch(`/api/chat/rooms/${roomId}/read`, { method: 'POST', credentials: 'include' }).catch(() => {})
-    setLoadedMonths(new Set())
-    fetch(`/api/chat/messages/months?roomId=${encodeURIComponent(roomId)}`, { credentials: 'include' })
-      .then(r => r.ok ? r.json() : [])
-      .then((data: { month: string; count: number }[]) => setOlderMonths(data || []))
-      .catch(() => setOlderMonths([]))
+    let cancelled = false
+    ;(async () => {
+      const data: Message[] = await fetch(`/api/chat/messages?roomId=${encodeURIComponent(roomId)}`, { credentials: 'include' })
+        .then(r => r.ok ? r.json() : [])
+        .catch(() => [])
+      if (cancelled) return
+      setMessages(data || [])
+      setTimeout(scrollToBottom, 50)
+      fetch(`/api/chat/rooms/${roomId}/read`, { method: 'POST', credentials: 'include' }).catch(() => {})
+      setLoadedMonths(new Set())
+
+      const months: { month: string; count: number }[] = await fetch(`/api/chat/messages/months?roomId=${encodeURIComponent(roomId)}`, { credentials: 'include' })
+        .then(r => r.ok ? r.json() : [])
+        .catch(() => [])
+      if (cancelled) return
+      setOlderMonths(months || [])
+
+      const target = initialJumpTarget
+      if (!target) return
+      if ((months || []).some(m => m.month === target.month)) {
+        const monthData: Message[] = await fetch(`/api/chat/messages?roomId=${encodeURIComponent(roomId)}&month=${target.month}`, { credentials: 'include' })
+          .then(r => r.ok ? r.json() : [])
+          .catch(() => [])
+        if (cancelled) return
+        setMessages(prev => [...monthData, ...prev].sort((a, b) => a.createdAt.localeCompare(b.createdAt)))
+        setLoadedMonths(prev => new Set(prev).add(target.month))
+      }
+      if (target.isReply) {
+        const replies: Message[] = await fetch(`/api/chat/messages/${target.jumpToId}/replies`, { credentials: 'include' })
+          .then(r => r.ok ? r.json() : [])
+          .catch(() => [])
+        if (cancelled) return
+        setExpandedThreads(prev => ({ ...prev, [target.jumpToId]: replies }))
+      }
+      setTimeout(() => {
+        document.getElementById(`chat-msg-${target.messageId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        setHighlightedMsgId(target.messageId)
+        setTimeout(() => setHighlightedMsgId(null), 2000)
+      }, 200)
+      onJumpHandled?.()
+    })()
+    return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roomId])
+  }, [roomId, initialJumpTarget])
 
   // Expand one older-month placeholder — fetches that month's messages and
   // merges them into the already-loaded list.
@@ -254,6 +317,44 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
     } catch { /* non-critical */ } finally {
       setLoadingMonth(null)
     }
+  }
+
+  // Debounced in-conversation search — every match in this room, not just
+  // the latest one (unlike the hub's cross-conversation search).
+  useEffect(() => {
+    const q = inRoomSearch.trim()
+    if (q.length < 2) { setInRoomResults([]); setSearchingInRoom(false); return }
+    setSearchingInRoom(true)
+    const t = setTimeout(() => {
+      fetch(`/api/chat/messages/search-in-room?roomId=${encodeURIComponent(roomId)}&q=${encodeURIComponent(q)}`, { credentials: 'include' })
+        .then(r => r.ok ? r.json() : [])
+        .then((data: InRoomSearchResult[]) => setInRoomResults(data))
+        .catch(() => setInRoomResults([]))
+        .finally(() => setSearchingInRoom(false))
+    }, 300)
+    return () => clearTimeout(t)
+  }, [inRoomSearch, roomId])
+
+  // Jump to a search result: expand its month if it's older history, expand
+  // its parent thread if it's a reply, then scroll to and briefly highlight
+  // the actual message element.
+  const jumpToMessage = async (result: InRoomSearchResult) => {
+    // Only expand if that month is one of the known older-history buckets
+    // and not already loaded — a match within the default 30-day window is
+    // already present in `messages`.
+    if (olderMonths.some(m => m.month === result.month) && !loadedMonths.has(result.month)) {
+      await expandMonth(result.month)
+    }
+    if (result.isReply && !expandedThreads[result.jumpToId]) {
+      await toggleThread(result.jumpToId)
+    }
+    setShowSearch(false)
+    setTimeout(() => {
+      const el = document.getElementById(`chat-msg-${result.messageId}`)
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      setHighlightedMsgId(result.messageId)
+      setTimeout(() => setHighlightedMsgId(null), 2000)
+    }, 150)
   }
 
   // This window's own slice of the shared socket connection
@@ -589,8 +690,8 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
         const summaryLine = lines[0] || msg.message
         const itemCount = lines.filter(l => l.trim().startsWith('•')).length
         return (
-          <div key={msg.id} className="flex justify-center mb-2 px-1">
-            <div className="max-w-full w-full bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl overflow-hidden">
+          <div key={msg.id} id={`chat-msg-${msg.id}`} className="flex justify-center mb-2 px-1">
+            <div className={`max-w-full w-full bg-amber-50 dark:bg-amber-900/20 border rounded-xl overflow-hidden transition-shadow ${highlightedMsgId === msg.id ? 'border-indigo-400 ring-2 ring-indigo-400' : 'border-amber-200 dark:border-amber-700'}`}>
               <div className="flex flex-col gap-0.5 px-3 py-2">
                 <button
                   type="button"
@@ -654,8 +755,8 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
         )
       }
       return (
-        <div key={msg.id} className="flex items-center justify-center my-2">
-          <span className="text-[10px] text-secondary bg-gray-100 dark:bg-gray-800 rounded-full px-2.5 py-1 text-center">
+        <div key={msg.id} id={`chat-msg-${msg.id}`} className="flex items-center justify-center my-2">
+          <span className={`text-[10px] text-secondary bg-gray-100 dark:bg-gray-800 rounded-full px-2.5 py-1 text-center transition-shadow ${highlightedMsgId === msg.id ? 'ring-2 ring-indigo-400' : ''}`}>
             🔔 {msg.message}
           </span>
         </div>
@@ -672,10 +773,13 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
     const withinEditWindow = editClockTick - new Date(msg.createdAt).getTime() < EDIT_WINDOW_MS
     const canEdit = isLatestOwn && !msg.deletedAt && withinEditWindow
 
+    const isHighlighted = highlightedMsgId === msg.id
+
     return (
       <div
         key={msg.id}
-        className={`flex gap-2 mb-2 group ${isOwn ? 'flex-row-reverse' : ''}`}
+        id={`chat-msg-${msg.id}`}
+        className={`flex gap-2 mb-2 group rounded-lg transition-shadow ${isOwn ? 'flex-row-reverse' : ''} ${isHighlighted ? 'ring-2 ring-indigo-400 ring-offset-2 ring-offset-gray-50 dark:ring-offset-gray-950' : ''}`}
         onMouseEnter={() => setHoveredMsgId(msg.id)}
         onMouseLeave={() => setHoveredMsgId(null)}
       >
@@ -863,12 +967,75 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
             <span className="font-semibold text-xs truncate">{roomName}</span>
           </div>
         )}
-        <button type="button" onMouseDown={e => e.stopPropagation()} onClick={onClose} className="w-6 h-6 flex items-center justify-center rounded-full hover:bg-white/20 transition-colors shrink-0" title="Close">
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
+        <div className="flex items-center gap-0.5 shrink-0">
+          {roomType !== 'system' && (
+            <button
+              type="button"
+              onMouseDown={e => e.stopPropagation()}
+              onClick={() => setShowSearch(v => !v)}
+              className={`w-6 h-6 flex items-center justify-center rounded-full hover:bg-white/20 transition-colors ${showSearch ? 'bg-white/20' : ''}`}
+              title="Search this conversation"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </button>
+          )}
+          <button type="button" onMouseDown={e => e.stopPropagation()} onClick={onClose} className="w-6 h-6 flex items-center justify-center rounded-full hover:bg-white/20 transition-colors" title="Close">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
       </div>
+
+      {showSearch && (
+        <div className="border-b border-border bg-white dark:bg-gray-900 px-2.5 py-2 shrink-0">
+          <div className="relative">
+            <input
+              type="text"
+              autoFocus
+              value={inRoomSearch}
+              onChange={e => setInRoomSearch(e.target.value)}
+              placeholder="Search this conversation…"
+              className="w-full text-xs px-2.5 py-1.5 pr-6 rounded-lg border border-border bg-gray-50 dark:bg-gray-800 text-primary focus:outline-none focus:ring-1 focus:ring-indigo-400"
+            />
+            {inRoomSearch && (
+              <button type="button" onClick={() => setInRoomSearch('')} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-secondary hover:text-primary leading-none">×</button>
+            )}
+          </div>
+          {inRoomSearch.trim().length >= 2 && (
+            <div className="mt-1.5 max-h-40 overflow-y-auto space-y-1">
+              {searchingInRoom ? (
+                <p className="text-[10px] text-secondary px-1">Searching…</p>
+              ) : inRoomResults.length === 0 ? (
+                <p className="text-[10px] text-secondary px-1">No matches</p>
+              ) : (
+                inRoomResults.map(r => (
+                  <button
+                    key={r.messageId}
+                    type="button"
+                    onClick={() => jumpToMessage(r)}
+                    className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/20 text-[10px]"
+                  >
+                    <span className="text-secondary">{formatTime(r.createdAt)}{r.isReply ? ' · reply' : ''}</span>
+                    <p className="text-primary truncate">{r.snippet}</p>
+                  </button>
+                ))
+              )}
+            </div>
+          )}
+          {inRoomSearch.trim().length >= 2 && (
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new CustomEvent('chat:open-search', { detail: { query: inRoomSearch.trim() } }))}
+              className="mt-1.5 text-[10px] text-indigo-500 hover:text-indigo-700 font-medium px-1"
+            >
+              🔎 Search all conversations for &ldquo;{inRoomSearch.trim()}&rdquo;
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="relative flex-1 min-h-0 flex flex-col">
       <div className="flex-1 overflow-y-auto px-2.5 py-2.5 bg-gray-50 dark:bg-gray-950">

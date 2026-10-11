@@ -65,6 +65,9 @@ interface SearchResult {
   roomId: string | null
   roomName: string
   messageId: string
+  jumpToId: string
+  isReply: boolean
+  month: string
   snippet: string
   createdAt: string
 }
@@ -170,6 +173,7 @@ export function FloatingChat() {
   const [expandedThreads, setExpandedThreads] = useState<Record<string, Message[]>>({})
   const [loadingThreads, setLoadingThreads] = useState<Record<string, boolean>>({})
   const [hoveredMsgId, setHoveredMsgId] = useState<string | null>(null)
+  const [highlightedMsgId, setHighlightedMsgId] = useState<string | null>(null)
   const [showOnlineTooltip, setShowOnlineTooltip] = useState(false)
 
   // Editing own last message
@@ -198,6 +202,11 @@ export function FloatingChat() {
   const [view, setView] = useState<'list' | 'team'>(DEFAULT_CHAT_SETTINGS.defaultView)
   const [rooms, setRooms] = useState<RoomSummary[]>([])
   const [openWindows, setOpenWindows] = useState<string[]>([])
+  // Pending "jump to this message" target for a satellite window just opened
+  // from a cross-conversation search result — consumed once by that
+  // ChatWindow on mount (see initialJumpTarget/onJumpHandled), keyed by
+  // roomId since several windows can be open at once.
+  const [jumpTargets, setJumpTargets] = useState<Record<string, SearchResult>>({})
   // Lifted up from ChatWindow (not kept as that component's own local state)
   // so a manually-dragged position survives minimizing and restoring the
   // hub — ChatWindow instances unmount while the hub is minimized (see the
@@ -689,6 +698,23 @@ export function FloatingChat() {
     return () => window.removeEventListener('chat:open', openManually)
   }, []) // openManually is stable (useCallback with no deps)
 
+  // "Search all conversations" — dispatched from a satellite ChatWindow's
+  // own in-room search panel (chat-window.tsx) so a user who started
+  // searching one conversation can widen to every conversation without
+  // closing that window and hunting for the hub's own search box.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const query = (e as CustomEvent<{ query?: string }>).detail?.query ?? ''
+      if (autoCloseTimerRef.current) { clearTimeout(autoCloseTimerRef.current); autoCloseTimerRef.current = null }
+      setIsOpen(true)
+      setView('list')
+      if (query) setListSearch(query)
+      loadRooms()
+    }
+    window.addEventListener('chat:open-search', handler)
+    return () => window.removeEventListener('chat:open-search', handler)
+  }, [loadRooms])
+
   // Debounced message-content search — conversation-name matching is instant
   // (filtered client-side from `rooms`), this covers "find the chat where
   // someone said X" instead.
@@ -797,6 +823,56 @@ export function FloatingChat() {
       }
     } catch { /* non-critical */ } finally {
       setLoadingThreads(prev => ({ ...prev, [msgId]: false }))
+    }
+  }
+
+  // Jump to a General/Team search result. Fetches fresh (ignoring whatever
+  // React state currently holds) rather than relying on switchRoom's own
+  // async state updates, which would otherwise race this function's own
+  // month/thread checks — same approach ChatWindow's initialJumpTarget uses
+  // for a DM/group result (see jumpTargets below).
+  const jumpToTeamMessage = async (result: SearchResult) => {
+    setView('team')
+    setReplyingTo(null)
+    setExpandedThreads({})
+    const [msgs, months] = await Promise.all([
+      loadMessages(null),
+      fetch('/api/chat/messages/months', { credentials: 'include' }).then(r => r.ok ? r.json() : []).catch(() => []),
+    ])
+    setMessages(msgs || [])
+    setLoadedMonths(new Set())
+    setOlderMonths(months || [])
+    markTeamRead()
+
+    if ((months || []).some((m: { month: string }) => m.month === result.month)) {
+      const monthData: Message[] = await fetch(`/api/chat/messages?month=${result.month}`, { credentials: 'include' })
+        .then(r => r.ok ? r.json() : [])
+        .catch(() => [])
+      setMessages(prev => [...monthData, ...prev].sort((a, b) => a.createdAt.localeCompare(b.createdAt)))
+      setLoadedMonths(prev => new Set(prev).add(result.month))
+    }
+    if (result.isReply) {
+      const replies: Message[] = await fetch(`/api/chat/messages/${result.jumpToId}/replies`, { credentials: 'include' })
+        .then(r => r.ok ? r.json() : [])
+        .catch(() => [])
+      setExpandedThreads(prev => ({ ...prev, [result.jumpToId]: replies }))
+    }
+    setTimeout(() => {
+      document.getElementById(`chat-msg-${result.messageId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      setHighlightedMsgId(result.messageId)
+      setTimeout(() => setHighlightedMsgId(null), 2000)
+    }, 200)
+  }
+
+  // A search result either jumps within this panel's own Team/General view,
+  // or — for a DM/group — opens that satellite ChatWindow and hands it the
+  // jump target to consume once on mount (initialJumpTarget/onJumpHandled).
+  const jumpToSearchResult = (result: SearchResult) => {
+    if (result.roomId) {
+      setJumpTargets(prev => ({ ...prev, [result.roomId as string]: result }))
+      switchRoom(result.roomId)
+    } else {
+      jumpToTeamMessage(result)
     }
   }
 
@@ -953,8 +1029,8 @@ export function FloatingChat() {
       const isRichAlert = !!msg.linkUrl || msg.message.includes('\n')
       if (isRichAlert) {
         return (
-          <div key={msg.id} className="flex justify-center mb-2 px-1">
-            <div className="max-w-[90%] bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl px-3 py-2">
+          <div key={msg.id} id={`chat-msg-${msg.id}`} className="flex justify-center mb-2 px-1">
+            <div className={`max-w-[90%] bg-amber-50 dark:bg-amber-900/20 border rounded-xl px-3 py-2 transition-shadow ${highlightedMsgId === msg.id ? 'border-indigo-400 ring-2 ring-indigo-400' : 'border-amber-200 dark:border-amber-700'}`}>
               <p className="text-[11px] text-amber-900 dark:text-amber-200 whitespace-pre-wrap leading-relaxed">{msg.message}</p>
               {msg.linkUrl && (
                 <a
@@ -971,8 +1047,8 @@ export function FloatingChat() {
         )
       }
       return (
-        <div key={msg.id} className="flex items-center justify-center mb-2">
-          <span className="text-[10px] text-secondary bg-gray-100 dark:bg-gray-800 rounded-full px-2.5 py-1 text-center">
+        <div key={msg.id} id={`chat-msg-${msg.id}`} className="flex items-center justify-center mb-2">
+          <span className={`text-[10px] text-secondary bg-gray-100 dark:bg-gray-800 rounded-full px-2.5 py-1 text-center transition-shadow ${highlightedMsgId === msg.id ? 'ring-2 ring-indigo-400' : ''}`}>
             🔔 {msg.message}
           </span>
         </div>
@@ -988,10 +1064,13 @@ export function FloatingChat() {
     const withinEditWindow = editClockTick - new Date(msg.createdAt).getTime() < EDIT_WINDOW_MS
     const canEdit = isLatestOwn && !msg.deletedAt && withinEditWindow
 
+    const isHighlighted = highlightedMsgId === msg.id
+
     return (
       <div
         key={msg.id}
-        className={`flex gap-2 mb-2 group ${isOwn ? 'flex-row-reverse' : ''}`}
+        id={`chat-msg-${msg.id}`}
+        className={`flex gap-2 mb-2 group rounded-lg transition-shadow ${isOwn ? 'flex-row-reverse' : ''} ${isHighlighted ? 'ring-2 ring-indigo-400 ring-offset-2 ring-offset-gray-50 dark:ring-offset-gray-950' : ''}`}
         onMouseEnter={() => setHoveredMsgId(msg.id)}
         onMouseLeave={() => setHoveredMsgId(null)}
       >
@@ -1436,7 +1515,7 @@ export function FloatingChat() {
                   <button
                     key={result.messageId}
                     type="button"
-                    onClick={() => switchRoom(result.roomId)}
+                    onClick={() => jumpToSearchResult(result)}
                     className="w-full flex items-center gap-3 px-2 py-2.5 rounded-xl hover:bg-white dark:hover:bg-gray-800 transition-colors text-left"
                   >
                     <div className="w-10 h-10 rounded-full shrink-0 flex items-center justify-center bg-gray-300 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-sm">
@@ -1756,6 +1835,8 @@ export function FloatingChat() {
           onMessageSent={(preview) => {
             setRooms(prev => sortRoomsByRecency(prev.map(r => r.id === roomId ? { ...r, lastMessage: { ...preview, isOwn: true } } : r)))
           }}
+          initialJumpTarget={jumpTargets[roomId] ?? null}
+          onJumpHandled={() => setJumpTargets(prev => { const n = { ...prev }; delete n[roomId]; return n })}
         />
       )
     })}

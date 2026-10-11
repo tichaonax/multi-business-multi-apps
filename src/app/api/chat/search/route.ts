@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
       },
       orderBy: { createdAt: 'desc' },
       take: 200,
-      select: { id: true, roomId: true, message: true, createdAt: true },
+      select: { id: true, roomId: true, message: true, createdAt: true, parentId: true },
     })
 
     // Collapse to the single most recent match per conversation.
@@ -70,6 +70,11 @@ export async function GET(request: NextRequest) {
         roomId,
         roomName,
         messageId: m.id,
+        // A matched reply has no standalone row in the main thread view —
+        // the client expands its parent thread and jumps there instead.
+        jumpToId: m.parentId ?? m.id,
+        isReply: !!m.parentId,
+        month: m.createdAt.toISOString().slice(0, 7),
         snippet: m.message.length > 140 ? `${m.message.slice(0, 140)}…` : m.message,
         createdAt: m.createdAt.toISOString(),
       }

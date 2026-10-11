@@ -15,6 +15,7 @@ import { TestBarcodeGeneratorModal } from '@/components/admin/test-barcode-gener
 import { useTimeDisplay } from '@/hooks/use-time-display'
 import { useRentIndicator } from '@/hooks/use-rent-indicator'
 import { usePendingActionsCount, usePendingActions } from '@/hooks/use-pending-actions-count'
+import { matchesAmountSearch } from '@/lib/amount-search'
 import { useNotifications } from '@/components/providers/notification-provider'
 import HealthIndicator from '@/components/ui/health-indicator'
 import { usePolicyOverdue } from '@/hooks/use-policy-overdue'
@@ -973,18 +974,20 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                         )}
                         <div className="max-h-80 overflow-y-auto">
                           {(() => {
-                            const personalPaymentRequests = ((pendingActions as any).personalPaymentRequests ?? []).filter((r: any) => !bellSearch || [r.creatorName, r.accountName, r.payeeName, r.notes, r.amount?.toString()].some((v: any) => v?.toLowerCase().includes(bellSearch.toLowerCase())))
-                            const paymentBatches = (pendingActions.pendingPaymentBatches ?? []).filter((b: any) => !bellSearch || [b.business?.name, b.eodDate].some((v: string | undefined) => v?.toLowerCase().includes(bellSearch.toLowerCase())))
-                            const pettyCash = (pendingActions.pendingPettyCash ?? []).filter((p: any) => !bellSearch || [p.requester?.name, p.purpose, p.business?.name].some((v: string | undefined) => v?.toLowerCase().includes(bellSearch.toLowerCase())))
-                            const cashInHand = (pendingActions.outstandingPettyCash ?? []).filter((r: any) => !bellSearch || [r.requesterName, r.purpose, r.businessName].some((v: string | undefined) => v?.toLowerCase().includes(bellSearch.toLowerCase())))
+                            const personalPaymentRequests = ((pendingActions as any).personalPaymentRequests ?? []).filter((r: any) => !bellSearch || matchesAmountSearch(r.amount, bellSearch) || [r.creatorName, r.accountName, r.payeeName, r.notes].some((v: any) => v?.toLowerCase().includes(bellSearch.toLowerCase())))
+                            const paymentBatches = (pendingActions.pendingPaymentBatches ?? []).filter((b: any) => !bellSearch || matchesAmountSearch(b.totalAmount, bellSearch) || [b.business?.name, b.eodDate].some((v: string | undefined) => v?.toLowerCase().includes(bellSearch.toLowerCase())))
+                            const pettyCash = (pendingActions.pendingPettyCash ?? []).filter((p: any) => !bellSearch || matchesAmountSearch(p.requestedAmount, bellSearch) || [p.requester?.name, p.purpose, p.business?.name].some((v: string | undefined) => v?.toLowerCase().includes(bellSearch.toLowerCase())))
+                            const cashInHand = (pendingActions.outstandingPettyCash ?? []).filter((r: any) => !bellSearch || matchesAmountSearch(r.remainingBalance, bellSearch) || [r.requesterName, r.purpose, r.businessName].some((v: string | undefined) => v?.toLowerCase().includes(bellSearch.toLowerCase())))
                             const cashAllocations = (pendingActions.pendingCashAllocations ?? []).filter((r: any) => !bellSearch || (r.business?.name as string | undefined)?.toLowerCase().includes(bellSearch.toLowerCase()))
                             const stockDrafts = (pendingActions.pendingStockTakeDrafts ?? []).filter((d: any) => !bellSearch || [d.title, d.businessName].some((v: string | undefined) => v?.toLowerCase().includes(bellSearch.toLowerCase())))
-                            const supplierPayments = (pendingActions.pendingSupplierPayments ?? []).filter((s: any) => !bellSearch || (s.supplier?.name as string | undefined)?.toLowerCase().includes(bellSearch.toLowerCase()))
-                            const ecocashConversions = (pendingActions.pendingEcocashConversions ?? []).filter((e: any) => !bellSearch || [e.business?.name, e.requester?.name].some((v: string | undefined) => v?.toLowerCase().includes(bellSearch.toLowerCase())))
-                            const paymentRequests = (pendingActions.pendingPaymentRequests ?? []).filter((r: any) => !bellSearch || [r.accountName, r.business?.name].some((v: string | undefined) => v?.toLowerCase().includes(bellSearch.toLowerCase())))
-                            const myPendingPayments = ((pendingActions as any).myPendingPayments ?? []).filter((r: any) => !bellSearch || [r.accountName, r.business?.name].some((v: string | undefined) => v?.toLowerCase().includes(bellSearch.toLowerCase())))
-                            const myApprovedPayments = ((pendingActions as any).myApprovedPayments ?? []).filter((r: any) => !bellSearch || [r.businessName, r.categoryName, r.payeeName, r.notes].some((v: string | undefined) => v?.toLowerCase().includes(bellSearch.toLowerCase())))
-                            const myApprovedPettyCash = ((pendingActions as any).myApprovedPettyCash ?? []).filter((r: any) => !bellSearch || [r.business?.name, r.purpose].some((v: string | undefined) => v?.toLowerCase().includes(bellSearch.toLowerCase())))
+                            const supplierPayments = (pendingActions.pendingSupplierPayments ?? []).filter((s: any) => !bellSearch || matchesAmountSearch(s.amount, bellSearch) || (s.supplier?.name as string | undefined)?.toLowerCase().includes(bellSearch.toLowerCase()))
+                            const ecocashConversions = (pendingActions.pendingEcocashConversions ?? []).filter((e: any) => !bellSearch || matchesAmountSearch(e.amount, bellSearch) || [e.business?.name, e.requester?.name].some((v: string | undefined) => v?.toLowerCase().includes(bellSearch.toLowerCase())))
+                            const paymentRequests = (pendingActions.pendingPaymentRequests ?? []).filter((r: any) => !bellSearch || matchesAmountSearch(r.totalAmount, bellSearch) || [r.accountName, r.business?.name].some((v: string | undefined) => v?.toLowerCase().includes(bellSearch.toLowerCase())))
+                            const myPendingPayments = ((pendingActions as any).myPendingPayments ?? []).filter((r: any) => !bellSearch || matchesAmountSearch(r.totalAmount, bellSearch) || [r.accountName, r.business?.name].some((v: string | undefined) => v?.toLowerCase().includes(bellSearch.toLowerCase())))
+                            const myApprovedPayments = ((pendingActions as any).myApprovedPayments ?? []).filter((r: any) => !bellSearch || matchesAmountSearch(r.amount, bellSearch) || [r.businessName, r.categoryName, r.payeeName, r.notes].some((v: string | undefined) => v?.toLowerCase().includes(bellSearch.toLowerCase())))
+                            const myApprovedPettyCash = ((pendingActions as any).myApprovedPettyCash ?? []).filter((r: any) => !bellSearch || matchesAmountSearch(r.approvedAmount, bellSearch) || [r.business?.name, r.purpose].some((v: string | undefined) => v?.toLowerCase().includes(bellSearch.toLowerCase())))
+                            const returnConfirmations = ((pendingActions as any).pendingReturnConfirmations ?? []).filter((r: any) => !bellSearch || matchesAmountSearch(r.returnRequestedAmount, bellSearch) || [r.requesterName, r.accountName, r.businessName, r.notes, r.returnNote].some((v: string | undefined) => v?.toLowerCase().includes(bellSearch.toLowerCase())))
+                            const pettyCashReturns = ((pendingActions as any).pendingPettyCashReturns ?? []).filter((r: any) => !bellSearch || matchesAmountSearch(r.remainingBalance, bellSearch) || [r.requesterName, r.purpose, r.businessName].some((v: string | undefined) => v?.toLowerCase().includes(bellSearch.toLowerCase())))
 
                             return (
                               <>
@@ -1024,6 +1027,43 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                                             {b.cashCount > 0 && <span className="ml-1">· 💵 {b.cashCount}</span>}
                                             {b.ecocashCount > 0 && <span className="ml-1">· 📱 {b.ecocashCount}</span>}
                                             {b.totalAmount != null ? <><span> · </span><span className="text-orange-500 dark:text-orange-400 font-semibold">${Number(b.totalAmount).toFixed(2)}</span></> : ''}
+                                          </p>
+                                        </div>
+                                      </Link>
+                                    ))}
+                                  </div>
+                                )}
+
+                                {renderPendingHeader('returns', '💰', 'Return Confirmations Needed', returnConfirmations.length)}
+                                {isPendingExpanded('returns') && (
+                                  <div className="divide-y divide-border">
+                                    {returnConfirmations.map((r: any) => (
+                                      <Link key={r.id} href={`/expense-accounts/${r.expenseAccountId}?tab=transactions&openReceiptsForPayment=${r.id}`} onClick={() => setShowBellPreview(false)} className="flex items-start gap-2 px-3 py-2 hover:bg-purple-50 dark:hover:bg-purple-900/10 text-xs border-l-2 border-purple-400">
+                                        <span className="mt-0.5 shrink-0">💰</span>
+                                        <div className="min-w-0">
+                                          <p className="font-medium text-purple-700 dark:text-purple-300 truncate">Return Awaiting Confirmation</p>
+                                          <p className="text-secondary truncate">
+                                            {r.requesterName ?? '—'} · {r.businessName}
+                                            {' · '}<span className="text-orange-500 dark:text-orange-400 font-semibold">${Number(r.returnRequestedAmount).toFixed(2)}</span>
+                                          </p>
+                                          {r.returnNote && <p className="text-secondary italic truncate">{r.returnNote}</p>}
+                                        </div>
+                                      </Link>
+                                    ))}
+                                  </div>
+                                )}
+
+                                {renderPendingHeader('pettycashreturns', '💰', 'Petty Cash Return Confirmations', pettyCashReturns.length)}
+                                {isPendingExpanded('pettycashreturns') && (
+                                  <div className="divide-y divide-border">
+                                    {pettyCashReturns.map((r: any) => (
+                                      <Link key={r.id} href={`/petty-cash/${r.id}`} onClick={() => setShowBellPreview(false)} className="flex items-start gap-2 px-3 py-2 hover:bg-purple-50 dark:hover:bg-purple-900/10 text-xs border-l-2 border-purple-400">
+                                        <span className="mt-0.5 shrink-0">💰</span>
+                                        <div className="min-w-0">
+                                          <p className="font-medium text-purple-700 dark:text-purple-300 truncate">Petty Cash Return Awaiting Confirmation</p>
+                                          <p className="text-secondary truncate">
+                                            {r.requesterName} · {r.businessName} · {r.purpose}
+                                            {' · '}<span className="text-orange-500 dark:text-orange-400 font-semibold">${Number(r.remainingBalance).toFixed(2)}</span>
                                           </p>
                                         </div>
                                       </Link>

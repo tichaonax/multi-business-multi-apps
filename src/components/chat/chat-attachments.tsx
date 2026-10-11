@@ -15,9 +15,24 @@ export interface ChatAttachmentMeta {
   size: number
 }
 
-export const ALLOWED_ATTACHMENT_TYPES = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png']
-export const MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024 // 10MB — matches the server-side limit
+export const DOCUMENT_ATTACHMENT_TYPES = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png']
+export const AUDIO_ATTACHMENT_TYPES = ['audio/mpeg', 'audio/mp4', 'audio/wav', 'audio/ogg', 'audio/webm']
+export const VIDEO_ATTACHMENT_TYPES = ['video/mp4', 'video/quicktime', 'video/webm']
+export const ALLOWED_ATTACHMENT_TYPES = [...DOCUMENT_ATTACHMENT_TYPES, ...AUDIO_ATTACHMENT_TYPES, ...VIDEO_ATTACHMENT_TYPES]
+
+// Mirrors the server-side per-type limits in POST /api/chat/attachments —
+// video capped well below documents/images to keep "short videos" short and
+// the attachments table's storage bounded.
+export const MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024 // 10MB — PDF/image
+export const MAX_AUDIO_ATTACHMENT_SIZE = 15 * 1024 * 1024 // 15MB
+export const MAX_VIDEO_ATTACHMENT_SIZE = 25 * 1024 * 1024 // 25MB
 export const MAX_ATTACHMENTS_PER_MESSAGE = 10 // matches POST /api/chat/messages
+
+function maxSizeForType(mimeType: string): number {
+  if (AUDIO_ATTACHMENT_TYPES.includes(mimeType)) return MAX_AUDIO_ATTACHMENT_SIZE
+  if (VIDEO_ATTACHMENT_TYPES.includes(mimeType)) return MAX_VIDEO_ATTACHMENT_SIZE
+  return MAX_ATTACHMENT_SIZE
+}
 
 export function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
@@ -33,10 +48,11 @@ export function formatFileSize(bytes: number): string {
  * independent so one bad file doesn't block the rest. */
 export async function uploadChatAttachment(file: File): Promise<ChatAttachmentMeta> {
   if (!ALLOWED_ATTACHMENT_TYPES.includes(file.type)) {
-    throw new Error(`"${file.name}" — only PDF, JPEG, and PNG files are allowed`)
+    throw new Error(`"${file.name}" — only PDF, image, audio, or video files are allowed`)
   }
-  if (file.size > MAX_ATTACHMENT_SIZE) {
-    throw new Error(`"${file.name}" — file size must be less than 10MB`)
+  const maxSize = maxSizeForType(file.type)
+  if (file.size > maxSize) {
+    throw new Error(`"${file.name}" — file size must be less than ${Math.round(maxSize / (1024 * 1024))}MB`)
   }
   const formData = new FormData()
   formData.append('file', file)
@@ -60,6 +76,16 @@ const DownloadIcon = ({ className }: { className?: string }) => (
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
   </svg>
 )
+const AudioIcon = ({ className }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-2v13M9 19a3 3 0 11-6 0 3 3 0 016 0zm12-2a3 3 0 11-6 0 3 3 0 016 0z" />
+  </svg>
+)
+const VideoIcon = ({ className }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+  </svg>
+)
 
 /** One chip per pending file, shown in the composer between picking/dropping
  * and actually sending — each is individually removable before send. */
@@ -75,10 +101,16 @@ export function PendingAttachmentsRow({
     <div className="flex flex-wrap gap-1.5">
       {attachments.map(att => {
         const isImage = att.mimeType.startsWith('image/')
+        const isAudio = att.mimeType.startsWith('audio/')
+        const isVideo = att.mimeType.startsWith('video/')
         return (
           <div key={att.id} className="flex items-center gap-1.5 text-[11px] bg-gray-100 dark:bg-gray-700 border border-border rounded-lg px-2 py-1 max-w-[180px]">
             {isImage ? (
               <img src={attachmentUrl(att.id)} alt="" className="w-5 h-5 rounded object-cover shrink-0" />
+            ) : isAudio ? (
+              <AudioIcon className="w-4 h-4 text-indigo-500 shrink-0" />
+            ) : isVideo ? (
+              <VideoIcon className="w-4 h-4 text-purple-500 shrink-0" />
             ) : (
               <FileIcon className="w-4 h-4 text-red-500 shrink-0" />
             )}
@@ -141,20 +173,63 @@ function PdfAttachment({ attachment }: { attachment: ChatAttachmentMeta }) {
   )
 }
 
-/** Renders every attachment on an already-sent message — images lay out in
- * a small wrapping grid (so several photos don't each take a full row),
- * PDFs stack below as their own labelled cards. Same for the sender's own
- * echoed message and every other recipient's — it's just what the message
- * actually carries, not something rendered differently per viewer. */
+/** One sent audio clip — inline native player, download optional (same
+ * rationale as images: already fully usable in-browser). */
+function AudioAttachment({ attachment }: { attachment: ChatAttachmentMeta }) {
+  return (
+    <div className="flex items-center gap-2 bg-white/70 dark:bg-black/20 border border-border rounded-lg px-2.5 py-1.5 max-w-[260px]">
+      <AudioIcon className="w-4 h-4 text-indigo-500 shrink-0" />
+      <div className="min-w-0 flex-1">
+        <audio controls src={attachmentUrl(attachment.id)} className="w-full h-8" style={{ maxWidth: 200 }} />
+        <span className="text-[9px] text-secondary truncate block">{attachment.fileName}</span>
+      </div>
+      <a href={attachmentUrl(attachment.id, true)} className="shrink-0 text-secondary hover:text-indigo-500" title="Download">
+        <DownloadIcon className="w-3.5 h-3.5" />
+      </a>
+    </div>
+  )
+}
+
+/** One sent short video — inline native player, same max-height treatment
+ * as an image so a vertical phone-recorded clip doesn't dominate the
+ * thread. Download optional, same as image/audio. */
+function VideoAttachment({ attachment }: { attachment: ChatAttachmentMeta }) {
+  return (
+    <div className="max-w-[220px]">
+      <video controls src={attachmentUrl(attachment.id)} className="rounded-lg max-h-48 w-full object-contain border border-border bg-black" />
+      <div className="flex items-center gap-1 mt-0.5">
+        <span className="text-[9px] text-secondary truncate flex-1">{attachment.fileName}</span>
+        <a href={attachmentUrl(attachment.id, true)} className="text-secondary hover:text-indigo-500 shrink-0" title="Download (optional)">
+          <DownloadIcon className="w-3 h-3" />
+        </a>
+      </div>
+    </div>
+  )
+}
+
+/** Renders every attachment on an already-sent message — images and videos
+ * lay out in a small wrapping grid (so several don't each take a full row),
+ * PDFs and audio clips stack below as their own labelled cards. Same for the
+ * sender's own echoed message and every other recipient's — it's just what
+ * the message actually carries, not something rendered differently per
+ * viewer. */
 export function ChatAttachmentsGroup({ attachments }: { attachments: ChatAttachmentMeta[] }) {
   if (!attachments || attachments.length === 0) return null
   const images = attachments.filter(a => a.mimeType.startsWith('image/'))
-  const pdfs = attachments.filter(a => !a.mimeType.startsWith('image/'))
+  const videos = attachments.filter(a => a.mimeType.startsWith('video/'))
+  const audios = attachments.filter(a => a.mimeType.startsWith('audio/'))
+  const pdfs = attachments.filter(a => !a.mimeType.startsWith('image/') && !a.mimeType.startsWith('video/') && !a.mimeType.startsWith('audio/'))
   return (
     <div className="mt-1 space-y-1">
-      {images.length > 0 && (
+      {(images.length > 0 || videos.length > 0) && (
         <div className="flex flex-wrap gap-1.5">
           {images.map(att => <ImageAttachment key={att.id} attachment={att} />)}
+          {videos.map(att => <VideoAttachment key={att.id} attachment={att} />)}
+        </div>
+      )}
+      {audios.length > 0 && (
+        <div className="flex flex-col gap-1">
+          {audios.map(att => <AudioAttachment key={att.id} attachment={att} />)}
         </div>
       )}
       {pdfs.length > 0 && (
@@ -179,7 +254,7 @@ export function AttachButton({ onFilesSelected, disabled }: { onFilesSelected: (
   return (
     <label
       className={`w-8 h-8 flex items-center justify-center rounded-full shrink-0 transition-colors cursor-pointer ${disabled ? 'opacity-40 cursor-not-allowed' : 'text-secondary hover:text-indigo-600 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
-      title="Attach PDFs or images"
+      title="Attach PDFs, images, audio, or short video"
     >
       <PaperclipIcon className="w-4 h-4" />
       <input
@@ -250,7 +325,7 @@ export function DropOverlay() {
       <div className="text-center text-white">
         <PaperclipIcon className="w-8 h-8 mx-auto mb-1" />
         <p className="text-sm font-semibold">Drop to attach</p>
-        <p className="text-[11px] opacity-80">PDF, JPEG, or PNG</p>
+        <p className="text-[11px] opacity-80">PDF, image, audio, or short video</p>
       </div>
     </div>
   )

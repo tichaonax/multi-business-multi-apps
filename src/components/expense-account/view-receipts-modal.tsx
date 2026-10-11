@@ -595,6 +595,11 @@ export function ViewReceiptsModal({
                   {confirmingReturn ? 'Confirming…' : '✅ Confirm Return Received'}
                 </button>
               )}
+              {returnInfo?.locked && (
+                <button disabled className="text-sm px-4 py-2 rounded bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed">
+                  ✅ Funds Returned
+                </button>
+              )}
             </div>
           </div>
         </div>
