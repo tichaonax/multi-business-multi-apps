@@ -101,7 +101,7 @@ export function getSupplierTypeEmoji(type: string | null | undefined): string {
 interface SCCategory { id: string; name: string; emoji: string }
 interface SCGroup    { id: string; name: string; emoji: string; categories: SCCategory[] }
 
-function SupplierCategoryPicker({
+export function SupplierCategoryPicker({
   value,
   onChange,
 }: {

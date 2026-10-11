@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { CreateIndividualPayeeModal } from './create-individual-payee-modal'
 import { CreateContractorPayeeModal } from './create-contractor-payee-modal'
+import { CreateSupplierPayeeModal } from './create-supplier-payee-modal'
 import { CategoryPicker, type CategoryRef } from './category-picker'
 import { RECEIPT_DESCRIPTION_MIN_LENGTH as DESCRIPTION_MIN_LENGTH } from '@/lib/expense-account/receipt-validation'
 import { SearchableSelect, type SearchableSelectItem } from '@/components/common/searchable-select'
@@ -179,6 +180,7 @@ export function AddReceiptModal({ paymentId, paymentPayee, onClose, onSuccess, e
   // Create-payee sub-modals
   const [createIndividualOpen, setCreateIndividualOpen] = useState(false)
   const [createContractorOpen, setCreateContractorOpen] = useState(false)
+  const [createSupplierOpen, setCreateSupplierOpen] = useState(false)
   const [initialPayeeName, setInitialPayeeName] = useState<string | undefined>()
 
   const [receiptDate, setReceiptDate] = useState(editReceipt ? editReceipt.receiptDate.slice(0, 10) : today)
@@ -454,12 +456,16 @@ export function AddReceiptModal({ paymentId, paymentPayee, onClose, onSuccess, e
     if (p.type === 'FREEFORM') {
       return { payeeType: 'FREEFORM', payeeName: p.name }
     }
-    const apiType = p.type === 'PERSON' ? 'PERSON' : p.type === 'BUSINESS' ? 'BUSINESS' : 'SUPPLIER'
+    // Contractors are Persons under the hood (see payee-utils.ts), so they
+    // must be written via payeePersonId/payeeType 'PERSON' — not
+    // payeeSupplierId, which has a real FK to BusinessSuppliers and would
+    // reject a contractor's Person id (e.g. "IND-049").
+    const apiType = (p.type === 'PERSON' || p.type === 'CONTRACTOR') ? 'PERSON' : p.type === 'BUSINESS' ? 'BUSINESS' : 'SUPPLIER'
     return {
       payeeType: apiType,
-      payeePersonId: p.type === 'PERSON' ? p.id : undefined,
+      payeePersonId: (p.type === 'PERSON' || p.type === 'CONTRACTOR') ? p.id : undefined,
       payeeBusinessId: p.type === 'BUSINESS' ? p.id : undefined,
-      payeeSupplierId: (p.type === 'SUPPLIER' || p.type === 'CONTRACTOR') ? p.id : undefined,
+      payeeSupplierId: p.type === 'SUPPLIER' ? p.id : undefined,
     }
   }
 
@@ -727,6 +733,13 @@ export function AddReceiptModal({ paymentId, paymentPayee, onClose, onSuccess, e
                                 onClick={() => { setInitialPayeeName(query); setCreateContractorOpen(true) }}
                                 className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
                               >
+                                + Create contractor
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => { setInitialPayeeName(query); setCreateSupplierOpen(true) }}
+                                className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                              >
                                 + Create supplier
                               </button>
                               <button
@@ -776,6 +789,13 @@ export function AddReceiptModal({ paymentId, paymentPayee, onClose, onSuccess, e
                             <button
                               type="button"
                               onClick={() => { setInitialPayeeName(query); setCreateContractorOpen(true) }}
+                              className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                            >
+                              + Create contractor
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => { setInitialPayeeName(query); setCreateSupplierOpen(true) }}
                               className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
                             >
                               + Create supplier
@@ -1098,7 +1118,21 @@ export function AddReceiptModal({ paymentId, paymentPayee, onClose, onSuccess, e
           onSuccess={(payload) => {
             setCreateContractorOpen(false)
             if (payload.payee) {
-              selectPayee({ type: 'SUPPLIER', id: payload.payee.id, name: payload.payee.supplierName ?? payload.payee.fullName })
+              selectPayee({ type: 'CONTRACTOR', id: payload.payee.id, name: payload.payee.fullName })
+            }
+          }}
+        />
+      )}
+
+      {createSupplierOpen && (
+        <CreateSupplierPayeeModal
+          isOpen={createSupplierOpen}
+          initialName={initialPayeeName}
+          onClose={() => setCreateSupplierOpen(false)}
+          onSuccess={(payload) => {
+            setCreateSupplierOpen(false)
+            if (payload.payee) {
+              selectPayee({ type: 'SUPPLIER', id: payload.payee.id, name: payload.payee.name })
             }
           }}
         />
