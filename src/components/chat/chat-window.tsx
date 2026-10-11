@@ -4,7 +4,8 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import type { Socket } from 'socket.io-client'
 import { useTypingEmitter, useTypingTracker, formatTypingLabel } from '@/hooks/use-typing-indicator'
 import { getUserColor, parseComplianceDigest, ComplianceDigestSections, formatAlertTimestamp } from '@/components/vehicles/license-compliance-digest'
-import { AttachButton, PendingAttachmentsRow, ChatAttachmentsGroup, uploadChatAttachment, useChatFileDrop, DropOverlay, MAX_ATTACHMENTS_PER_MESSAGE, type ChatAttachmentMeta } from '@/components/chat/chat-attachments'
+import { AttachButton, PendingAttachmentsRow, ChatAttachmentsGroup, uploadChatAttachment, useChatFileDrop, DropOverlay, MAX_ATTACHMENTS_PER_MESSAGE, isOversizedVideo, type ChatAttachmentMeta } from '@/components/chat/chat-attachments'
+import { VideoTrimModal } from '@/components/chat/video-trim-modal'
 
 interface Recipient { id: string; name: string }
 
@@ -149,17 +150,26 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
   // composer can show them as pending chips.
   const [pendingAttachments, setPendingAttachments] = useState<ChatAttachmentMeta[]>([])
   const [uploadingNames, setUploadingNames] = useState<string[]>([])
+  // Oversized videos (>25MB) don't upload straight away — they queue here
+  // for VideoTrimModal, one at a time, instead of being rejected outright.
+  const [trimQueue, setTrimQueue] = useState<File[]>([])
+
+  const startUpload = (file: File) => {
+    setUploadingNames(prev => [...prev, file.name])
+    uploadChatAttachment(file)
+      .then(attachment => setPendingAttachments(prev => [...prev, attachment]))
+      .catch(err => alert(err instanceof Error ? err.message : 'Upload failed'))
+      .finally(() => setUploadingNames(prev => prev.filter(n => n !== file.name)))
+  }
+
   const handleFilesSelected = (files: File[]) => {
-    const room = MAX_ATTACHMENTS_PER_MESSAGE - pendingAttachments.length - uploadingNames.length
+    const room = MAX_ATTACHMENTS_PER_MESSAGE - pendingAttachments.length - uploadingNames.length - trimQueue.length
     if (room <= 0) { alert(`You can attach up to ${MAX_ATTACHMENTS_PER_MESSAGE} files per message`); return }
     const accepted = files.slice(0, room)
-    setUploadingNames(prev => [...prev, ...accepted.map(f => f.name)])
-    accepted.forEach(file => {
-      uploadChatAttachment(file)
-        .then(attachment => setPendingAttachments(prev => [...prev, attachment]))
-        .catch(err => alert(err instanceof Error ? err.message : 'Upload failed'))
-        .finally(() => setUploadingNames(prev => prev.filter(n => n !== file.name)))
-    })
+    const toTrim = accepted.filter(isOversizedVideo)
+    const toUpload = accepted.filter(f => !isOversizedVideo(f))
+    if (toTrim.length > 0) setTrimQueue(prev => [...prev, ...toTrim])
+    toUpload.forEach(startUpload)
   }
   const { isDraggingFiles, dropZoneProps } = useChatFileDrop(handleFilesSelected)
 
@@ -1224,6 +1234,14 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
         </div>
       )}
       </div>
+
+      {trimQueue[0] && (
+        <VideoTrimModal
+          file={trimQueue[0]}
+          onCancel={() => setTrimQueue(prev => prev.slice(1))}
+          onTrimmed={(trimmedFile) => { setTrimQueue(prev => prev.slice(1)); startUpload(trimmedFile) }}
+        />
+      )}
     </div>
   )
 }

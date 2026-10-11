@@ -34,6 +34,13 @@ function maxSizeForType(mimeType: string): number {
   return MAX_ATTACHMENT_SIZE
 }
 
+/** A video over the 25MB cap doesn't get rejected outright — the composer
+ * routes it to VideoTrimModal instead, so the user can cut it down to a
+ * short clip that fits rather than having to re-export it elsewhere first. */
+export function isOversizedVideo(file: File): boolean {
+  return VIDEO_ATTACHMENT_TYPES.includes(file.type) && file.size > MAX_VIDEO_ATTACHMENT_SIZE
+}
+
 export function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`

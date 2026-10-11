@@ -18,7 +18,8 @@ import {
   loadChatSettings,
   saveChatSettings,
 } from '@/lib/chat-settings'
-import { AttachButton, PendingAttachmentsRow, ChatAttachmentsGroup, uploadChatAttachment, useChatFileDrop, DropOverlay, MAX_ATTACHMENTS_PER_MESSAGE, type ChatAttachmentMeta } from '@/components/chat/chat-attachments'
+import { AttachButton, PendingAttachmentsRow, ChatAttachmentsGroup, uploadChatAttachment, useChatFileDrop, DropOverlay, MAX_ATTACHMENTS_PER_MESSAGE, isOversizedVideo, type ChatAttachmentMeta } from '@/components/chat/chat-attachments'
+import { VideoTrimModal } from '@/components/chat/video-trim-modal'
 
 interface Recipient { id: string; name: string }
 
@@ -64,6 +65,15 @@ interface RoomSummary {
 interface SearchResult {
   roomId: string | null
   roomName: string
+  messageId: string
+  jumpToId: string
+  isReply: boolean
+  month: string
+  snippet: string
+  createdAt: string
+}
+
+interface TeamSearchResult {
   messageId: string
   jumpToId: string
   isReply: boolean
@@ -143,17 +153,26 @@ export function FloatingChat() {
   // this file owns Team/General's send flow independently.
   const [pendingAttachments, setPendingAttachments] = useState<ChatAttachmentMeta[]>([])
   const [uploadingNames, setUploadingNames] = useState<string[]>([])
+  // Oversized videos (>25MB) queue here for VideoTrimModal, one at a time,
+  // instead of being rejected outright — same as chat-window.tsx.
+  const [trimQueue, setTrimQueue] = useState<File[]>([])
+
+  const startUpload = (file: File) => {
+    setUploadingNames(prev => [...prev, file.name])
+    uploadChatAttachment(file)
+      .then(attachment => setPendingAttachments(prev => [...prev, attachment]))
+      .catch(err => alert(err instanceof Error ? err.message : 'Upload failed'))
+      .finally(() => setUploadingNames(prev => prev.filter(n => n !== file.name)))
+  }
+
   const handleFilesSelected = (files: File[]) => {
-    const room = MAX_ATTACHMENTS_PER_MESSAGE - pendingAttachments.length - uploadingNames.length
+    const room = MAX_ATTACHMENTS_PER_MESSAGE - pendingAttachments.length - uploadingNames.length - trimQueue.length
     if (room <= 0) { alert(`You can attach up to ${MAX_ATTACHMENTS_PER_MESSAGE} files per message`); return }
     const accepted = files.slice(0, room)
-    setUploadingNames(prev => [...prev, ...accepted.map(f => f.name)])
-    accepted.forEach(file => {
-      uploadChatAttachment(file)
-        .then(attachment => setPendingAttachments(prev => [...prev, attachment]))
-        .catch(err => alert(err instanceof Error ? err.message : 'Upload failed'))
-        .finally(() => setUploadingNames(prev => prev.filter(n => n !== file.name)))
-    })
+    const toTrim = accepted.filter(isOversizedVideo)
+    const toUpload = accepted.filter(f => !isOversizedVideo(f))
+    if (toTrim.length > 0) setTrimQueue(prev => [...prev, ...toTrim])
+    toUpload.forEach(startUpload)
   }
   const { isDraggingFiles, dropZoneProps } = useChatFileDrop(handleFilesSelected)
   const [connected, setConnected] = useState(false)
@@ -174,6 +193,12 @@ export function FloatingChat() {
   const [loadingThreads, setLoadingThreads] = useState<Record<string, boolean>>({})
   const [hoveredMsgId, setHoveredMsgId] = useState<string | null>(null)
   const [highlightedMsgId, setHighlightedMsgId] = useState<string | null>(null)
+  // In-conversation search for Team Chat itself — same per-room search as a
+  // DM/group satellite window (chat-window.tsx), scoped to just this room.
+  const [showTeamSearch, setShowTeamSearch] = useState(false)
+  const [teamSearch, setTeamSearch] = useState('')
+  const [teamSearchResults, setTeamSearchResults] = useState<TeamSearchResult[]>([])
+  const [searchingTeam, setSearchingTeam] = useState(false)
   const [showOnlineTooltip, setShowOnlineTooltip] = useState(false)
 
   // Editing own last message
@@ -731,6 +756,42 @@ export function FloatingChat() {
     }, 300)
     return () => clearTimeout(t)
   }, [listSearch])
+
+  // Debounced in-conversation search for Team Chat itself — every match in
+  // General, not just the latest (unlike the cross-conversation search
+  // above). Mirrors chat-window.tsx's own in-room search for a DM/group.
+  useEffect(() => {
+    const q = teamSearch.trim()
+    if (q.length < 2) { setTeamSearchResults([]); setSearchingTeam(false); return }
+    setSearchingTeam(true)
+    const t = setTimeout(() => {
+      fetch(`/api/chat/messages/search-in-room?q=${encodeURIComponent(q)}`, { credentials: 'include' })
+        .then(r => r.ok ? r.json() : [])
+        .then((data: TeamSearchResult[]) => setTeamSearchResults(data))
+        .catch(() => setTeamSearchResults([]))
+        .finally(() => setSearchingTeam(false))
+    }, 300)
+    return () => clearTimeout(t)
+  }, [teamSearch])
+
+  // Jump to a Team Chat search result — expand its month/thread if needed
+  // (using live state, since this fires from a click while the view is
+  // already settled, unlike jumpToTeamMessage's fresh-fetch approach for a
+  // cross-conversation result arriving via the hub's top-level search).
+  const jumpToTeamSearchResult = async (result: TeamSearchResult) => {
+    if (olderMonths.some(m => m.month === result.month) && !loadedMonths.has(result.month)) {
+      await expandMonth(result.month)
+    }
+    if (result.isReply && !expandedThreads[result.jumpToId]) {
+      await toggleThread(result.jumpToId)
+    }
+    setShowTeamSearch(false)
+    setTimeout(() => {
+      document.getElementById(`chat-msg-${result.messageId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      setHighlightedMsgId(result.messageId)
+      setTimeout(() => setHighlightedMsgId(null), 2000)
+    }, 150)
+  }
 
 
   // ── Load all users when the "New chat" picker opens ──────────────────────
@@ -1369,6 +1430,19 @@ export function FloatingChat() {
           )}
         </div>
         <div className="flex items-center gap-1 shrink-0">
+          {view === 'team' && (
+            <button
+              type="button"
+              onMouseDown={e => e.stopPropagation()}
+              onClick={() => setShowTeamSearch(v => !v)}
+              className={`w-7 h-7 flex items-center justify-center rounded-full hover:bg-white/20 transition-colors ${showTeamSearch ? 'bg-white/20' : ''}`}
+              title="Search this conversation"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </button>
+          )}
           <button
             type="button"
             onMouseDown={e => e.stopPropagation()}
@@ -1405,6 +1479,45 @@ export function FloatingChat() {
           </button>
         </div>
       </div>
+
+      {view === 'team' && showTeamSearch && (
+        <div className="border-b border-border bg-white dark:bg-gray-900 px-3 py-2 shrink-0">
+          <div className="relative">
+            <input
+              type="text"
+              autoFocus
+              value={teamSearch}
+              onChange={e => setTeamSearch(e.target.value)}
+              placeholder="Search this conversation…"
+              className="w-full text-xs px-2.5 py-1.5 pr-6 rounded-lg border border-border bg-gray-50 dark:bg-gray-800 text-primary focus:outline-none focus:ring-1 focus:ring-indigo-400"
+            />
+            {teamSearch && (
+              <button type="button" onClick={() => setTeamSearch('')} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-secondary hover:text-primary leading-none">×</button>
+            )}
+          </div>
+          {teamSearch.trim().length >= 2 && (
+            <div className="mt-1.5 max-h-40 overflow-y-auto space-y-1">
+              {searchingTeam ? (
+                <p className="text-[10px] text-secondary px-1">Searching…</p>
+              ) : teamSearchResults.length === 0 ? (
+                <p className="text-[10px] text-secondary px-1">No matches</p>
+              ) : (
+                teamSearchResults.map(r => (
+                  <button
+                    key={r.messageId}
+                    type="button"
+                    onClick={() => jumpToTeamSearchResult(r)}
+                    className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/20 text-[10px]"
+                  >
+                    <span className="text-secondary">{formatTime(r.createdAt)}{r.isReply ? ' · reply' : ''}</span>
+                    <p className="text-primary truncate">{r.snippet}</p>
+                  </button>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="relative flex-1 min-h-0 flex flex-col">
       {view === 'list' ? (
@@ -1808,6 +1921,14 @@ export function FloatingChat() {
       )}
       </div>
     </div>
+
+    {trimQueue[0] && (
+      <VideoTrimModal
+        file={trimQueue[0]}
+        onCancel={() => setTrimQueue(prev => prev.slice(1))}
+        onTrimmed={(trimmedFile) => { setTrimQueue(prev => prev.slice(1)); startUpload(trimmedFile) }}
+      />
+    )}
 
     {/* Satellite windows — one per open DM/group, cascading left of the hub
         so several conversations can be open and told apart at once. Most

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { AddReceiptModal } from './add-receipt-modal'
 import { useSession } from 'next-auth/react'
+import { useConfirm } from '@/components/ui/confirm-modal'
 
 interface PayeeRef {
   type: string
@@ -95,6 +96,7 @@ export function ViewReceiptsModal({
   const { data: session } = useSession()
   const currentUserId = (session?.user as any)?.id as string | undefined
   const isAdmin = (session?.user as any)?.role === 'admin'
+  const confirmModal = useConfirm()
 
   const [receipts, setReceipts] = useState<Receipt[]>([])
   const [currentPayee, setCurrentPayee] = useState<PayeeRef | null>(paymentPayee ?? null)
@@ -220,7 +222,12 @@ export function ViewReceiptsModal({
   }
 
   async function handleConfirmReturn() {
-    if (!window.confirm(`Confirm you have received $${returnInfo?.requestedAmount?.toFixed(2)} in returned funds? This will credit the account and lock this expense.`)) return
+    const ok = await confirmModal({
+      title: 'Confirm Return Received',
+      description: `Confirm you have received $${returnInfo?.requestedAmount?.toFixed(2)} in returned funds? This will credit the account and lock this expense.`,
+      confirmText: 'Confirm Received',
+    })
+    if (!ok) return
     setConfirmingReturn(true)
     try {
       const res = await fetch(`/api/expense-account/payments/${paymentId}/return-confirm`, {
@@ -308,6 +315,13 @@ export function ViewReceiptsModal({
   // Add Receipt show "payment amount / remaining to attribute" even for a
   // plain, non-advance payment.
   const receiptsTotalSoFar = receipts.reduce((sum, r) => sum + Number(r.amount), 0)
+  // Once receipts fully cover the amount, there's nothing left to add —
+  // keeps "+ Add Receipt" from staying usable past the point the money's
+  // already fully accounted for (review-tracked payments use the expected
+  // amount; a plain payment falls back to its own recorded amount).
+  const fullyReceipted = review
+    ? review.remaining <= 0.01
+    : (paymentAmount - receiptsTotalSoFar) <= 0.01
   // Most recently added entry — powers the "add another expense to the same
   // physical receipt" quick-fill in Add Receipt (copies date + receipt
   // number forward so a second expense type doesn't need either retyped).
@@ -571,7 +585,12 @@ export function ViewReceiptsModal({
             <div className="flex gap-3 flex-wrap">
               <button onClick={onClose} className="btn-secondary text-sm">Close</button>
               {review?.status !== 'APPROVED' && !returnInfo?.locked && (
-                <button onClick={() => setShowAddModal(true)} className="btn-primary text-sm">
+                <button
+                  onClick={() => setShowAddModal(true)}
+                  disabled={fullyReceipted}
+                  title={fullyReceipted ? 'Receipts already cover the full amount — nothing left to add' : undefined}
+                  className="btn-primary text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                >
                   + Add Receipt
                 </button>
               )}

@@ -1070,14 +1070,15 @@ Click the bell or go to **Pending Actions** to see everything in one place. Item
 - Petty cash requests
 - Payroll periods ready for approval
 - Eco-Cash to Cash conversion requests (cashiers only)
+- **Return Confirmations Needed** — a requester has reported returning unused funds (an expense payment or CASH petty cash) and a cashier needs to confirm receipt before the account is credited — see [Returning Unused Funds](#returning-unused-funds) below
 
 Click any item to review and approve or decline it.
 
-**Grouped by category:** the bell preview organises items into collapsed sections (Payment Batches, Petty Cash, Cash Allocations, Supplier Payments, and so on), each showing just a count until you click its header to expand it — so a large queue stays manageable instead of one long scroll. Searching automatically expands any section with a match.
+**Grouped by category:** the bell preview organises items into collapsed sections (Payment Batches, Return Confirmations Needed, Petty Cash, Cash Allocations, Supplier Payments, and so on), each showing just a count until you click its header to expand it — so a large queue stays manageable instead of one long scroll. Searching automatically expands any section with a match.
 
-**Searching the bell dropdown:** When there are more than 4 pending items, a search box appears at the top of the bell preview. Type to filter by name, amount, account, or note. Click **×** to clear.
+**Searching the bell dropdown:** When there are more than 4 pending items, a search box appears at the top of the bell preview. Type to filter by name, amount, account, or note — type a dollar amount like **"$20"** to match $20.00 through $20.99 regardless of the exact cents. Click **×** to clear.
 
-**Searching the full Pending Actions page:** A search bar at the top of the page filters all sections at once — useful when you have many items across different categories.
+**Searching the full Pending Actions page:** A search bar at the top of the page filters all sections at once — including by amount, same "$20" matches $20.xx behaviour — useful when you have many items across different categories.
 
 **Going straight to a request:** Clicking a Personal Payment Request in the bell preview opens the Pending Actions page and scrolls directly to that card, which is highlighted with a blue ring for 2–3 seconds.
 
@@ -3121,45 +3122,24 @@ The manager sees the request in **Pending Actions** or under **Petty Cash → Re
 
 ---
 
-#### Stage 3 — Employee Collects the Cash
+#### Stage 3 — Cash Is Released and Spending Is Recorded
 
-Once approved, the employee goes to the cashier (or cash box) to collect the money.
+Approval itself releases the money — there's no separate "collect from the cashier" step to mark in the system. The moment a cashier approves the request, the cash bucket is debited and the approved amount is deposited into the request's own petty cash tracking automatically.
 
-The cashier:
-1. Sees the approved request in the petty cash queue.
-2. Counts out the approved amount.
-3. Marks the request as **Disbursed** (or the system does this when cash is handed over).
-4. A Cash Bucket **OUTFLOW** entry is recorded automatically.
-
-The employee takes the cash and goes to make the purchase.
+As you spend, go to your approved request and click **+ Record Spend** (or **+ Record EcoCash Spend** for an EcoCash-channel request) each time you make a purchase — enter the amount, a description, a category, and optionally a payee. This builds up a running **Spent** total against the approved amount, visible on the request.
 
 ---
 
-#### Stage 4 — Employee Settles (Accounts for the Money Spent)
+#### Stage 4 — Returning Unused Funds
 
-After spending the money, the employee must settle the request:
+Once you're done spending, any leftover balance (approved amount minus what you actually spent) needs to be returned. How this works depends on the payment channel:
 
-1. Go to **Petty Cash** and find your approved request.
-2. Click **Settle**.
-3. Enter the **actual amount spent** (may be less than the approved amount).
-4. Attach proof — upload a photo of the receipt(s) or enter the receipt number.
-5. Click **Submit Settlement**.
+**CASH requests** — returning physical cash needs a cashier to confirm they actually received it, so it's a two-step process:
+1. Open your approved request and click **💰 Return unused funds**. This submits a settlement request — it does **not** credit anything yet.
+2. Status changes to **Awaiting Settlement**, and you'll see the request under **Return Confirmations Needed** in the cashier's Pending Actions.
+3. A cashier reviews it and, once they've physically received the cash, clicks **✅ Confirm Receipt & Settle**. Only at that point is the cash bucket credited and the request marked **Settled**.
 
-Status → **Settled**.
-
-> **If you spent less than approved:** Enter the actual amount. The system records the difference as an **unspent balance**. Return the unspent cash to the cashier — they will record a **Cash Bucket INFLOW** (returned funds) to balance the books.
-
-> **If you spent more than approved:** Enter the actual amount. The overage will appear as a variance for the manager to review. The manager may approve the additional amount separately or note it as out of policy.
-
----
-
-#### Stage 5 — Manager Reviews Settlements
-
-The manager periodically reviews settled petty cash requests:
-
-1. Go to **Petty Cash → Settled Requests**.
-2. Review each settlement — check that the receipt matches the amount and reason.
-3. Mark as **Reviewed** if everything is correct.
+**EcoCash requests** — since returning EcoCash is a software transfer with no physical handoff, either you or a cashier can settle in one step: click **📱 Settle Request**, confirm the amount being returned, and the request is immediately marked **Settled** — no separate confirmation step needed.
 
 ---
 
@@ -3168,11 +3148,10 @@ The manager periodically reviews settled petty cash requests:
 | Status | Meaning |
 |--------|---------|
 | **Pending** | Submitted, waiting for manager approval |
-| **Approved** | Approved, cash not yet collected |
-| **Disbursed** | Cash collected by employee, purchase in progress |
-| **Settled** | Employee submitted receipts and accounted for the money |
-| **Returned** | Unspent funds returned to the cash box |
-| **Declined** | Manager declined the request |
+| **Approved** | Approved — cash already released, spending in progress |
+| **Awaiting Settlement** | CASH only — requester has reported a return; awaiting cashier confirmation |
+| **Settled** | Unused funds returned and confirmed (or, for EcoCash, self-settled) |
+| **Cancelled** | Request cancelled before approval |
 
 ---
 
@@ -6463,21 +6442,25 @@ REQUEST PETTY CASH
   → Enter amount & reason → Submit
   (wait for approval notification)
 
-COLLECT YOUR CASH
-  After approval → go to cashier with approval
-  → cashier releases cash
+APPROVAL RELEASES THE CASH
+  Approval debits the cash bucket automatically
+  → no separate "collect from cashier" step
 
-SETTLE YOUR PETTY CASH
-  Keep all receipts
-  Petty Cash → find your request → Settle
-  → attach receipts → submit
+RECORD SPENDING AS YOU GO
+  Petty Cash → your request → + Record Spend
+  (+ Record EcoCash Spend for EcoCash requests)
+
+RETURN WHAT'S LEFT OVER
+  CASH:    → Return unused funds → cashier confirms receipt → Settled
+  ECOCASH: → Settle Request (self-settle, one step) → Settled
 ─────────────────────────────────────────────
 
 STATUS MEANINGS
-  Pending  = waiting for manager approval
-  Approved = approved, collect from cashier
-  Settled  = done and accounted for
-  Cancelled = declined or withdrawn
+  Pending             = waiting for manager approval
+  Approved            = cash released, spending in progress
+  Awaiting Settlement = CASH only — return reported, awaiting cashier confirmation
+  Settled             = unused funds returned and confirmed
+  Cancelled           = withdrawn before approval
 ```
 
 ---
@@ -6688,7 +6671,10 @@ Clicking either state opens a compact **inline dropdown** directly on the row. S
 - If the payment already has a known payee, their name is shown and pre-selected. Click **Change** if the receipt is from a different person or supplier.
 - If no payee is recorded, click **Select** and type to search.
 - As you type, matching individuals, suppliers, and contractors appear in a dropdown. Select the correct one.
-- If the payee does not exist yet, click **+ Create individual** or **+ Create supplier** directly from the search results to add them on the fly — the newly created payee is attached to this receipt automatically, no extra selection step needed.
+- If the payee does not exist yet, create one directly from the search results — the newly created payee is attached to this receipt automatically, no extra selection step needed:
+  - **+ Create individual** — a person who isn't a contractor (full name, optional national ID, phone, service category).
+  - **+ Create contractor** — a person doing contract work (same fields as individual, plus a contractor category).
+  - **+ Create supplier** — a real supplier record with a generated supplier number, products/services supplied, and a supplier category (e.g. "Building Materials") — the same kind of record created from the **Suppliers** menu (see [Suppliers & Payees](#17-suppliers--payees)), just without needing to leave the receipt form. A supplier created this way isn't tied to any one business.
 - If it's a one-time or unknown vendor not worth saving as a permanent record — click **Use "[name]" as one-time payee** instead. The name is stored on this receipt only; no Person, Business, or Supplier record is created, and it won't offer to update the payment's registered payee.
 - **↻ Use last payee** — when you've entered a receipt before on this device, this button appears offering to reuse that same payee with one click. Handy when adding several receipts in a row for the same vendor.
 
@@ -6740,6 +6726,31 @@ Click the **🧾** badge on any payment row to open the receipts panel. This sho
 To add another receipt to the same payment, click **+ Add Receipt** at the bottom of the panel.
 
 For payments that require receipt accountability (see the colour-coded badge above), this panel also shows the review status and, when applicable, **Submit to Cashier** and **✅ Approve** buttons — see [Accounting for the Funds — Adding Receipts](#accounting-for-the-funds--adding-receipts) in Section 39 for the full workflow.
+
+#### Returning Unused Funds
+
+If money is left over after a payment — the full amount wasn't needed, or only part of it was spent — the requester can formally return the unused balance rather than it just sitting unreceipted forever.
+
+**Requester — reporting a return:**
+
+1. Open the payment's receipts panel (click its 🧾 badge).
+2. Click **💰 Return unused funds**. This button is available any time there's still an un-receipted balance left on the payment — even if the payment was later cancelled.
+3. Enter the **amount** you're returning (click **Max** to fill in the full remaining balance) and an optional note.
+4. Click **Submit Return**.
+
+This does **not** credit the account yet — it stays **pending** until a cashier confirms they've physically (or electronically) received the funds. A purple **"💰 Return Pending Confirmation"** banner appears at the top of the receipts panel, and the cashier is notified.
+
+**Cashier — confirming receipt:**
+
+1. You'll find the item under **Return Confirmations Needed** in Pending Actions (bell preview or the full page), or directly on the payment's receipts panel if you open it.
+2. Review the reported amount and note.
+3. Click **✅ Confirm Return Received**.
+
+Confirming automatically **credits the returned amount back to the expense account** (as a deposit) and **locks the payment** — no further receipts, edits, or a second return can be made against it. The requester is notified that their return was confirmed. A teal **"🔒 Returned & Confirmed — read-only"** banner replaces the pending one, and all existing receipts and the return details stay visible for reference.
+
+> **Submitting receipts and returning unused funds are independent** — adding a receipt never marks the balance as returned, and reporting a return never marks it as received. Only the cashier's confirmation does that.
+
+> **Reminders:** if a payment is flagged **"This is an advance"** or is a combo-pay disbursement (see the colour-coded badge above), you're reminded daily to either submit receipts or return the unused balance, starting from when the funds were approved. If nothing is done after **7 days**, the cashier group is also notified to follow up.
 
 #### Why Attach Receipts?
 
@@ -7014,7 +7025,7 @@ Click the **⌄ back arrow** at the top-left of the chat header to see your conv
 
 - **Team Chat** is pinned at the top, with its own unread badge and online count.
 - Below it, your **Direct Messages and Groups**, most recently active first — each row shows a snippet of the last message and its own unread badge.
-- **Search** at the top of the list: type a name to instantly filter the list, or type a phrase to also search message content — matching conversations appear below with a short snippet of the matching message; click one to open it.
+- **Search** at the top of the list: type a name to instantly filter the list, or type a phrase to also search message content — matching conversations appear below with a short snippet of the matching message; click one to open it and jump straight to that message. See [Searching Across All Conversations](#searching-across-all-conversations) below for more.
 
 Click **Team Chat** or any conversation row to open it.
 
@@ -7162,6 +7173,24 @@ A few things worth knowing:
 
 Opening a conversation only loads the **last 30 days** of messages right away, so long-running Direct Messages and Groups stay fast to open. Anything older sits behind a collapsed placeholder above the loaded messages, showing the month and how many messages it has (e.g. *"September 2026 (14) — click to load"*) — click it to load that month in place. This is per-session: closing and reopening the conversation collapses older months again, so you're not stuck scrolling past old history every time. (Team Chat never shows this, since it already prunes everything past 7 days.)
 
+#### Searching Within a Conversation
+
+Every open conversation window has its own search:
+
+1. Click the 🔍 search icon in the window's header (not shown for the read-only System Alerts channel).
+2. Type at least 2 characters — every matching message in that conversation appears below, newest first, with a timestamp and a short snippet.
+3. Click a result to jump straight to it — the view automatically scrolls there, loading that older month's history or expanding a reply thread first if needed, and briefly highlights the message with a blue ring so it's easy to spot.
+
+This searches the **whole conversation**, not just what's currently loaded on screen — including messages behind a collapsed older-month placeholder.
+
+#### Searching Across All Conversations
+
+To find a message without knowing which conversation it's in:
+
+- Open the chat panel's **conversations list** (the ⌄ back arrow) and type in the **Search** box at the top — this matches conversation names instantly and, after a brief pause, message content too, showing a snippet under a **Messages (N)** heading.
+- Click a message result to open that conversation and jump straight to the matching message (expanding older history or a reply thread first, same as the in-conversation search above) — you don't need to scroll around looking for it afterward.
+- **From inside a conversation's own search panel**, if your search doesn't turn up what you need there, click **🔎 Search all conversations for "…"** at the bottom of the results to widen the same search to everywhere at once, without retyping it.
+
 #### Editing a Message
 
 You can correct a typo or fix your most recent message without deleting and resending it:
@@ -7176,14 +7205,23 @@ You can correct a typo or fix your most recent message without deleting and rese
 
 ### Attachments
 
-You can attach PDFs and images (JPEG or PNG) to a message in any Direct Message, Group, or Team Chat conversation:
+You can attach documents, images, audio, and short videos to a message in any Direct Message, Group, or Team Chat conversation:
 
 - **Attach a file** — click the 📎 (paperclip) icon next to the message box and pick one or more files, or **drag and drop** them straight onto the chat window (a "Drop to attach" overlay appears while dragging). You can send a message with just an attachment and no typed text, or combine both.
-- **Multiple files at once** — up to **10 files per message**, any mix of PDFs and images. Each shows as its own small chip while it uploads; remove one before sending by clicking its ✕.
-- **Limits** — PDF, JPEG, or PNG only, up to **10MB per file**.
-- **Viewing** — once sent, an image shows as a thumbnail right in the chat (click it to open full-size); a PDF shows as a file card. Both the sender and everyone else in the conversation see the exact same preview — it's not just visible to the person who sent it.
-- **Download** — for an image, downloading is optional (a small download icon sits next to the thumbnail, since the image is already viewable in the chat). A **PDF always shows a clear Download button** alongside View, since a PDF is the kind of file you'll usually want to open in your own PDF reader outside the browser.
+- **Multiple files at once** — up to **10 files per message**, any mix of the types below. Each shows as its own small chip while it uploads; remove one before sending by clicking its ✕.
+- **Limits per file type:**
+
+  | Type | Formats | Max size |
+  |---|---|---|
+  | Document / Image | PDF, JPEG, PNG | 10MB |
+  | Audio | MP3, M4A, WAV, OGG | 15MB |
+  | Video | MP4, MOV, WebM | 25MB — keep clips short |
+
+- **Picking a video over 25MB doesn't reject it** — a **✂️ Trim Video** dialog opens instead, showing the video with a Start and End slider. Drag either handle to select just the section you want (an estimated output size updates live, in red while still too big, turning green once your selection is small enough), optionally click **▶ Preview selection** to check it, then click **Use Trimmed Video**. The trimmed clip uploads in place of the original — the full original file is never sent.
+- **Viewing** — an image shows as a thumbnail (click to open full-size); audio and video play **inline right in the chat** with their own player controls; a PDF shows as a file card. Both the sender and everyone else in the conversation see the exact same preview — it's not just visible to the person who sent it.
+- **Download** — for an image, audio clip, or video, downloading is optional (a small download icon sits alongside it, since it's already viewable/playable in the chat). A **PDF always shows a clear Download button** alongside View, since a PDF is the kind of file you'll usually want to open in your own PDF reader outside the browser.
 - **Deleting the message removes the attachment** — same as any other message content; there's no separate step.
+- **Backups** — attached documents, images, and audio are included in system backups like any other data. **Video attachments are deliberately excluded from backups** to keep backup file sizes manageable — if you need to preserve a video long-term, save your own copy outside the chat.
 
 ---
 
@@ -7194,7 +7232,8 @@ You can attach PDFs and images (JPEG or PNG) to a message in any Direct Message,
 | Team Chat (company-wide broadcast) | ✅ Yes |
 | Persistent Direct Messages & Groups | ✅ Yes |
 | Multiple chat windows open at once (desktop) | ✅ Yes — up to 5, configurable |
-| Conversation search (by name and message content) | ✅ Yes |
+| Conversation search (by name and message content, jumps to the matching message) | ✅ Yes |
+| Search within a single conversation (every match, jumps to the message) | ✅ Yes |
 | Group member management (add/remove, creator only) | ✅ Yes |
 | @-mention flagging ("important", up to 2 people, groups) | ✅ Yes |
 | Threaded replies | ✅ Yes |
@@ -7203,7 +7242,7 @@ You can attach PDFs and images (JPEG or PNG) to a message in any Direct Message,
 | Profile photos on avatars | ✅ Yes |
 | Notification sound (configurable) | ✅ Yes |
 | Real-time delivery via WebSocket | ✅ Yes |
-| File or image attachments | Not yet |
+| Attachments — PDF, image, audio, and short video | ✅ Yes — video excluded from backups |
 | Read receipts | ✅ Yes — Direct Messages & Groups (see [Read Receipts](#read-receipts) below) |
 | Message editing | ✅ Yes — own most recent message only, within 15 minutes, shows an edit count |
 | Collapsed older-than-30-days history (per-month, loaded on demand) | ✅ Yes — Direct Messages & Groups |
@@ -10264,9 +10303,9 @@ The moment your request reaches **PAID**, you're expected to show receipts provi
 3. Once the total looks right, click **Submit to Cashier**. If your receipts don't quite add up to the approved amount, you can still submit — a warning is shown, but the cashier does the actual checking, not the form.
 4. A cashier reviews your receipts, may correct amounts or details if something was entered wrong, and clicks **✅ Approve**. The badge turns green and the reminders stop.
 
-If receipts are still outstanding **7 days** after the funds were issued, the badge turns red and the cashier group is notified so they can follow up.
+If receipts are still outstanding **7 days** after the funds were issued, the badge turns red and the cashier group is notified so they can follow up. Requesting settlement to return any remaining change (see below) also counts toward clearing this reminder — you don't need to receipt every last cent if the balance is instead formally returned.
 
-> This same accountability flow can also be turned on for a one-off payment outside combo pay — tick **"This is an advance — receipts required"** when creating a Quick Payment.
+> This same accountability flow can also be turned on for a one-off payment outside combo pay — tick **"This is an advance — receipts required"** when creating a Quick Payment. A standalone payment's own return-unused-funds flow works the same way as described here — see [Returning Unused Funds](#returning-unused-funds) in Section 17.
 
 ---
 
@@ -10297,6 +10336,8 @@ When a requester notifies you of remaining change:
 The request is marked **SETTLED**. The audit trail records who confirmed and when.
 
 > **Note:** The Confirm Change Received button is never shown to the person who created the request — only to cashiers and admins.
+
+> **Once settled, the request is read-only** — no further items, receipts, or edits can be added. All existing items and receipts remain visible for reference.
 
 ---
 
