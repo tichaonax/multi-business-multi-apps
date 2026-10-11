@@ -20,13 +20,18 @@ function fmtMB(bytes: number): string {
 }
 
 /** A video over the 25MB chat-attachment cap routes here instead of being
- * rejected outright — re-records just the selected [start, end) window via
- * HTMLVideoElement.captureStream() + MediaRecorder (no server round-trip,
- * no ffmpeg/WASM dependency), producing a video/webm clip, one of the
- * already-supported chat video types. The size shown before trimming is an
- * estimate (proportional to the selected fraction of the original) since
- * the real output size depends on re-encoding and isn't known until after;
- * the actual trimmed file is re-checked against the cap before accepting it. */
+ * rejected outright — the selected [start, end) window is cut server-side
+ * via ffmpeg (POST /api/chat/attachments/trim-video), returning a video/mp4
+ * clip. An earlier version did this entirely client-side via
+ * HTMLVideoElement.captureStream() + MediaRecorder, but that proved
+ * unreliable — it could silently produce a genuinely empty (0-byte) output
+ * with no clear browser-side cause, so it was replaced with this
+ * server-side approach, which is deterministic regardless of
+ * browser/Electron quirks. The size shown before trimming is an estimate
+ * (proportional to the selected fraction of the original) since the real
+ * output size depends on re-encoding and isn't known until the server
+ * responds; the actual trimmed file is re-checked against the cap on the
+ * server before it's ever returned to the client. */
 export function VideoTrimModal({ file, onCancel, onTrimmed }: VideoTrimModalProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const [objectUrl] = useState(() => URL.createObjectURL(file))
@@ -35,7 +40,6 @@ export function VideoTrimModal({ file, onCancel, onTrimmed }: VideoTrimModalProp
   const [end, setEnd] = useState(0)
   const [previewing, setPreviewing] = useState(false)
   const [trimming, setTrimming] = useState(false)
-  const [trimProgress, setTrimProgress] = useState(0)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => () => URL.revokeObjectURL(objectUrl), [objectUrl])
@@ -79,86 +83,35 @@ export function VideoTrimModal({ file, onCancel, onTrimmed }: VideoTrimModalProp
   }
 
   async function acceptTrim() {
-    const v = videoRef.current
-    if (!v) return
-    if (typeof (v as any).captureStream !== 'function' || typeof MediaRecorder === 'undefined') {
-      setError('Video trimming isn\'t supported in this app version — try a shorter clip exported elsewhere instead.')
-      return
-    }
     setError(null)
     setTrimming(true)
-    setTrimProgress(0)
-    const wasMuted = v.muted
     try {
-      const stream: MediaStream = (v as any).captureStream()
-      const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
-        ? 'video/webm;codecs=vp9,opus'
-        : MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')
-          ? 'video/webm;codecs=vp8,opus'
-          : 'video/webm'
-      const recorder = new MediaRecorder(stream, { mimeType })
-      const chunks: Blob[] = []
-      recorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) chunks.push(e.data) }
-      const stopped = new Promise<void>((resolve) => { recorder.onstop = () => resolve() })
-
-      v.muted = true // capture still records audio; this just silences local playback while trimming
-      v.currentTime = start
-      await new Promise<void>((resolve) => {
-        const onSeeked = () => { v.removeEventListener('seeked', onSeeked); resolve() }
-        v.addEventListener('seeked', onSeeked)
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('start', String(start))
+      formData.append('end', String(end))
+      const res = await fetch('/api/chat/attachments/trim-video', {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
       })
-
-      // A 250ms timeslice makes the recorder flush real data periodically
-      // throughout, instead of buffering everything for one single
-      // end-of-recording flush — the previous no-timeslice version could
-      // produce a genuinely empty (0-byte) blob if stop() ever fired before
-      // the encoder had buffered its first frame (e.g. v.paused read true
-      // for a tick right after play() resolved).
-      recorder.start(250)
-      await v.play()
-
-      // Stop is driven by wall-clock elapsed time (setTimeout), not just
-      // requestAnimationFrame polling of v.currentTime — rAF can be
-      // throttled when the window loses focus/visibility, which would
-      // otherwise leave the recorder running indefinitely (or exiting too
-      // early/late) instead of stopping at the selected end point.
-      const durationMs = Math.max(200, (end - start) * 1000)
-      const startedAt = performance.now()
-      await new Promise<void>((resolve) => {
-        let settled = false
-        const finish = () => { if (!settled) { settled = true; resolve() } }
-        const poll = () => {
-          if (!v || settled) return
-          setTrimProgress(Math.min(1, (performance.now() - startedAt) / durationMs))
-          if (v.currentTime >= end || v.ended) { finish(); return }
-          requestAnimationFrame(poll)
-        }
-        requestAnimationFrame(poll)
-        setTimeout(finish, durationMs + 500)
-      })
-
-      v.pause()
-      if (recorder.state !== 'inactive') recorder.stop()
-      await stopped
-
-      const blob = new Blob(chunks, { type: 'video/webm' })
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}))
+        setError(json?.error || 'Failed to trim video')
+        setTrimming(false)
+        return
+      }
+      const blob = await res.blob()
       if (blob.size < 1024) {
-        setError('Trimming produced an empty clip — keep this window focused while trimming, and try again.')
+        setError('Trimming produced an empty clip — try a different section.')
         setTrimming(false)
         return
       }
-      if (blob.size > MAX_VIDEO_ATTACHMENT_SIZE) {
-        setError(`Trimmed clip is still ${fmtMB(blob.size)} — select a shorter section and try again.`)
-        setTrimming(false)
-        return
-      }
-      const trimmedName = file.name.replace(/\.[^./]+$/, '') + '-trimmed.webm'
-      onTrimmed(new File([blob], trimmedName, { type: 'video/webm' }))
+      const trimmedName = file.name.replace(/\.[^./]+$/, '') + '-trimmed.mp4'
+      onTrimmed(new File([blob], trimmedName, { type: 'video/mp4' }))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to trim video')
       setTrimming(false)
-    } finally {
-      v.muted = wasMuted
     }
   }
 
@@ -210,8 +163,9 @@ export function VideoTrimModal({ file, onCancel, onTrimmed }: VideoTrimModalProp
             )}
             {error && <p className="text-[10px] text-red-500">{error}</p>}
             {trimming && (
-              <div className="w-full h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                <div className="h-full bg-indigo-500 transition-all" style={{ width: `${Math.round(trimProgress * 100)}%` }} />
+              <div className="flex items-center gap-2 text-[11px] text-secondary">
+                <span className="w-3 h-3 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin shrink-0" />
+                Processing on the server — this can take a few seconds for longer clips…
               </div>
             )}
             <div className="flex justify-end gap-2 pt-1 flex-wrap">

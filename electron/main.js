@@ -177,8 +177,8 @@ async function openServer(serverEntry) {
     minimizable: false,
   })
 
-  // window.open() in this app comes in two completely different shapes that
-  // need completely different handling:
+  // window.open() in this app comes in three completely different shapes
+  // that need completely different handling:
   //
   //  1. window.open('', '_blank', ...) — the print-preview pattern used all
   //     over the app (invoices, payroll slips, bulk print, job cards,
@@ -186,7 +186,17 @@ async function openServer(serverEntry) {
   //     the returned reference. url here is 'about:blank'. This MUST stay
   //     a real, in-app BrowserWindow or that code gets a null/useless
   //     reference and breaks.
-  //  2. <a target="_blank" href="..."> pointing at a real URL — "View" on a
+  //  2. window.open('/customer-display?...', 'CustomerDisplay', ...) — the
+  //     manual "🖥️ Display" button (POS pages, every business type's
+  //     manage/customer-display preview). MUST also stay in-app: this is
+  //     the same secondary-monitor kiosk window openServer() already
+  //     creates natively on startup when it detects a real second
+  //     monitor (see restaurant/pos/page.tsx's comment on why POS no
+  //     longer auto-opens one itself) — externalizing this instead
+  //     produced a real duplicate-window regression, a second browser
+  //     window showing the same customer display on top of the actual
+  //     kiosk window.
+  //  3. <a target="_blank" href="..."> pointing at a real URL — "View" on a
   //     chat/license PDF or image attachment. Routes through
   //     shell.openExternal — the system's default browser — rather than
   //     staying in-app: Electron's own built-in PDF viewer needs the right
@@ -197,6 +207,13 @@ async function openServer(serverEntry) {
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (!url || url === 'about:blank') {
       return { action: 'allow', overrideBrowserWindowOptions: { webPreferences: { nodeIntegration: false, contextIsolation: true, partition } } }
+    }
+    try {
+      if (new URL(url).pathname === '/customer-display') {
+        return { action: 'allow', overrideBrowserWindowOptions: { webPreferences: { nodeIntegration: false, contextIsolation: true, partition } } }
+      }
+    } catch {
+      // Malformed/relative url — fall through to the external-browser path below.
     }
     shell.openExternal(url)
     return { action: 'deny' }

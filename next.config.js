@@ -25,10 +25,16 @@ const nextConfig = {
       '@': require('path').resolve(__dirname, 'src'),
     };
 
-    // Mark sharp as external for server-side to prevent webpack bundling issues
+    // Mark sharp/ffmpeg-static as external for server-side to prevent webpack
+    // bundling issues — ffmpeg-static resolves its binary path via
+    // __dirname at runtime, which webpack rewrites when bundled into
+    // .next/server/..., producing a path that doesn't exist (ENOENT) in the
+    // compiled output directory instead of node_modules/ffmpeg-static/.
+    // Marking it external leaves it as a plain require() resolved via real
+    // Node module resolution, so __dirname stays correct.
     if (isServer) {
       config.externals = config.externals || [];
-      config.externals.push('sharp');
+      config.externals.push('sharp', 'ffmpeg-static');
     }
 
     return config;
