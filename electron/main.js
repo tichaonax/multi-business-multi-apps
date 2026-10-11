@@ -14,7 +14,7 @@
  * on a live window, which would risk leaking session state between them.
  */
 
-const { app, BrowserWindow, screen, ipcMain, Menu, session: electronSession } = require('electron')
+const { app, BrowserWindow, screen, ipcMain, Menu, session: electronSession, shell } = require('electron')
 const path = require('path')
 const scaleService = require('./scale-service')
 const registry = require('./server-registry')
@@ -175,6 +175,31 @@ async function openServer(serverEntry) {
     // app on top of it) was an explicit call, not an oversight — the
     // operator can always relaunch. Close still works normally.
     minimizable: false,
+  })
+
+  // window.open() in this app comes in two completely different shapes that
+  // need completely different handling:
+  //
+  //  1. window.open('', '_blank', ...) — the print-preview pattern used all
+  //     over the app (invoices, payroll slips, bulk print, job cards,
+  //     receipts...): opens a BLANK window and writes HTML straight into
+  //     the returned reference. url here is 'about:blank'. This MUST stay
+  //     a real, in-app BrowserWindow or that code gets a null/useless
+  //     reference and breaks.
+  //  2. <a target="_blank" href="..."> pointing at a real URL — "View" on a
+  //     chat/license PDF or image attachment. Routes through
+  //     shell.openExternal — the system's default browser — rather than
+  //     staying in-app: Electron's own built-in PDF viewer needs the right
+  //     session partition AND webPreferences.plugins:true to render inline,
+  //     and even with both it proved unreliable; the external browser is
+  //     already proven to render these correctly, and it's also what the
+  //     user wants for a PDF regardless (opened in a real external reader).
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (!url || url === 'about:blank') {
+      return { action: 'allow', overrideBrowserWindowOptions: { webPreferences: { nodeIntegration: false, contextIsolation: true, partition } } }
+    }
+    shell.openExternal(url)
+    return { action: 'deny' }
   })
 
   // Windows only auto-hides the taskbar for a window it considers truly
