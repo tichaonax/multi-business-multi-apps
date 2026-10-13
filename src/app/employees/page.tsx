@@ -53,6 +53,7 @@ interface Employee {
   currentContract?: any | null
   contractCount?: number
   profilePhotoUrl?: string | null
+  commissionEligible?: boolean
 }
 
 interface EmployeesResponse {
@@ -837,6 +838,12 @@ export default function EmployeesPage() {
                             {employee.jobTitle.level}
                           </span>
                         )}
+
+                        {employee.commissionEligible && (
+                          <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-800 dark:text-emerald-200 rounded">
+                            💰 Commission
+                          </span>
+                        )}
                       </div>
 
                       {/* Supervisor Info */}
@@ -1071,6 +1078,11 @@ export default function EmployeesPage() {
                             {employee.jobTitle.level && (
                               <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-200 rounded">
                                 {employee.jobTitle.level}
+                              </span>
+                            )}
+                            {employee.commissionEligible && (
+                              <span className="inline-flex items-center px-2 py-1 ml-1 text-xs font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-800 dark:text-emerald-200 rounded">
+                                💰 Commission
                               </span>
                             )}
                           </td>

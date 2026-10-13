@@ -340,7 +340,17 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       userId,
       isActive,
       profilePhotoUrl,
-      tin
+      tin,
+      commissionEligible,
+      commissionTier1Enabled,
+      commissionTier1Threshold,
+      commissionTier1Rate,
+      commissionTier2Enabled,
+      commissionTier2Threshold,
+      commissionTier2Rate,
+      commissionTier3Enabled,
+      commissionTier3Threshold,
+      commissionTier3Rate,
     } = data
 
     // Check if employee exists
@@ -517,6 +527,20 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
           isActive: newIsActive,
           profilePhotoUrl: profilePhotoUrl !== undefined ? (profilePhotoUrl || null) : existingEmployee.profilePhotoUrl,
           tin: tin !== undefined ? (tin || null) : existingEmployee.tin,
+          // MBM-311: commission eligibility + 3-tier config, admin-editable
+          // in the Employee Management UI. Each field falls back to its
+          // existing value when omitted, same pattern as tin/profilePhotoUrl
+          // above.
+          commissionEligible: commissionEligible !== undefined ? commissionEligible : existingEmployee.commissionEligible,
+          commissionTier1Enabled: commissionTier1Enabled !== undefined ? commissionTier1Enabled : existingEmployee.commissionTier1Enabled,
+          commissionTier1Threshold: commissionTier1Threshold !== undefined ? commissionTier1Threshold : existingEmployee.commissionTier1Threshold,
+          commissionTier1Rate: commissionTier1Rate !== undefined ? commissionTier1Rate : existingEmployee.commissionTier1Rate,
+          commissionTier2Enabled: commissionTier2Enabled !== undefined ? commissionTier2Enabled : existingEmployee.commissionTier2Enabled,
+          commissionTier2Threshold: commissionTier2Threshold !== undefined ? commissionTier2Threshold : existingEmployee.commissionTier2Threshold,
+          commissionTier2Rate: commissionTier2Rate !== undefined ? commissionTier2Rate : existingEmployee.commissionTier2Rate,
+          commissionTier3Enabled: commissionTier3Enabled !== undefined ? commissionTier3Enabled : existingEmployee.commissionTier3Enabled,
+          commissionTier3Threshold: commissionTier3Threshold !== undefined ? commissionTier3Threshold : existingEmployee.commissionTier3Threshold,
+          commissionTier3Rate: commissionTier3Rate !== undefined ? commissionTier3Rate : existingEmployee.commissionTier3Rate,
           updatedAt: new Date()
         },
         include: {

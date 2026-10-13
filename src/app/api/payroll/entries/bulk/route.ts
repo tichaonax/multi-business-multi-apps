@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { generatePayrollContractEntries } from '@/lib/payroll/contract-selection'
+import { calculateEmployeeCommission } from '@/lib/payroll/commission-calculator'
 import { nanoid } from 'nanoid'
 import { getServerUser } from '@/lib/get-server-user'
 
@@ -63,7 +64,17 @@ export async function POST(request: NextRequest) {
         nationalId: true,
         dateOfBirth: true,
         hireDate: true,
-        terminationDate: true
+        terminationDate: true,
+        commissionEligible: true,
+        commissionTier1Enabled: true,
+        commissionTier1Threshold: true,
+        commissionTier1Rate: true,
+        commissionTier2Enabled: true,
+        commissionTier2Threshold: true,
+        commissionTier2Rate: true,
+        commissionTier3Enabled: true,
+        commissionTier3Threshold: true,
+        commissionTier3Rate: true,
       }
     })
 
@@ -251,8 +262,21 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // Calculate gross pay including benefits
-        const grossPay = proratedBaseSalary + benefitsTotal
+        // MBM-311: commission-eligible employees get it calculated
+        // automatically from their sales in this period (same rule as the
+        // single-entry creation route).
+        let commissionAmount = 0
+        let commissionBreakdown: any = null
+        if (employee.commissionEligible) {
+          const commissionPeriodStart = period.periodStart ?? new Date(period.year, period.month - 1, 1)
+          const commissionPeriodEnd = period.periodEnd ?? new Date(period.year, period.month, 0, 23, 59, 59, 999)
+          const result = await calculateEmployeeCommission(employee as any, commissionPeriodStart, commissionPeriodEnd)
+          commissionAmount = result.total
+          commissionBreakdown = result.breakdown
+        }
+
+        // Calculate gross pay including benefits + commission
+        const grossPay = proratedBaseSalary + benefitsTotal + commissionAmount
         const loanDeduction = loanDeductionMap.get(employee.id) ?? 0
         const netPay = grossPay - totalDeductions - loanDeduction
 
@@ -284,7 +308,8 @@ export async function POST(request: NextRequest) {
           absenceDaysFromRecords: absenceCountByEmployee.get(employee.id) ?? 0,
           overtimeHours: 0,
           baseSalary: proratedBaseSalary,
-          commission: 0,
+          commission: commissionAmount,
+          commissionBreakdown,
           livingAllowance: 0,
           vehicleAllowance: 0,
           travelAllowance: 0,

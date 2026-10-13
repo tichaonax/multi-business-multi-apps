@@ -2148,6 +2148,42 @@ Benefits are automatically included in the next payroll run.
 
 > This is a separate list from a **contract's own benefits** (Living Allowance, Annual Bonus, etc. shown on the Contracts tab) — see [Adding or Removing a Benefit Without Renewing the Contract](#adding-or-removing-a-benefit-without-renewing-the-contract) above for changing those.
 
+### Employee Commission-Based Pay
+
+Some employees (typically sales staff) can earn commission on top of their base salary, calculated automatically from their own sales each payroll period. This is **admin-only** to configure.
+
+#### Setting It Up
+
+1. Open the employee's **Edit** page and scroll to the **Commission** section (visible to admins only).
+2. Check **Commission-eligible** to reveal the tier grid.
+3. For each tier you want active, check its **Enabled** box, then fill in:
+
+| Column | Meaning |
+|---|---|
+| **Sales Width ($)** | The **width** of that tier's own sales band — progressive, like a tax bracket — not a cumulative total. Tier 2's width is added *on top of* Tier 1's, not measured from zero: Tier 1 = 1000 covers sales $0–$1,000; Tier 2 = 1500 then covers the *next* $1,500, i.e. $1,000–$2,500 of cumulative sales; Tier 3 covers everything from $2,500 onward. Leave **Tier 3's width blank** for an unlimited top tier — there's no separate cap field, a Tier 3 width you *do* fill in already is its own upper bound, and sales beyond it earn **nothing**. |
+| **Rate (%)** | The commission percentage applied to sales that fall inside that tier's band. |
+
+**Worked example** — Tier 1 width 1000 @ 5%, Tier 2 width 1500 @ 2%, Tier 3 width *left blank* @ 1%, for an employee whose sales this period total $4,800:
+- Tier 1 band is $0–$1,000: 5% × $1,000 = $50
+- Tier 2 band is $1,000–$2,500 (1000 + 1500): 2% × $1,500 = $30
+- Tier 3 band is $2,500 onward (unlimited): 1% × $2,300 (the remaining sales above $2,500) = $23
+- Total commission: $103
+
+A tier left **unchecked** (disabled) earns nothing even if the employee's sales fall in its range — commission can come from any one tier, any combination, or none at all. A disabled tier's band is **not** redistributed to another tier — it's simply skipped.
+
+#### Where the Numbers Show Up
+
+- Commission is calculated automatically when a payroll entry is created for a commission-eligible employee — it is **not** manually typed in (the entry's Commission field is locked once eligibility is on).
+- **Payroll Details** (the period's entry list and the entry detail panel) show each *enabled* tier as its own line — "Commission — Tier 1", "Commission — Tier 2", "Commission — Tier 3" — all contributing to the same gross pay total.
+- The employee's **payslip** shows one combined **Commission** line (the sum of all tiers) — tier detail is an admin/payroll-details view only.
+- Sales are counted from completed orders attributed to that employee (whoever rang them up at the POS) within their primary business for that payroll period, excluding expense-account self-payments.
+
+#### Recalculating After the Fact
+
+If a sale was recorded late, or a counted sale was later cancelled, commission does **not** silently update on its own. On the payroll period page, click **↻ Sync Commission** to recalculate every commission-eligible employee's entry from current sales (same pattern as the existing Sync Stock Shortfall / Sync Benefits actions). This only works while the period is still open (not approved/closed/exported).
+
+> A commission-eligible employee shows a 💰 **Commission** badge on the main Employees list, next to their job title, so you can see eligibility at a glance without opening each profile.
+
 ### Tracking Absences
 
 Absences affect payroll and attendance records. Managers can record absences directly, or employees can submit leave requests that managers then approve.

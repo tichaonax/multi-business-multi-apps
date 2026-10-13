@@ -184,7 +184,8 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
                 email: true,
                 tin: true,
                 job_titles: { select: { title: true } },
-                primaryBusinessId: true
+                primaryBusinessId: true,
+                commissionEligible: true
               }
             },
             payroll_entry_benefits: true

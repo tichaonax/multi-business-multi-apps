@@ -40,6 +40,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
             scheduledEndTime: true,
             scheduledDaysPerWeek: true,
             annualVacationDays: true,
+            commissionEligible: true,
             job_titles: { select: { title: true } }
           }
         },
@@ -374,7 +375,8 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
     const existingEntry = await prisma.payrollEntries.findUnique({
       where: { id: entryId },
       include: {
-        payroll_periods: true
+        payroll_periods: true,
+        employees: { select: { commissionEligible: true } },
       }
     })
 
@@ -403,7 +405,10 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
       overtimeHours: overtimeHours !== undefined ? overtimeHours : existingEntry.overtimeHours,
       standardOvertimeHours: standardOvertimeHours !== undefined ? standardOvertimeHours : existingEntry.standardOvertimeHours,
       doubleTimeOvertimeHours: doubleTimeOvertimeHours !== undefined ? doubleTimeOvertimeHours : existingEntry.doubleTimeOvertimeHours,
-      commission: commission !== undefined ? commission : existingEntry.commission,
+      // MBM-311: commission is system-calculated for a commission-eligible
+      // employee — the manual-entry path stays open only for employees who
+      // aren't. Use the "sync commission" action to recalculate instead.
+      commission: (commission !== undefined && !existingEntry.employees?.commissionEligible) ? commission : existingEntry.commission,
       miscDeductions: miscDeductions !== undefined ? miscDeductions : existingEntry.miscDeductions,
       cashInLieu: cashInLieu !== undefined ? cashInLieu : existingEntry.cashInLieu,
       notes: notes !== undefined ? notes : existingEntry.notes,

@@ -1468,6 +1468,26 @@ model Employees {
   annualVacationDays                                                        Int?
   scanToken                                                                 String?                       @unique
   tin                                                                       String?
+  // MBM-311: commission-based pay — a 3-tier, per-employee-configurable,
+  // progressive structure. Each tier's threshold is the WIDTH of that
+  // tier's sales band, not a cumulative/absolute cutoff: tier 2 covers
+  // (tier1Threshold) to (tier1Threshold + tier2Threshold) of cumulative
+  // sales, tier 3 covers (tier1Threshold + tier2Threshold) onward. Tier 3's
+  // threshold left null means unlimited width (no upper bound at all —
+  // there is deliberately no separate ceiling/cap field; a set Tier 3
+  // threshold IS its own upper bound). Nothing here is read unless
+  // commissionEligible is true and at least one tier is enabled — see
+  // src/lib/payroll/commission-calculator.ts.
+  commissionEligible                                                        Boolean                       @default(false)
+  commissionTier1Enabled                                                    Boolean                       @default(false)
+  commissionTier1Threshold                                                  Decimal?                      @db.Decimal(12, 2)
+  commissionTier1Rate                                                       Decimal?                      @db.Decimal(5, 2)
+  commissionTier2Enabled                                                    Boolean                       @default(false)
+  commissionTier2Threshold                                                  Decimal?                      @db.Decimal(12, 2)
+  commissionTier2Rate                                                       Decimal?                      @db.Decimal(5, 2)
+  commissionTier3Enabled                                                    Boolean                       @default(false)
+  commissionTier3Threshold                                                  Decimal?                      @db.Decimal(12, 2)
+  commissionTier3Rate                                                       Decimal?                      @db.Decimal(5, 2)
   business_orders                                                           BusinessOrders[]
   business_stock_movements                                                  BusinessStockMovements[]
   contract_renewals                                                         ContractRenewals[]
@@ -2791,6 +2811,11 @@ model PayrollEntries {
   overtimePay              Decimal                       @default(0) @db.Decimal(12, 2)
   benefitsTotal            Decimal                       @default(0) @db.Decimal(12, 2)
   benefitsBreakdown        Json?
+  // MBM-311: per-tier commission amounts for this entry, e.g.
+  // { salesTotal, tier1: {sales,rate,amount}, tier2: {...}, tier3: {...} }.
+  // `commission` above remains the authoritative total (sum of enabled
+  // tiers) — this is only for the payroll-details tier line items.
+  commissionBreakdown      Json?
   loanDeductions           Decimal                       @default(0) @db.Decimal(12, 2)
   advanceDeductions        Decimal                       @default(0) @db.Decimal(12, 2)
   advanceBreakdown         Json?

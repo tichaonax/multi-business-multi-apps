@@ -2286,7 +2286,8 @@ export function PayrollEntryDetailModal({
                     onBlur={() => flushAutosave()}
                     className="w-full px-3 py-2 border border-border rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
                     min="0"
-                    disabled={isLocked}
+                    disabled={isLocked || entry?.employees?.commissionEligible}
+                    title={entry?.employees?.commissionEligible ? 'System-calculated from sales — use "Sync Commission" on the period to recalculate' : undefined}
                   />
                 </div>
                 <div>
@@ -2317,7 +2318,24 @@ export function PayrollEntryDetailModal({
                     <span className="text-primary font-medium">{formatCurrency(entry.baseSalary)}</span>
                   </div>
                 )}
-                {formData.commission > 0 && (
+                {/* MBM-311: commission-eligible employees show each enabled
+                    tier as its own line (contributing to the same gross
+                    total below); everyone else keeps the single combined
+                    line this always showed. */}
+                {entry?.commissionBreakdown && entry?.employees?.commissionEligible ? (
+                  <>
+                    {([1, 2, 3] as const).map(tier => {
+                      const t = entry.commissionBreakdown?.[`tier${tier}`]
+                      if (!t?.enabled || !t.amount) return null
+                      return (
+                        <div key={tier} className="flex justify-between">
+                          <span className="text-secondary">Commission — Tier {tier}:</span>
+                          <span className="text-primary font-medium">{formatCurrency(t.amount)}</span>
+                        </div>
+                      )
+                    })}
+                  </>
+                ) : formData.commission > 0 && (
                   <div className="flex justify-between">
                     <span className="text-secondary">Commission:</span>
                     <span className="text-primary font-medium">{formatCurrency(formData.commission)}</span>

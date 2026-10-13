@@ -4,6 +4,7 @@ import { hasPermission } from '@/lib/permission-utils'
 import { nanoid } from 'nanoid'
 import { Decimal } from '@prisma/client/runtime/library'
 import { generatePayrollContractEntries } from '@/lib/payroll/contract-selection'
+import { calculateEmployeeCommission } from '@/lib/payroll/commission-calculator'
 
 import { randomBytes } from 'crypto';
 import { getServerUser } from '@/lib/get-server-user'
@@ -165,7 +166,17 @@ export async function POST(req: NextRequest) {
         dateOfBirth: true,
         hireDate: true,
         terminationDate: true,
-        primaryBusinessId: true
+        primaryBusinessId: true,
+        commissionEligible: true,
+        commissionTier1Enabled: true,
+        commissionTier1Threshold: true,
+        commissionTier1Rate: true,
+        commissionTier2Enabled: true,
+        commissionTier2Threshold: true,
+        commissionTier2Rate: true,
+        commissionTier3Enabled: true,
+        commissionTier3Threshold: true,
+        commissionTier3Rate: true,
       }
     })
 
@@ -262,7 +273,22 @@ export async function POST(req: NextRequest) {
 
     // Calculate compensation
     const baseSalary = new Decimal(proratedBaseSalary || 0)
-    const commissionAmount = new Decimal(commission || 0)
+
+    // MBM-311: commission-eligible employees get their commission
+    // calculated automatically from sales in this period — the
+    // caller-supplied `commission` is only used (and only matters) for a
+    // non-eligible employee's plain manual entry, same as every other
+    // auto-populated field above (absences/leave) falls back to the
+    // caller's value when provided.
+    let commissionAmount = new Decimal(commission || 0)
+    let commissionBreakdown: any = null
+    if (employee.commissionEligible) {
+      const commissionPeriodStart = period.periodStart ?? new Date(period.year, period.month - 1, 1)
+      const commissionPeriodEnd = period.periodEnd ?? new Date(period.year, period.month, 0, 23, 59, 59, 999)
+      const result = await calculateEmployeeCommission(employee as any, commissionPeriodStart, commissionPeriodEnd)
+      commissionAmount = new Decimal(result.total)
+      commissionBreakdown = result.breakdown
+    }
 
     // Calculate benefits total
     const benefits = contract.contract_benefits || []
@@ -327,6 +353,7 @@ export async function POST(req: NextRequest) {
         overtimeHours: overtimeHours || 0,
         baseSalary: baseSalary.toNumber(),
         commission: commissionAmount.toNumber(),
+        commissionBreakdown,
         benefitsTotal: benefitsTotal.toNumber(),
         benefitsBreakdown: benefitsBreakdown,
         advanceDeductions: advanceDeductions.toNumber(),

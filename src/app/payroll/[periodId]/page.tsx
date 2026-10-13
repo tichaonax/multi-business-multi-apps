@@ -136,6 +136,7 @@ export default function PayrollPeriodDetailPage() {
   const [syncingBenefits, setSyncingBenefits] = useState(false)
   const [syncingAll, setSyncingAll] = useState(false)
   const [syncingStockShortfall, setSyncingStockShortfall] = useState(false)
+  const [syncingCommission, setSyncingCommission] = useState(false)
   const [loanSyncNeeded, setLoanSyncNeeded] = useState(false)
   const [syncingLoans, setSyncingLoans] = useState(false)
   const [perDiemMap, setPerDiemMap] = useState<Record<string, number>>({})
@@ -1042,6 +1043,30 @@ export default function PayrollPeriodDetailPage() {
                     {syncingStockShortfall ? '↻ Syncing...' : '↻ Sync Stock Shortfall'}
                   </button>
                   <button
+                    onClick={async () => {
+                      setSyncingCommission(true)
+                      try {
+                        const res = await fetch(`/api/payroll/periods/${period.id}/sync-commission`, { method: 'POST' })
+                        const data = await res.json()
+                        if (res.ok) {
+                          showNotification('success', data.message || 'Commission sync complete')
+                          await loadPeriod()
+                        } else {
+                          showNotification('error', data.error || 'Commission sync failed')
+                        }
+                      } catch {
+                        showNotification('error', 'Commission sync failed')
+                      } finally {
+                        setSyncingCommission(false)
+                      }
+                    }}
+                    disabled={syncingCommission}
+                    className="px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-md hover:bg-emerald-700 disabled:opacity-50"
+                    title="Recalculate commission from current sales for every commission-eligible employee"
+                  >
+                    {syncingCommission ? '↻ Syncing...' : '↻ Sync Commission'}
+                  </button>
+                  <button
                     onClick={handleClearAllEntries}
                     className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700"
                   >
@@ -1675,7 +1700,15 @@ export default function PayrollPeriodDetailPage() {
                         <div className="grid grid-cols-2 gap-x-3 gap-y-2">
                           <Field label="Basic Salary" value={formatCurrency(basicSalary)} />
                           <Field label="Earned Salary ★" value={formatCurrency(earnedSalary)} className="text-amber-600 dark:text-amber-400 font-semibold" />
-                          <Field label="Commission" value={formatCurrency(Number(entry.commission || 0))} />
+                          {(entry as any).commissionBreakdown && (entry as any).employees?.commissionEligible ? (
+                            [1, 2, 3].map(tier => {
+                              const t = (entry as any).commissionBreakdown?.[`tier${tier}`]
+                              if (!t?.enabled || !t.amount) return null
+                              return <Field key={tier} label={`Commission — Tier ${tier}`} value={formatCurrency(t.amount)} />
+                            })
+                          ) : (
+                            <Field label="Commission" value={formatCurrency(Number(entry.commission || 0))} />
+                          )}
                           <Field label="OT (1.5x)" value={formatCurrency(ot15)} />
                           <Field label="OT (2.0x)" value={formatCurrency(ot2)} />
                           <Field label="Adjustments" value={adjustments ? `+${formatCurrency(adjustments)}` : formatCurrency(0)} />

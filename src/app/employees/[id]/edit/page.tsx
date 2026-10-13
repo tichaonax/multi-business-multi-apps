@@ -65,7 +65,7 @@ export default function EmployeeEditPage() {
   const [error, setError] = useState('')
 
   // Track initial (saved) form values to detect unsaved changes
-  const [initialFormData, setInitialFormData] = useState<Record<string, string>>({})
+  const [initialFormData, setInitialFormData] = useState<Record<string, any>>({})
 
   // Form data
   const [formData, setFormData] = useState({
@@ -90,7 +90,18 @@ export default function EmployeeEditPage() {
     supervisorId: '',
     terminationDate: '',
     notes: '',
-    profilePhotoUrl: ''
+    profilePhotoUrl: '',
+    // MBM-311: commission-based pay — admin-only section below
+    commissionEligible: false,
+    commissionTier1Enabled: false,
+    commissionTier1Threshold: '',
+    commissionTier1Rate: '',
+    commissionTier2Enabled: false,
+    commissionTier2Threshold: '',
+    commissionTier2Rate: '',
+    commissionTier3Enabled: false,
+    commissionTier3Threshold: '',
+    commissionTier3Rate: '',
   })
 
   const [statusChangeDate, setStatusChangeDate] = useState<string>('')
@@ -150,7 +161,17 @@ export default function EmployeeEditPage() {
           notes: data.notes || '',
           profilePhotoUrl: data.profilePhotoUrl || '',
           // Preserve the userId link — must round-trip so saves don't silently clear it
-          userId: data.user?.id || data.userId || null
+          userId: data.user?.id || data.userId || null,
+          commissionEligible: !!data.commissionEligible,
+          commissionTier1Enabled: !!data.commissionTier1Enabled,
+          commissionTier1Threshold: data.commissionTier1Threshold != null ? String(data.commissionTier1Threshold) : '',
+          commissionTier1Rate: data.commissionTier1Rate != null ? String(data.commissionTier1Rate) : '',
+          commissionTier2Enabled: !!data.commissionTier2Enabled,
+          commissionTier2Threshold: data.commissionTier2Threshold != null ? String(data.commissionTier2Threshold) : '',
+          commissionTier2Rate: data.commissionTier2Rate != null ? String(data.commissionTier2Rate) : '',
+          commissionTier3Enabled: !!data.commissionTier3Enabled,
+          commissionTier3Threshold: data.commissionTier3Threshold != null ? String(data.commissionTier3Threshold) : '',
+          commissionTier3Rate: data.commissionTier3Rate != null ? String(data.commissionTier3Rate) : '',
         }
         setFormData(loaded)
         setInitialFormData(loaded)
@@ -220,6 +241,7 @@ export default function EmployeeEditPage() {
       }
 
       // Prepare employee data for update
+      const numOrNull = (v: string) => (v === '' ? null : Number(v))
       const employeeUpdateData = {
         ...formData,
         idFormatTemplateId: formData.idFormatTemplateId || null,
@@ -228,13 +250,23 @@ export default function EmployeeEditPage() {
         jobTitleId: employee.jobTitle.id,
         compensationTypeId: employee.compensationType.id,
         primaryBusinessId: employee.primaryBusiness.id,
-        supervisorId: formData.supervisorId || null
+        supervisorId: formData.supervisorId || null,
+        commissionTier1Threshold: numOrNull(formData.commissionTier1Threshold),
+        commissionTier1Rate: numOrNull(formData.commissionTier1Rate),
+        commissionTier2Threshold: numOrNull(formData.commissionTier2Threshold),
+        commissionTier2Rate: numOrNull(formData.commissionTier2Rate),
+        commissionTier3Threshold: numOrNull(formData.commissionTier3Threshold),
+        commissionTier3Rate: numOrNull(formData.commissionTier3Rate),
       }
 
       // If contract signing is happening and employee status is "pending_contract",
       // don't send employmentStatus as it will be automatically set to "active" by contract signing
       if (isSigningContract && formData.employmentStatus === 'pending_contract') {
-        delete employeeUpdateData.employmentStatus
+        // JSON.stringify omits undefined-valued keys, same net effect as
+        // `delete` without the stricter object-literal type that newly
+        // rejects `delete` here (TS2790, surfaced by the added commission
+        // fields below making this inferred type more concrete).
+        ;(employeeUpdateData as any).employmentStatus = undefined
       }
 
       const response = await fetch(`/api/employees/${employeeId}`, {
@@ -746,6 +778,89 @@ export default function EmployeeEditPage() {
                   </div>
                 </div>
               </div>
+
+              {/* Commission (MBM-311) — admin-only. Eligibility + a 3-tier,
+                  independently enable-able, progressive structure; nothing
+                  here is hardcoded, all thresholds/rates are per-employee. */}
+              {currentUser?.role === 'admin' && (
+                <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-lg font-medium text-primary">Commission</h3>
+                    <label className="flex items-center gap-2 text-sm font-medium text-secondary">
+                      <input
+                        type="checkbox"
+                        checked={formData.commissionEligible}
+                        onChange={(e) => setFormData(prev => ({ ...prev, commissionEligible: e.target.checked }))}
+                        className="h-4 w-4"
+                      />
+                      Commission-eligible
+                    </label>
+                  </div>
+                  {formData.commissionEligible && (
+                    <>
+                      <p className="text-xs text-secondary mb-3">
+                        Commission is calculated automatically from this employee's sales each payroll
+                        period — it isn't manually typed in once eligibility is on. This is a
+                        <strong> progressive</strong> structure, like a tax bracket: each tier's threshold
+                        is the <strong>width</strong> of that tier's own sales band, not a cumulative
+                        total. E.g. Tier 1 = 1000 covers sales $0–$1,000; Tier 2 = 1500 then covers the
+                        <em> next</em> $1,500 (i.e. $1,000–$2,500 of cumulative sales); Tier 3 covers
+                        everything from there onward. Leave Tier 3's threshold blank for an unlimited top
+                        tier — there's no separate cap field, a set Tier 3 threshold already is its own
+                        upper bound (sales beyond it earn nothing).
+                      </p>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="text-left text-secondary">
+                              <th className="pb-2 pr-2">Tier</th>
+                              <th className="pb-2 pr-2">Enabled</th>
+                              <th className="pb-2 pr-2">Sales Width ($)</th>
+                              <th className="pb-2 pr-2">Rate (%)</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {([1, 2, 3] as const).map(tier => {
+                              const enabledKey = `commissionTier${tier}Enabled` as const
+                              const thresholdKey = `commissionTier${tier}Threshold` as const
+                              const rateKey = `commissionTier${tier}Rate` as const
+                              const enabled = formData[enabledKey]
+                              return (
+                                <tr key={tier} className="border-t border-gray-100 dark:border-gray-800">
+                                  <td className="py-2 pr-2 font-medium text-primary">Tier {tier}</td>
+                                  <td className="py-2 pr-2">
+                                    <input
+                                      type="checkbox"
+                                      checked={enabled}
+                                      onChange={(e) => setFormData(prev => ({ ...prev, [enabledKey]: e.target.checked }))}
+                                      className="h-4 w-4"
+                                    />
+                                  </td>
+                                  <td className="py-2 pr-2">
+                                    <input
+                                      type="number" step="0.01" min="0" name={thresholdKey}
+                                      value={formData[thresholdKey]} onChange={handleChange} disabled={!enabled}
+                                      placeholder={tier === 3 ? 'Unlimited' : ''}
+                                      className="w-28 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-primary disabled:opacity-50"
+                                    />
+                                  </td>
+                                  <td className="py-2 pr-2">
+                                    <input
+                                      type="number" step="0.01" min="0" name={rateKey}
+                                      value={formData[rateKey]} onChange={handleChange} disabled={!enabled}
+                                      className="w-20 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-primary disabled:opacity-50"
+                                    />
+                                  </td>
+                                </tr>
+                              )
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
 
               {/* Action Buttons */}
               <div className="flex justify-end space-x-3 pt-6 border-t border-gray-200 dark:border-gray-700">

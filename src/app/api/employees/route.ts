@@ -127,6 +127,7 @@ export async function GET(req: NextRequest) {
           compensationTypeId: true,
           primaryBusinessId: true,
           supervisorId: true,  // Include supervisor reference
+          commissionEligible: true,  // MBM-311: drives the "Commission" badge on the list
           // Only include absolutely essential related data
           users: {
             select: {
@@ -251,6 +252,7 @@ export async function GET(req: NextRequest) {
         terminationDate: employee.terminationDate ?? null,
         employmentStatus: employee.employmentStatus,
         isActive: employee.isActive,
+        commissionEligible: employee.commissionEligible,
         user: employee.users,
         jobTitle: jobTitle ? {
           title: jobTitle.title,
