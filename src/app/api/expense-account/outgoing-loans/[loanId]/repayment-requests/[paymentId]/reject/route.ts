@@ -26,7 +26,7 @@ export async function POST(
 
     const pending = await prisma.accountOutgoingLoanPayments.findUnique({
       where: { id: params.paymentId },
-      include: { loan: { select: { id: true, loanNumber: true } } },
+      include: { loan: { select: { id: true, loanNumber: true, expenseAccountId: true } } },
     })
     if (!pending || pending.loanId !== params.loanId) {
       return NextResponse.json({ error: 'Repayment request not found' }, { status: 404 })
@@ -50,6 +50,7 @@ export async function POST(
         type: 'LOAN_REPAYMENT_REJECTED',
         title: 'Loan repayment rejected',
         message: `${pending.loan.loanNumber} — $${Number(pending.amount).toFixed(2)} repayment request${reason ? `: ${reason}` : ''}`,
+        ...(pending.loan.expenseAccountId ? { linkUrl: `/expense-accounts/${pending.loan.expenseAccountId}?tab=lent-out` } : {}),
         metadata: { loanId: pending.loanId, loanNumber: pending.loan.loanNumber, paymentId: pending.id },
       })
     } catch { /* non-critical */ }

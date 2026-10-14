@@ -151,7 +151,7 @@ export async function POST(
         message: isFullyPaid
           ? `${loan.loanNumber} fully repaid — loan closed`
           : `${loan.loanNumber} — $${repayAmount.toFixed(2)} repayment approved, $${newBalance.toFixed(2)} remaining`,
-        linkUrl: `/expense-accounts/${loan.expenseAccountId}`,
+        linkUrl: `/expense-accounts/${loan.expenseAccountId}?tab=lent-out`,
         metadata: { loanId: loan.id, loanNumber: loan.loanNumber },
       })
     } catch { /* non-critical */ }

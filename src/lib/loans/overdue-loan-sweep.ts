@@ -53,7 +53,7 @@ export async function sweepOverdueLoans(): Promise<{ scanned: number; flagged: n
         type: 'LOAN_OVERDUE',
         title: 'Loan overdue for repayment',
         message: `${loan.loanNumber} — ${loan.recipientBusiness?.name ?? 'business'} owes ${loan.expenseAccount?.accountName ?? 'account'} $${Number(loan.remainingBalance).toFixed(2)}, no repayment in ${daysSince} days`,
-        linkUrl: `/expense-accounts/${loan.expenseAccountId}`,
+        linkUrl: `/expense-accounts/${loan.expenseAccountId}?tab=lent-out`,
         metadata: { loanId: loan.id, loanNumber: loan.loanNumber },
         groupKey: loanOverdueGroupKey(loan.id),
       })

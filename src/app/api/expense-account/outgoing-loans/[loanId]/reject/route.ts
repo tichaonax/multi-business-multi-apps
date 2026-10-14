@@ -61,7 +61,7 @@ export async function POST(
           type: 'LOAN_REQUEST_REJECTED',
           title: 'Loan request rejected',
           message: `${loan.loanNumber} — $${Number(loan.principalAmount).toFixed(2)} to ${loan.recipientBusiness?.name ?? 'business'}${reason ? `: ${reason}` : ''}`,
-          linkUrl: `/expense-accounts/${loan.expenseAccountId}`,
+          linkUrl: `/expense-accounts/${loan.expenseAccountId}?tab=lent-out`,
           metadata: { loanId: loan.id, loanNumber: loan.loanNumber },
         })
       } catch { /* non-critical */ }

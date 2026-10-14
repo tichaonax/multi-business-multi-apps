@@ -123,7 +123,7 @@ export async function POST(
           type: 'LOAN_REQUEST_APPROVED',
           title: 'Loan request approved',
           message: `${loan.loanNumber} — $${loanAmount.toFixed(2)} to ${loan.recipientBusiness?.name ?? 'business'} has been disbursed`,
-          linkUrl: `/expense-accounts/${loan.expenseAccountId}`,
+          linkUrl: `/expense-accounts/${loan.expenseAccountId}?tab=lent-out`,
           metadata: { loanId: loan.id, loanNumber: loan.loanNumber },
         })
       } catch { /* non-critical */ }

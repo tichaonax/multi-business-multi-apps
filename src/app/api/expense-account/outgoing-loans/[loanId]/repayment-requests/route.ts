@@ -129,7 +129,7 @@ export async function POST(
           type: 'LOAN_REPAYMENT_SUBMITTED',
           title: 'Loan repayment awaiting approval',
           message: `${loan.recipientBusiness?.name ?? 'Business'} → ${loan.expenseAccount?.accountName ?? 'account'}: $${repayAmount.toFixed(2)} (${loan.loanNumber})`,
-          linkUrl: `/expense-accounts/${loan.expenseAccountId}`,
+          linkUrl: `/expense-accounts/${loan.expenseAccountId}?tab=lent-out`,
           metadata: { loanId: loan.id, loanNumber: loan.loanNumber, paymentId: pendingRequest.id },
         })
       }
