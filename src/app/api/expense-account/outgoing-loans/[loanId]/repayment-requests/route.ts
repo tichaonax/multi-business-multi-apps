@@ -44,6 +44,8 @@ export async function GET(
           requestedBy: r.recorder?.name ?? null,
           approvedBy: r.approver?.name ?? null,
           approvedAt: r.approvedAt?.toISOString() ?? null,
+          approvedAmount: r.approvedAmount != null ? Number(r.approvedAmount) : null,
+          approvalNote: r.approvalNote,
           rejectedAt: r.rejectedAt?.toISOString() ?? null,
           rejectionReason: r.rejectionReason,
           createdAt: r.createdAt.toISOString(),

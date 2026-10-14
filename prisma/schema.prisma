@@ -2209,6 +2209,11 @@ model AccountOutgoingLoanPayments {
   status           String               @default("APPROVED") // "PENDING" | "APPROVED" | "REJECTED"
   approvedBy       String?
   approvedAt       DateTime?
+  // Set only when the cashier approved less than `amount` (partial approval)
+  // — null means the full requested amount was approved. approvalNote is
+  // required by the UI whenever approvedAmount is set.
+  approvedAmount   Decimal?             @db.Decimal(12, 2)
+  approvalNote     String?
   rejectedAt       DateTime?
   rejectionReason  String?
   loan             AccountOutgoingLoans @relation(fields: [loanId], references: [id], onDelete: Cascade)

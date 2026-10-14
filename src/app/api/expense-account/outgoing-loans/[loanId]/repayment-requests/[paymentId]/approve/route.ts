@@ -47,7 +47,22 @@ export async function POST(
       return NextResponse.json({ error: `Cannot approve a repayment request in status: ${pending.status}` }, { status: 400 })
     }
 
-    const repayAmount = Number(pending.amount)
+    const body = await request.json().catch(() => ({}))
+    const requestedAmount = Number(pending.amount)
+    const repayAmount = body.approvedAmount != null ? Number(body.approvedAmount) : requestedAmount
+    const approvalNote: string | null = body.approvalNote?.trim() || null
+    const isPartial = repayAmount < requestedAmount - 0.001
+
+    if (!repayAmount || repayAmount <= 0) {
+      return NextResponse.json({ error: 'Approved amount must be greater than zero' }, { status: 400 })
+    }
+    if (repayAmount > requestedAmount + 0.001) {
+      return NextResponse.json({ error: `Approved amount cannot exceed the requested $${requestedAmount.toFixed(2)}` }, { status: 400 })
+    }
+    if (isPartial && !approvalNote) {
+      return NextResponse.json({ error: 'An approval note is required when approving a partial amount' }, { status: 400 })
+    }
+
     const remaining = Number(loan.remainingBalance)
     if (repayAmount > remaining + 0.001) {
       return NextResponse.json({
@@ -131,6 +146,8 @@ export async function POST(
           depositId: deposit.id,
           approvedBy: user.id,
           approvedAt: new Date(),
+          approvedAmount: isPartial ? repayAmount : null,
+          approvalNote,
         },
       })
 
@@ -150,6 +167,8 @@ export async function POST(
         title: 'Loan repayment approved',
         message: isFullyPaid
           ? `${loan.loanNumber} fully repaid — loan closed`
+          : isPartial
+          ? `${loan.loanNumber} — $${repayAmount.toFixed(2)} of $${requestedAmount.toFixed(2)} requested approved (partial), $${newBalance.toFixed(2)} remaining`
           : `${loan.loanNumber} — $${repayAmount.toFixed(2)} repayment approved, $${newBalance.toFixed(2)} remaining`,
         linkUrl: `/expense-accounts/${loan.expenseAccountId}?tab=lent-out`,
         metadata: { loanId: loan.id, loanNumber: loan.loanNumber },

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useToastContext } from '@/components/ui/toast'
 import { DateInput } from '@/components/ui/date-input'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 import { getTodayLocalDateString } from '@/lib/date-utils'
 
 interface Person { id: string; fullName: string }
@@ -189,22 +190,22 @@ export function LendMoneyModal({ accountId, accountName, accountBalance, current
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                   {loanType === 'PERSON' ? 'Select Person' : 'Select Business'}
                 </label>
-                {loadingRecipients ? (
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Loading...</p>
-                ) : (
-                  <select
-                    value={loanType === 'PERSON' ? recipientPersonId : recipientBusinessId}
-                    onChange={(e) => {
-                      if (loanType === 'PERSON') setRecipientPersonId(e.target.value)
-                      else setRecipientBusinessId(e.target.value)
-                    }}
-                    className="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">Select...</option>
-                    {loanType === 'PERSON' && persons.map(p => <option key={p.id} value={p.id}>{p.fullName}</option>)}
-                    {loanType === 'BUSINESS' && businesses.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                  </select>
-                )}
+                <SearchableSelect
+                  options={
+                    loanType === 'PERSON'
+                      ? persons.map(p => ({ value: p.id, label: p.fullName }))
+                      : businesses.map(b => ({ value: b.id, label: b.name }))
+                  }
+                  value={loanType === 'PERSON' ? recipientPersonId : recipientBusinessId}
+                  onChange={(val) => {
+                    if (loanType === 'PERSON') setRecipientPersonId(val)
+                    else setRecipientBusinessId(val)
+                  }}
+                  placeholder="Select..."
+                  searchPlaceholder={loanType === 'PERSON' ? 'Search people...' : 'Search businesses...'}
+                  required
+                  loading={loadingRecipients}
+                />
               </div>
 
               {/* Amount */}

@@ -21,6 +21,7 @@ interface RequestRepaymentModalProps {
 interface RepaymentHistoryEntry {
   id: string
   amount: number
+  approvedAmount: number | null
   paymentDate: string
   status: 'PENDING' | 'APPROVED' | 'REJECTED'
   paymentMethod: string
@@ -69,7 +70,7 @@ export function RequestRepaymentModal({
 
   const approvedPaid = history
     .filter(h => h.status === 'APPROVED')
-    .reduce((s, h) => s + h.amount, 0)
+    .reduce((s, h) => s + (h.approvedAmount ?? h.amount), 0)
   const pendingCount = history.filter(h => h.status === 'PENDING').length
 
   const parsedAmount = parseFloat(amount) || 0
@@ -153,15 +154,19 @@ export function RequestRepaymentModal({
                 Payment History
               </div>
               <div className="max-h-32 overflow-y-auto divide-y divide-gray-100 dark:divide-gray-800">
-                {history.map(h => (
-                  <div key={h.id} className="px-3 py-1.5 flex items-center justify-between text-xs">
-                    <span className="text-gray-500 dark:text-gray-400">{formatDate(h.paymentDate)}</span>
-                    <span className="text-gray-700 dark:text-gray-300">
-                      ${h.amount.toFixed(2)}
-                      {h.status === 'PENDING' && <span className="ml-1.5 text-amber-600 dark:text-amber-400">(pending)</span>}
-                    </span>
-                  </div>
-                ))}
+                {history.map(h => {
+                  const isPartial = h.status === 'APPROVED' && h.approvedAmount != null
+                  return (
+                    <div key={h.id} className="px-3 py-1.5 flex items-center justify-between text-xs">
+                      <span className="text-gray-500 dark:text-gray-400">{formatDate(h.paymentDate)}</span>
+                      <span className="text-gray-700 dark:text-gray-300">
+                        ${(h.approvedAmount ?? h.amount).toFixed(2)}
+                        {isPartial && <span className="ml-1.5 text-amber-600 dark:text-amber-400">(partial of ${h.amount.toFixed(2)})</span>}
+                        {h.status === 'PENDING' && <span className="ml-1.5 text-amber-600 dark:text-amber-400">(pending)</span>}
+                      </span>
+                    </div>
+                  )
+                })}
               </div>
             </div>
           )}

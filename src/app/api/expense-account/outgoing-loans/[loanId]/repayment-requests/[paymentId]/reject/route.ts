@@ -22,7 +22,10 @@ export async function POST(
     }
 
     const body = await request.json().catch(() => ({}))
-    const { reason } = body
+    const reason: string | undefined = body.reason?.trim()
+    if (!reason) {
+      return NextResponse.json({ error: 'A rejection reason is required' }, { status: 400 })
+    }
 
     const pending = await prisma.accountOutgoingLoanPayments.findUnique({
       where: { id: params.paymentId },

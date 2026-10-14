@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useToastContext } from '@/components/ui/toast'
 import { RecordRepaymentModal } from './record-repayment-modal'
 import { RequestRepaymentModal } from './request-repayment-modal'
+import { RepaymentApprovalModal } from './repayment-approval-modal'
 
 interface OutgoingLoan {
   id: string
@@ -57,7 +58,7 @@ export function OutgoingLoansPanel({ accountId, canManage, onApprove, onRepaymen
   const [approvingId, setApprovingId] = useState<string | null>(null)
   const [rejectingId, setRejectingId] = useState<string | null>(null)
   const [pendingRepayments, setPendingRepayments] = useState<Record<string, PendingRepaymentRequest[]>>({})
-  const [repaymentActionId, setRepaymentActionId] = useState<string | null>(null)
+  const [reviewingRepayment, setReviewingRepayment] = useState<{ loan: OutgoingLoan; req: PendingRepaymentRequest } | null>(null)
 
   const loadLoans = async () => {
     setLoading(true)
@@ -151,29 +152,6 @@ export function OutgoingLoansPanel({ accountId, canManage, onApprove, onRepaymen
       toast.error('Network error')
     }
     setRejectingId(null)
-  }
-
-  const handleRepaymentAction = async (loanId: string, paymentId: string, action: 'approve' | 'reject') => {
-    setRepaymentActionId(paymentId)
-    try {
-      const res = await fetch(`/api/expense-account/outgoing-loans/${loanId}/repayment-requests/${paymentId}/${action}`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      })
-      if (res.ok) {
-        toast.push(`Repayment request ${action === 'approve' ? 'approved' : 'rejected'}`, { type: 'success' })
-        loadLoans()
-        if (action === 'approve') onRepaymentSuccess?.()
-      } else {
-        const data = await res.json()
-        toast.error(data.error || `Could not ${action} repayment`)
-      }
-    } catch {
-      toast.error('Network error')
-    }
-    setRepaymentActionId(null)
   }
 
   const activeLoans = loans.filter(l => !['PAID_OFF', 'WRITTEN_OFF'].includes(l.status))
@@ -273,18 +251,10 @@ export function OutgoingLoansPanel({ accountId, canManage, onApprove, onRepaymen
                     </span>
                     <div className="flex gap-1.5 flex-shrink-0">
                       <button
-                        onClick={() => handleRepaymentAction(loan.id, req.id, 'approve')}
-                        disabled={repaymentActionId === req.id}
-                        className="px-2 py-0.5 text-xs font-medium text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded hover:bg-green-100 transition-colors"
+                        onClick={() => setReviewingRepayment({ loan, req })}
+                        className="px-2 py-0.5 text-xs font-medium text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded hover:bg-blue-100 transition-colors"
                       >
-                        {repaymentActionId === req.id ? '...' : 'Approve'}
-                      </button>
-                      <button
-                        onClick={() => handleRepaymentAction(loan.id, req.id, 'reject')}
-                        disabled={repaymentActionId === req.id}
-                        className="px-2 py-0.5 text-xs font-medium text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded hover:bg-red-100 transition-colors"
-                      >
-                        Reject
+                        Review
                       </button>
                     </div>
                   </div>
@@ -317,6 +287,22 @@ export function OutgoingLoansPanel({ accountId, canManage, onApprove, onRepaymen
           remainingBalance={repaymentModal.remainingBalance}
           onSuccess={() => { loadLoans(); onRepaymentSuccess?.() }}
           onClose={() => setRepaymentModal(null)}
+        />
+      )}
+
+      {reviewingRepayment && (
+        <RepaymentApprovalModal
+          loanId={reviewingRepayment.loan.id}
+          paymentId={reviewingRepayment.req.id}
+          loanNumber={reviewingRepayment.loan.loanNumber}
+          recipientName={reviewingRepayment.loan.recipientName}
+          requestedAmount={reviewingRepayment.req.amount}
+          remainingBalance={reviewingRepayment.loan.remainingBalance}
+          paymentDate={reviewingRepayment.req.paymentDate}
+          requestNotes={reviewingRepayment.req.notes}
+          requestedBy={reviewingRepayment.req.requestedBy}
+          onSuccess={() => { setReviewingRepayment(null); loadLoans(); onRepaymentSuccess?.() }}
+          onClose={() => setReviewingRepayment(null)}
         />
       )}
     </>
