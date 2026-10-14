@@ -43,7 +43,7 @@ export async function GET(
               expenseAccount: { select: { accountName: true, accountNumber: true } },
               repayments: {
                 orderBy: { paymentDate: 'asc' },
-                select: { id: true, amount: true, paymentDate: true, paymentMethod: true, notes: true },
+                select: { id: true, amount: true, paymentDate: true, paymentMethod: true, notes: true, status: true },
               },
             },
             orderBy: { createdAt: 'desc' },
@@ -106,13 +106,22 @@ export async function GET(
           purpose: loan.purpose || null,
           lenderAccountName: loan.expenseAccount?.accountName || null,
           lenderAccountNumber: loan.expenseAccount?.accountNumber || null,
-          repayments: (loan.repayments ?? []).map((r: any) => ({
-            id: r.id,
-            amount: Number(r.amount),
-            paymentDate: r.paymentDate.toISOString(),
-            paymentMethod: r.paymentMethod,
-            notes: r.notes || null,
-          })),
+          // Only APPROVED repayments actually moved money — a PENDING request
+          // hasn't touched the balance yet, so it's surfaced separately
+          // instead of listed alongside completed repayments.
+          repayments: (loan.repayments ?? [])
+            .filter((r: any) => r.status === 'APPROVED')
+            .map((r: any) => ({
+              id: r.id,
+              amount: Number(r.amount),
+              paymentDate: r.paymentDate.toISOString(),
+              paymentMethod: r.paymentMethod,
+              notes: r.notes || null,
+            })),
+          pendingRepaymentAmount: (loan.repayments ?? [])
+            .filter((r: any) => r.status === 'PENDING')
+            .reduce((s: number, r: any) => s + Number(r.amount), 0),
+          pendingRepaymentCount: (loan.repayments ?? []).filter((r: any) => r.status === 'PENDING').length,
         })),
       },
     })

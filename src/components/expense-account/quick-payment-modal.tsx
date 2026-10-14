@@ -310,6 +310,9 @@ interface QuickPaymentModalProps {
   repeatPaymentId?: string | null
   /** When set, the modal opens in edit mode — pre-fills ALL fields and PATCHes on submit */
   editPaymentId?: string | null
+  /** MBM-312: shows the "Track as a loan" option for a Business payee — only
+      meaningful if the user actually has lending permission server-side. */
+  canManageLending?: boolean
 }
 
 export function QuickPaymentModal({
@@ -331,6 +334,7 @@ export function QuickPaymentModal({
   presetPayee = null,
   repeatPaymentId = null,
   editPaymentId = null,
+  canManageLending = false,
 }: QuickPaymentModalProps) {
   const isPersonalAccount = accountType === 'PERSONAL' || !businessId
   const isRentAccount = accountType === 'RENT'
@@ -1113,7 +1117,11 @@ export function QuickPaymentModal({
       newErrors.payee = 'Please select a payee'
     }
 
-    if (!formData.categoryId) {
+    // MBM-312: a Business payee is always a loan (mandatory, not optional —
+    // see the submit branch below), and a loan doesn't need an expense
+    // category/classification.
+    const isBusinessLoan = formData.payee?.type === 'BUSINESS'
+    if (!isBusinessLoan && !formData.categoryId) {
       newErrors.categoryId = 'Please select a category'
     }
 
@@ -1257,6 +1265,37 @@ export function QuickPaymentModal({
         status: 'SUBMITTED',
         lineItems: lineItems.length > 0 ? lineItems : null,
         isAdvance,
+      }
+
+      // A Business payee is always a loan (MBM-312) — mandatory, not an
+      // opt-in checkbox. Routes through the cashier-approval loan flow
+      // instead of a plain one-off expense payment. Separate endpoint/shape
+      // entirely (AccountOutgoingLoans, not ExpenseAccountPayments), so
+      // this branches out before the normal payment payload is sent.
+      if (formData.payee?.type === 'BUSINESS' && !editPaymentId) {
+        const res = await fetch(`/api/expense-account/${activeAccountId}/outgoing-loans`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            loanType: 'BUSINESS',
+            recipientBusinessId: formData.payee.id,
+            principalAmount: payment.amount,
+            disbursementDate: payment.paymentDate,
+            purpose: payment.notes || undefined,
+          }),
+        })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error || 'Failed to submit loan request')
+        setPayeeErrorMessage(null)
+        toast.push(`Loan request for $${payment.amount.toFixed(2)} to ${formData.payee.name} submitted — awaiting cashier approval`)
+        try {
+          onSuccess({ message: 'Loan request submitted', refresh: true, isRequest: true } as any)
+        } catch (e) {}
+        window.dispatchEvent(new CustomEvent('pending-actions:refresh'))
+        onClose()
+        resetForm()
+        return
       }
 
       // Edit mode — PATCH the existing payment instead of creating a new one
@@ -1915,6 +1954,7 @@ export function QuickPaymentModal({
                 onCreateContractor={canCreatePayees ? (query) => { setPayeeSearchQuery(query || ''); setShowContractorModal(true) } : undefined}
                 error={errors.payee}
                 refreshTrigger={payeeRefreshTrigger}
+                showBusinesses={canManageLending}
               />
             )}
             {payeeErrorMessage && formData.payee && canCreatePayees && (
@@ -2520,19 +2560,33 @@ export function QuickPaymentModal({
             </div>
           )}
 
-          {/* This is an advance — receipts required (MBM-271) */}
-          <div className="flex items-center gap-2 py-1">
-            <input
-              type="checkbox"
-              id="isAdvance"
-              checked={isAdvance}
-              onChange={e => setIsAdvance(e.target.checked)}
-              className="h-4 w-4 rounded border-gray-300 text-orange-600"
-            />
-            <label htmlFor="isAdvance" className="text-sm text-secondary select-none cursor-pointer">
-              This is an advance — receipts required
-            </label>
-          </div>
+          {/* This is an advance — receipts required (MBM-271). Not shown
+              for a Business payee — a loan isn't "spent" by the lender, so
+              receipt substantiation doesn't apply (same reasoning as
+              skipping the category requirement below). */}
+          {formData.payee?.type !== 'BUSINESS' && (
+            <div className="flex items-center gap-2 py-1">
+              <input
+                type="checkbox"
+                id="isAdvance"
+                checked={isAdvance}
+                onChange={e => setIsAdvance(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 text-orange-600"
+              />
+              <label htmlFor="isAdvance" className="text-sm text-secondary select-none cursor-pointer">
+                This is an advance — receipts required
+              </label>
+            </div>
+          )}
+
+          {/* Business payee = loan, always (MBM-312) — mandatory, not a
+              checkbox. No category needed either; see validateForm(). */}
+          {formData.payee?.type === 'BUSINESS' && !editPaymentId && (
+            <div className="flex items-start gap-2 py-2 px-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-md text-sm text-amber-800 dark:text-amber-300">
+              💰 This is a loan to {formData.payee.name} — tracked with a repayment balance and submitted
+              as a request awaiting cashier approval, not a one-off payment.
+            </div>
+          )}
 
           {/* ── Actions — full width ─────────────────────────────────── */}
           <div className="flex justify-end gap-3 pt-2 border-t border-border">

@@ -3669,6 +3669,8 @@ An expense account — whether it belongs to a business or is a standalone perso
 
 The loan now shows **Pending Approval** — nothing has moved yet. The account's balance is unchanged, and the recipient business hasn't received anything.
 
+> **Also reachable from Quick Payment**: if you pick a **Business** as the payee in Quick Payment (only shown there if you have lending permission), it's automatically a loan — not an optional checkbox. A loan doesn't need an expense category, so that field isn't required when the payee is a Business.
+
 #### Cashier Approval
 
 Anyone with lending permission (the same people who can already create these loans) sees the pending request on the **Lent Out** tab and can:
@@ -3679,14 +3681,16 @@ Anyone with lending permission (the same people who can already create these loa
 
 The borrowing business sees what it owes on its **own** expense account page, under the **Loans Owed** tab — a view that didn't exist before this: previously only the lender could see the loan at all.
 
-1. Open the **Loans Owed** tab on the borrowing business's expense account.
+1. Open the **Loans Owed** tab on the borrowing business's expense account — or click **Request Repayment** directly from the loan deposit's own **Deposit Details** popup on the Transactions tab.
 2. Find the loan and click **Request Repayment**.
 3. Enter the amount (partial or full), date, and payment method.
 4. Submit — this creates a repayment **request**; like the original loan, no money moves yet.
 
 A cashier then approves or rejects the repayment request from the lending account's **Lent Out** tab, the same way they approve the original loan. Approving it debits the borrower, credits the lender, and reduces the loan's outstanding balance. Once the balance reaches zero, the loan is automatically marked **Paid Off** and no further repayments can be made against it.
 
-> The lending account's cashier can still record a repayment directly (no request/approval step) via the existing **📥 Repayment** button on the **Lent Out** tab — useful when the cashier is the one physically receiving the money and doesn't need a separate approval step for their own entry.
+> **Every Business loan repayment goes through this request-then-approve step — there is no direct-record shortcut, even for the lending account's own cashier.** The **📥 Request Repayment** button on the **Lent Out** tab submits a request the same as the borrower's own button does; it does not credit anything immediately. (This is specific to Business loans — Person and Employee loans keep their existing direct-record behavior, unchanged.)
+
+Clicking a loan-related deposit on the **Transactions** tab opens **Deposit Details** with the real loan information — loan number, status, outstanding balance, and which account it's from/to — instead of just a generic "Loan Received"/"Loan Repayment" label. If the loan is still active, **Request Repayment** is right there too.
 
 #### Notifications
 

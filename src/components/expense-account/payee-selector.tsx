@@ -10,7 +10,7 @@ interface Payee {
   email?: string
 }
 
-type PayeeFilter = 'ALL' | 'INDIVIDUAL' | 'SUPPLIER' | 'CONTRACTOR'
+type PayeeFilter = 'ALL' | 'INDIVIDUAL' | 'SUPPLIER' | 'CONTRACTOR' | 'BUSINESS'
 
 interface PayeeSelectorProps {
   value?: { type: string; id: string } | null
@@ -21,6 +21,11 @@ interface PayeeSelectorProps {
   disabled?: boolean
   error?: string
   refreshTrigger?: number  // Increment this to trigger a refresh
+  /** MBM-312: shows a Business filter tab/section — off by default so the
+      other 8+ call sites of this shared selector are unaffected. Business
+      payees were already fetched and supported in the data layer, just
+      never exposed in this picker's UI. */
+  showBusinesses?: boolean
 }
 
 export function PayeeSelector({
@@ -31,7 +36,8 @@ export function PayeeSelector({
   onCreateContractor,
   disabled = false,
   error,
-  refreshTrigger = 0
+  refreshTrigger = 0,
+  showBusinesses = false,
 }: PayeeSelectorProps) {
   const [payees, setPayees] = useState<Record<string, Payee[]>>({
     USER: [],
@@ -152,7 +158,7 @@ export function PayeeSelector({
     onChange(null)
   }
 
-  const allPayeesCount = (payees.PERSON?.length || 0) + (payees.SUPPLIER?.length || 0) + (payees.CONTRACTOR?.length || 0)
+  const allPayeesCount = (payees.PERSON?.length || 0) + (payees.SUPPLIER?.length || 0) + (payees.CONTRACTOR?.length || 0) + (showBusinesses ? payees.BUSINESS?.length || 0 : 0)
 
   if (loading) {
     return (
@@ -230,7 +236,10 @@ export function PayeeSelector({
             />
             {/* Type filter chips */}
             <div className="flex items-center gap-1 flex-wrap">
-              {(['ALL', 'INDIVIDUAL', 'SUPPLIER', 'CONTRACTOR'] as PayeeFilter[]).map(filter => (
+              {([
+                'ALL', 'INDIVIDUAL', 'SUPPLIER', 'CONTRACTOR',
+                ...(showBusinesses ? ['BUSINESS'] : []),
+              ] as PayeeFilter[]).map(filter => (
                 <button
                   key={filter}
                   type="button"
@@ -330,6 +339,30 @@ export function PayeeSelector({
                         </div>
                         <span className={`px-2 py-0.5 text-xs font-medium rounded ${getTypeBadge('CONTRACTOR').className}`}>
                           {getTypeBadge('CONTRACTOR').label}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Businesses (MBM-312) */}
+                {showBusinesses && (activeFilter === 'ALL' || activeFilter === 'BUSINESS') && filterPayees(payees.BUSINESS).length > 0 && (
+                  <div>
+                    <div className="px-3 py-2 bg-gray-100 dark:bg-gray-700 text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase">
+                      Businesses
+                    </div>
+                    {filterPayees(payees.BUSINESS).map(payee => (
+                      <button
+                        key={payee.id}
+                        type="button"
+                        onClick={() => handleSelect('BUSINESS', payee)}
+                        className="w-full px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center justify-between"
+                      >
+                        <div>
+                          <div className="font-medium text-gray-900 dark:text-gray-100">{payee.name}</div>
+                        </div>
+                        <span className={`px-2 py-0.5 text-xs font-medium rounded ${getTypeBadge('BUSINESS').className}`}>
+                          {getTypeBadge('BUSINESS').label}
                         </span>
                       </button>
                     ))}

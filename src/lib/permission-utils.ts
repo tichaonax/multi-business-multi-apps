@@ -122,7 +122,13 @@ export function getEffectivePermissions(user: SessionUser | null | undefined, bu
 /**
  * Get permissions for a specific business membership
  */
-function getMembershipPermissions(membership: any): BusinessPermissions {
+// Exported (not just used internally) so server-only code that needs to
+// evaluate a permission across many users' memberships — e.g. resolving
+// "everyone who can approve a loan" for a notification — can reuse the
+// exact same preset+override merge logic instead of re-deriving it. Pure
+// function, safe for the many client components that already import this
+// file.
+export function getMembershipPermissions(membership: any): BusinessPermissions {
   // Get preset permissions for the role
   const presetKey = membership.role as BusinessPermissionPreset
   const presetPermissions = BUSINESS_PERMISSION_PRESETS[presetKey] || BUSINESS_PERMISSION_PRESETS['read-only']

@@ -1737,6 +1737,11 @@ model ExpenseAccountDeposits {
   incomeCategoryId          String?
   incomeSubcategoryId       String?
   sourcePaymentId           String? // FK to ExpenseAccountPayments — set when sourceType = PAYMENT_ADJUSTMENT
+  // MBM-312: FK to AccountOutgoingLoans — set when sourceType =
+  // LOAN_RECEIVED. Deliberately a separate field from `loanId` above
+  // (which points at the unrelated ExpenseAccountLoans model — external
+  // bank/individual financing, not inter-business lending).
+  sourceOutgoingLoanId      String?
   creator                   Users                   @relation("ExpenseAccountDepositCreator", fields: [createdBy], references: [id])
   expenseAccount            ExpenseAccounts         @relation(fields: [expenseAccountId], references: [id], onDelete: Cascade)
   sourceBusiness            Businesses?             @relation("ExpenseAccountDepositSource", fields: [sourceBusinessId], references: [id])
@@ -1745,6 +1750,7 @@ model ExpenseAccountDeposits {
   subSource                 FundSources?            @relation("SubFundSource", fields: [subSourceId], references: [id])
   source_payment            ExpenseAccountPayments? @relation("AdjustmentDeposits", fields: [sourcePaymentId], references: [id])
   source_transfer_payment   ExpenseAccountPayments? @relation("TransferDestination")
+  source_outgoing_loan      AccountOutgoingLoans?   @relation("LoanDisbursementDeposits", fields: [sourceOutgoingLoanId], references: [id])
   cash_allocation_line_item CashAllocationLineItem?
 
   @@index([expenseAccountId, depositDate])
@@ -2175,6 +2181,7 @@ model AccountOutgoingLoans {
   contractSignedByUser   Users?                        @relation("OutgoingLoanContractSigner", fields: [contractSignedByUserId], references: [id])
   creator                Users                         @relation("OutgoingLoanCreator", fields: [createdBy], references: [id])
   repayments             AccountOutgoingLoanPayments[]
+  disbursement_deposits  ExpenseAccountDeposits[]      @relation("LoanDisbursementDeposits")
 
   @@index([expenseAccountId])
   @@index([payrollAccountId])

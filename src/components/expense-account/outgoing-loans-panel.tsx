@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useToastContext } from '@/components/ui/toast'
 import { RecordRepaymentModal } from './record-repayment-modal'
+import { RequestRepaymentModal } from './request-repayment-modal'
 
 interface OutgoingLoan {
   id: string
@@ -251,9 +252,10 @@ export function OutgoingLoansPanel({ accountId, canManage, onApprove, onRepaymen
                   {loan.status === 'ACTIVE' && (
                     <button
                       onClick={() => setRepaymentModal(loan)}
+                      title={loan.loanType === 'BUSINESS' ? 'Submits a repayment request for cashier approval' : undefined}
                       className="px-2.5 py-1 text-xs font-medium text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg hover:bg-green-100 transition-colors"
                     >
-                      📥 Repayment
+                      {loan.loanType === 'BUSINESS' ? '📥 Request Repayment' : '📥 Repayment'}
                     </button>
                   )}
                 </div>
@@ -293,7 +295,21 @@ export function OutgoingLoansPanel({ accountId, canManage, onApprove, onRepaymen
         ))}
       </div>
 
-      {repaymentModal && (
+      {/* MBM-312: BUSINESS loans always go through cashier approval — no
+          direct-credit path, even from the lender's own side. PERSON/
+          EMPLOYEE loans keep the existing direct-record behavior
+          unchanged (a separate, pre-existing workflow this feature
+          doesn't touch). */}
+      {repaymentModal && repaymentModal.loanType === 'BUSINESS' ? (
+        <RequestRepaymentModal
+          loanId={repaymentModal.id}
+          loanNumber={repaymentModal.loanNumber}
+          contextLabel={`repayment from ${repaymentModal.recipientName}`}
+          remainingBalance={repaymentModal.remainingBalance}
+          onSuccess={() => { loadLoans(); onRepaymentSuccess?.() }}
+          onClose={() => setRepaymentModal(null)}
+        />
+      ) : repaymentModal && (
         <RecordRepaymentModal
           loanId={repaymentModal.id}
           loanNumber={repaymentModal.loanNumber}

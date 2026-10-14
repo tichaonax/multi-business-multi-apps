@@ -54,6 +54,19 @@ export async function GET(
         source_transfer_payment: {
           select: { id: true, expenseAccountId: true },
         },
+        source_outgoing_loan: {
+          select: {
+            id: true,
+            loanNumber: true,
+            status: true,
+            principalAmount: true,
+            remainingBalance: true,
+            expenseAccountId: true,
+            expenseAccount: { select: { accountName: true } },
+            recipientBusinessId: true,
+            repayments: { where: { status: 'PENDING' }, select: { amount: true } },
+          },
+        },
       },
     })
 
@@ -190,6 +203,21 @@ export async function GET(
           // creation (return-confirm/route.ts), unlike COMBO_SETTLE above
           // which has to be inferred by timestamp match.
           sourcePaymentId: (deposit as any).sourcePaymentId ?? null,
+          // MBM-312: for LOAN_RECEIVED / LOAN_REPAYMENT — the real loan
+          // details instead of just a generic source label.
+          loan: (deposit as any).source_outgoing_loan ? {
+            id: (deposit as any).source_outgoing_loan.id,
+            loanNumber: (deposit as any).source_outgoing_loan.loanNumber,
+            status: (deposit as any).source_outgoing_loan.status,
+            principalAmount: Number((deposit as any).source_outgoing_loan.principalAmount),
+            remainingBalance: Number((deposit as any).source_outgoing_loan.remainingBalance),
+            sourceAccountId: (deposit as any).source_outgoing_loan.expenseAccountId,
+            sourceAccountName: (deposit as any).source_outgoing_loan.expenseAccount?.accountName ?? null,
+            recipientBusinessId: (deposit as any).source_outgoing_loan.recipientBusinessId,
+            pendingRepaymentAmount: ((deposit as any).source_outgoing_loan.repayments ?? [])
+              .reduce((s: number, r: any) => s + Number(r.amount), 0),
+            pendingRepaymentCount: ((deposit as any).source_outgoing_loan.repayments ?? []).length,
+          } : null,
         },
         pettyCashRequest,
       },

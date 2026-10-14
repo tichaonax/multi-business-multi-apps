@@ -1,17 +1,29 @@
 "use client"
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useToastContext } from '@/components/ui/toast'
 import { DateInput } from '@/components/ui/date-input'
+import { formatDate } from '@/lib/date-format'
 import { getTodayLocalDateString } from '@/lib/date-utils'
 
 interface RequestRepaymentModalProps {
   loanId: string
   loanNumber: string
-  sourceAccountName: string
+  /** Full context line under the loan number — phrased by the caller since
+      this modal is opened from both the borrower's side ("owed to X") and
+      the lender's side ("repayment from X"). */
+  contextLabel: string
   remainingBalance: number
   onSuccess: () => void
   onClose: () => void
+}
+
+interface RepaymentHistoryEntry {
+  id: string
+  amount: number
+  paymentDate: string
+  status: 'PENDING' | 'APPROVED' | 'REJECTED'
+  paymentMethod: string
 }
 
 const PAYMENT_METHODS = [
@@ -28,7 +40,7 @@ const PAYMENT_METHODS = [
 export function RequestRepaymentModal({
   loanId,
   loanNumber,
-  sourceAccountName,
+  contextLabel,
   remainingBalance,
   onSuccess,
   onClose,
@@ -39,6 +51,26 @@ export function RequestRepaymentModal({
   const [paymentMethod, setPaymentMethod] = useState('CASH')
   const [notes, setNotes] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [history, setHistory] = useState<RepaymentHistoryEntry[]>([])
+  const [loadingHistory, setLoadingHistory] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    fetch(`/api/expense-account/outgoing-loans/${loanId}/repayment-requests`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (cancelled) return
+        setHistory((data?.data?.requests ?? []).filter((r: RepaymentHistoryEntry) => r.status !== 'REJECTED'))
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoadingHistory(false) })
+    return () => { cancelled = true }
+  }, [loanId])
+
+  const approvedPaid = history
+    .filter(h => h.status === 'APPROVED')
+    .reduce((s, h) => s + h.amount, 0)
+  const pendingCount = history.filter(h => h.status === 'PENDING').length
 
   const parsedAmount = parseFloat(amount) || 0
   const isFullRepayment = parsedAmount >= remainingBalance - 0.001
@@ -82,16 +114,16 @@ export function RequestRepaymentModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-md">
+    <div className="fixed inset-0 z-[10300] flex items-center justify-center bg-black/50 px-4">
+      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col">
 
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700 shrink-0">
           <div className="flex items-center gap-2">
             <span className="text-xl">📥</span>
             <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Request Repayment</h2>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
+          <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -99,12 +131,40 @@ export function RequestRepaymentModal({
         </div>
 
         {/* Body */}
-        <div className="px-6 py-5 space-y-4">
+        <div className="px-6 py-5 space-y-4 overflow-y-auto">
           {/* Info banner */}
-          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg px-4 py-3 text-sm text-blue-700 dark:text-blue-300">
-            <p>Loan <strong>{loanNumber}</strong> — owed to {sourceAccountName}</p>
+          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg px-4 py-3 text-sm text-blue-700 dark:text-blue-300 space-y-1">
+            <p>Loan <strong>{loanNumber}</strong> — {contextLabel}</p>
             <p>Outstanding balance: <strong>${remainingBalance.toFixed(2)}</strong></p>
+            {approvedPaid > 0 && (
+              <p>Paid so far: <strong>${approvedPaid.toFixed(2)}</strong></p>
+            )}
+            {pendingCount > 0 && (
+              <p className="text-amber-600 dark:text-amber-400">
+                {pendingCount} earlier request{pendingCount > 1 ? 's' : ''} still awaiting cashier approval
+              </p>
+            )}
           </div>
+
+          {/* Payment history */}
+          {!loadingHistory && history.length > 0 && (
+            <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+              <div className="px-3 py-2 text-xs font-medium text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+                Payment History
+              </div>
+              <div className="max-h-32 overflow-y-auto divide-y divide-gray-100 dark:divide-gray-800">
+                {history.map(h => (
+                  <div key={h.id} className="px-3 py-1.5 flex items-center justify-between text-xs">
+                    <span className="text-gray-500 dark:text-gray-400">{formatDate(h.paymentDate)}</span>
+                    <span className="text-gray-700 dark:text-gray-300">
+                      ${h.amount.toFixed(2)}
+                      {h.status === 'PENDING' && <span className="ml-1.5 text-amber-600 dark:text-amber-400">(pending)</span>}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Amount + Date */}
           <div className="grid grid-cols-2 gap-4">
@@ -166,8 +226,9 @@ export function RequestRepaymentModal({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3">
+        <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3 shrink-0">
           <button
+            type="button"
             onClick={onClose}
             disabled={submitting}
             className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
@@ -175,6 +236,7 @@ export function RequestRepaymentModal({
             Cancel
           </button>
           <button
+            type="button"
             onClick={handleSubmit}
             disabled={!parsedAmount || submitting}
             className="px-5 py-2 text-sm font-semibold bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg transition-colors"

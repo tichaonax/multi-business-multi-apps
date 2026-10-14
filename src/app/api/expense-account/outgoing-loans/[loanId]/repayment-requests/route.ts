@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { getEffectivePermissions } from '@/lib/permission-utils'
 import { emitNotification } from '@/lib/notifications/notification-emitter'
+import { getLendingCashierUserIds } from '@/lib/loans/lending-cashiers'
 
 /**
  * GET /api/expense-account/outgoing-loans/[loanId]/repayment-requests
@@ -121,13 +122,10 @@ export async function POST(
     })
 
     try {
-      const cashiers = await prisma.users.findMany({
-        where: { isActive: true, OR: [{ role: 'admin' }, { permissions: { path: ['canManageLending'], equals: true } }] },
-        select: { id: true },
-      })
-      if (cashiers.length > 0) {
+      const cashierIds = await getLendingCashierUserIds()
+      if (cashierIds.length > 0) {
         await emitNotification({
-          userIds: cashiers.map(c => c.id),
+          userIds: cashierIds,
           type: 'LOAN_REPAYMENT_SUBMITTED',
           title: 'Loan repayment awaiting approval',
           message: `${loan.recipientBusiness?.name ?? 'Business'} → ${loan.expenseAccount?.accountName ?? 'account'}: $${repayAmount.toFixed(2)} (${loan.loanNumber})`,

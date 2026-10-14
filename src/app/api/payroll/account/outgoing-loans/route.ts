@@ -194,11 +194,13 @@ export async function POST(request: NextRequest) {
       }, { status: 409 })
     }
 
-    // Generate unique loan number
+    // Generate unique loan number. loanNumber isn't a @unique column
+    // (display label only, not unique across machines — see
+    // schema.prisma), so findFirst, not findUnique, is the right lookup.
     let loanNumber = generateLoanNumber()
     let attempts = 0
     while (attempts < 5) {
-      const exists = await prisma.accountOutgoingLoans.findUnique({ where: { loanNumber } })
+      const exists = await prisma.accountOutgoingLoans.findFirst({ where: { loanNumber } })
       if (!exists) break
       loanNumber = generateLoanNumber()
       attempts++

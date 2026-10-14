@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { formatDate } from '@/lib/date-format'
-import { RecordRepaymentModal } from './record-repayment-modal'
+import { RequestRepaymentModal } from './request-repayment-modal'
 
 interface LoanRepayment {
   amount: number
@@ -46,6 +46,8 @@ interface ReceivedLoan {
   lenderAccountName: string | null
   lenderAccountNumber: string | null
   repayments: ReceivedLoanRepayment[]
+  pendingRepaymentAmount: number
+  pendingRepaymentCount: number
 }
 
 interface LoansTabProps {
@@ -354,15 +356,31 @@ export function LoansTab({ accountId }: LoansTabProps) {
                     Received: {formatDate(loan.disbursementDate)}
                     {loan.dueDate && ` · Due: ${formatDate(loan.dueDate)}`}
                   </p>
+                  {loan.pendingRepaymentCount > 0 && (
+                    <p className="text-xs text-amber-700 dark:text-amber-400 mt-1 font-medium">
+                      ⏳ {formatCurrency(loan.pendingRepaymentAmount)} awaiting cashier approval
+                      {loan.pendingRepaymentCount > 1 ? ` (${loan.pendingRepaymentCount} requests)` : ''}
+                    </p>
+                  )}
                 </div>
                 <div className="flex gap-2 flex-shrink-0" onClick={e => e.stopPropagation()}>
                   {loan.status === 'ACTIVE' && (
-                    <button
-                      onClick={() => setRepayingLoan(loan)}
-                      className="px-3 py-1 text-xs font-medium text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg hover:bg-green-100 transition-colors"
-                    >
-                      💰 Repay
-                    </button>
+                    loan.pendingRepaymentCount > 0 ? (
+                      <span
+                        title="A repayment request for this loan is already awaiting cashier approval"
+                        className="px-3 py-1 text-xs font-medium text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg"
+                      >
+                        Request Pending
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => setRepayingLoan(loan)}
+                        title="Submits a repayment request — a cashier must approve it before the balance updates"
+                        className="px-3 py-1 text-xs font-medium text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg hover:bg-green-100 transition-colors"
+                      >
+                        💰 Request Repayment
+                      </button>
+                    )
                   )}
                 </div>
               </div>
@@ -371,12 +389,13 @@ export function LoansTab({ accountId }: LoansTabProps) {
         </div>
       )}
 
-      {/* Repayment modal for received loans */}
+      {/* Repayment modal for received loans — BUSINESS loans always go through
+          cashier approval, so this submits a request, not a direct credit. */}
       {repayingLoan && (
-        <RecordRepaymentModal
+        <RequestRepaymentModal
           loanId={repayingLoan.id}
           loanNumber={repayingLoan.loanNumber}
-          recipientName="This account"
+          contextLabel={`owed to ${repayingLoan.lenderAccountName ?? 'the lending account'}`}
           remainingBalance={repayingLoan.remainingBalance}
           onSuccess={() => { setRepayingLoan(null); loadLoans() }}
           onClose={() => setRepayingLoan(null)}

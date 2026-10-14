@@ -13,6 +13,8 @@ interface LoanOwed {
   status: string
   purpose: string | null
   disbursementDate: string
+  pendingRepaymentAmount: number
+  pendingRepaymentCount: number
 }
 
 interface LoansOwedPanelProps {
@@ -100,14 +102,29 @@ export function LoansOwedPanel({ accountId, canRequest, refreshKey }: LoansOwedP
                 )}
               </p>
               {loan.purpose && <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{loan.purpose}</p>}
+              {loan.pendingRepaymentCount > 0 && (
+                <p className="text-xs text-amber-700 dark:text-amber-400 mt-1 font-medium">
+                  ⏳ ${loan.pendingRepaymentAmount.toFixed(2)} awaiting cashier approval
+                  {loan.pendingRepaymentCount > 1 ? ` (${loan.pendingRepaymentCount} requests)` : ''}
+                </p>
+              )}
             </div>
             {canRequest && loan.status === 'ACTIVE' && (
-              <button
-                onClick={() => setRequestModal(loan)}
-                className="px-2.5 py-1 text-xs font-medium text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg hover:bg-green-100 transition-colors flex-shrink-0"
-              >
-                Request Repayment
-              </button>
+              loan.pendingRepaymentCount > 0 ? (
+                <span
+                  title="A repayment request for this loan is already awaiting cashier approval"
+                  className="px-2.5 py-1 text-xs font-medium text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg flex-shrink-0"
+                >
+                  Request Pending
+                </span>
+              ) : (
+                <button
+                  onClick={() => setRequestModal(loan)}
+                  className="px-2.5 py-1 text-xs font-medium text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg hover:bg-green-100 transition-colors flex-shrink-0"
+                >
+                  Request Repayment
+                </button>
+              )
             )}
           </div>
         ))}
@@ -117,7 +134,7 @@ export function LoansOwedPanel({ accountId, canRequest, refreshKey }: LoansOwedP
         <RequestRepaymentModal
           loanId={requestModal.id}
           loanNumber={requestModal.loanNumber}
-          sourceAccountName={requestModal.sourceAccountName}
+          contextLabel={`owed to ${requestModal.sourceAccountName}`}
           remainingBalance={requestModal.remainingBalance}
           onSuccess={() => setLocalRefresh(v => v + 1)}
           onClose={() => setRequestModal(null)}

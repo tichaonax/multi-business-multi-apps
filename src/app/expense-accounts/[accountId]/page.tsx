@@ -1205,6 +1205,13 @@ export default function ExpenseAccountDetailPage() {
   const [countsError, setCountsError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState(urlTab || 'overview')
+  // Lifted here (rather than left as the Actions CollapsibleSection's own
+  // internal state) because `if (status === 'loading' || loading ||
+  // permissionsLoading) return (...)` below swaps out the whole tree on
+  // every post-action refresh — a child's own state would reset to closed
+  // each time. This survives that since it lives on this same component
+  // instance, not the subtree that gets replaced.
+  const [actionsMenuOpen, setActionsMenuOpen] = useState(false)
   // Deep-link support: a reminder notification links to
   // ?tab=transactions&openReceiptsForPayment={paymentId} to open that
   // payment's Receipts modal directly instead of landing on a plain list.
@@ -1694,7 +1701,7 @@ const canCreatePayees = canChangeCategory // Only owners, managers, and admins c
           {/* Action buttons — compact */}
           {/* RENT accounts only show Deposit, Payment and Reports — Daily/Vehicle are not applicable */}
           {/* Restricted (PERSONAL grant) users have no action buttons here */}
-          {!isRestrictedUser && <CollapsibleSection title="Actions" icon="🛠️" className="w-full sm:w-auto">
+          {!isRestrictedUser && <CollapsibleSection title="Actions" icon="🛠️" className="w-full sm:w-auto" open={actionsMenuOpen} onOpenChange={setActionsMenuOpen}>
           <div className="flex flex-wrap gap-1.5 items-center">
             {!account?.businessId && account?.accountType !== 'RENT' && (
               <button
@@ -2360,6 +2367,7 @@ const canCreatePayees = canChangeCategory // Only owners, managers, and admins c
               ? { type: 'SUPPLIER', id: account.landlordSupplierId, name: account.landlordSupplierName }
               : null
           }
+          canManageLending={canManageLending}
         />
       )}
 

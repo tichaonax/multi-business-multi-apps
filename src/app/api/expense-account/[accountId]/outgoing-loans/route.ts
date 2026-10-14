@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { getEffectivePermissions } from '@/lib/permission-utils'
 import { emitNotification } from '@/lib/notifications/notification-emitter'
+import { getLendingCashierUserIds } from '@/lib/loans/lending-cashiers'
 
 function generateLoanNumber(): string {
   const year = new Date().getFullYear()
@@ -172,11 +173,13 @@ export async function POST(
       }, { status: 400 })
     }
 
-    // Generate unique loan number with retry
+    // Generate unique loan number with retry. loanNumber isn't a @unique
+    // column (display label only, not unique across machines — see
+    // schema.prisma), so findFirst, not findUnique, is the right lookup.
     let loanNumber = generateLoanNumber()
     let attempts = 0
     while (attempts < 5) {
-      const exists = await prisma.accountOutgoingLoans.findUnique({ where: { loanNumber } })
+      const exists = await prisma.accountOutgoingLoans.findFirst({ where: { loanNumber } })
       if (!exists) break
       loanNumber = generateLoanNumber()
       attempts++
@@ -249,16 +252,13 @@ export async function POST(
     // batch submissions) rather than disbursing silently.
     if (loanType === 'BUSINESS') {
       try {
-        const cashiers = await prisma.users.findMany({
-          where: { isActive: true, OR: [{ role: 'admin' }, { permissions: { path: ['canManageLending'], equals: true } }] },
-          select: { id: true },
-        })
-        if (cashiers.length > 0) {
+        const cashierIds = await getLendingCashierUserIds()
+        if (cashierIds.length > 0) {
           const recipientBiz = recipientBusinessId
             ? await prisma.businesses.findUnique({ where: { id: recipientBusinessId }, select: { name: true } })
             : null
           await emitNotification({
-            userIds: cashiers.map(c => c.id),
+            userIds: cashierIds,
             type: 'LOAN_REQUEST_SUBMITTED',
             title: 'Loan request awaiting approval',
             message: `${account.accountName} → ${recipientBiz?.name ?? 'business'}: $${amount.toFixed(2)}`,

@@ -36,6 +36,7 @@ export async function GET(
       where: { loanType: 'BUSINESS', recipientBusinessId: account.businessId },
       include: {
         expenseAccount: { select: { id: true, accountName: true } },
+        repayments: { where: { status: 'PENDING' }, select: { amount: true } },
       },
       orderBy: { createdAt: 'desc' },
     })
@@ -53,6 +54,8 @@ export async function GET(
           status: l.status,
           purpose: l.purpose,
           disbursementDate: l.disbursementDate.toISOString(),
+          pendingRepaymentAmount: l.repayments.reduce((s, r) => s + Number(r.amount), 0),
+          pendingRepaymentCount: l.repayments.length,
         })),
       },
     })
