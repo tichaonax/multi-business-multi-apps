@@ -25,6 +25,8 @@ interface LendingLoan {
   purpose: string | null
   paymentType: string
   contractSigned: boolean
+  isOverdue: boolean
+  daysSinceLastActivity: number | null
 }
 
 interface Summary {
@@ -34,7 +36,31 @@ interface Summary {
   activeCount: number
   paidOffCount: number
   pendingCount: number
+  overdueCount: number
   byType: { PERSON: number; BUSINESS: number; EMPLOYEE: number }
+}
+
+interface GroupedTotal {
+  businessId?: string
+  businessName?: string
+  accountId?: string
+  accountName?: string
+  loanCount: number
+  totalOutstanding: number
+}
+
+interface RequestLogRow {
+  loanId: string
+  loanNumber: string
+  type: 'loan_request' | 'repayment_request'
+  amount: number
+  status: string
+  requestedBy?: string | null
+  approvedBy?: string | null
+  createdAt: string
+  approvedAt: string | null
+  rejectedAt?: string | null
+  rejectionReason?: string | null
 }
 
 const TYPE_ICON: Record<string, string> = { PERSON: '👤', BUSINESS: '🏢', EMPLOYEE: '👷' }
@@ -42,6 +68,7 @@ const STATUS_TABS = [
   { label: 'All', value: 'ALL' },
   { label: 'Active', value: 'ACTIVE' },
   { label: 'Pending', value: 'PENDING_APPROVAL' },
+  { label: 'Overdue', value: 'OVERDUE' },
   { label: 'Paid Off', value: 'PAID_OFF' },
 ]
 
@@ -59,6 +86,10 @@ export default function LendingPortfolioPage() {
 
   const [loans, setLoans] = useState<LendingLoan[]>([])
   const [summary, setSummary] = useState<Summary | null>(null)
+  const [byRecipientBusiness, setByRecipientBusiness] = useState<GroupedTotal[]>([])
+  const [bySourceAccount, setBySourceAccount] = useState<GroupedTotal[]>([])
+  const [requestLog, setRequestLog] = useState<RequestLogRow[]>([])
+  const [showRequestLog, setShowRequestLog] = useState(false)
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState('ALL')
   const [typeFilter, setTypeFilter] = useState('ALL')
@@ -70,12 +101,17 @@ export default function LendingPortfolioPage() {
     setLoading(true)
     try {
       const params = new URLSearchParams()
-      if (statusFilter !== 'ALL') params.set('status', statusFilter)
+      // "Overdue" isn't a real loan status — fetch everything and filter
+      // client-side on the computed isOverdue flag instead.
+      if (statusFilter !== 'ALL' && statusFilter !== 'OVERDUE') params.set('status', statusFilter)
       const res = await fetch(`/api/expense-account/reports/lending?${params}`, { credentials: 'include' })
       if (res.ok) {
         const data = await res.json()
         setLoans(data.data?.loans ?? [])
         setSummary(data.data?.summary ?? null)
+        setByRecipientBusiness(data.data?.byRecipientBusiness ?? [])
+        setBySourceAccount(data.data?.bySourceAccount ?? [])
+        setRequestLog(data.data?.requestLog ?? [])
       }
     } catch (e) {
       console.error('Error loading lending report:', e)
@@ -88,7 +124,8 @@ export default function LendingPortfolioPage() {
     loadLoans()
   }, [statusFilter])
 
-  const filteredLoans = typeFilter === 'ALL' ? loans : loans.filter(l => l.loanType === typeFilter)
+  const filteredLoans = (typeFilter === 'ALL' ? loans : loans.filter(l => l.loanType === typeFilter))
+    .filter(l => statusFilter !== 'OVERDUE' || l.isOverdue)
 
   return (
     <ContentLayout title="Lending Portfolio" subtitle="All outgoing loans from expense accounts">
@@ -124,6 +161,79 @@ export default function LendingPortfolioPage() {
               <p className="text-xl font-bold text-blue-600 dark:text-blue-400 mt-1">{summary.activeCount} / {summary.paidOffCount}</p>
               {summary.pendingCount > 0 && <p className="text-xs text-yellow-600 dark:text-yellow-400">{summary.pendingCount} pending</p>}
             </div>
+          </div>
+        )}
+
+        {/* MBM-312: overdue callout — only shown when something needs attention */}
+        {summary && summary.overdueCount > 0 && (
+          <button
+            onClick={() => setStatusFilter('OVERDUE')}
+            className="w-full text-left bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 flex items-center gap-2 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+          >
+            <span className="text-lg">⚠️</span>
+            <span className="text-sm text-red-700 dark:text-red-300">
+              <strong>{summary.overdueCount}</strong> business loan{summary.overdueCount !== 1 ? 's' : ''} overdue for monthly repayment — click to review
+            </span>
+          </button>
+        )}
+
+        {/* MBM-312: who owes what to whom, at a glance */}
+        {(byRecipientBusiness.length > 0 || bySourceAccount.length > 0) && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {byRecipientBusiness.length > 0 && (
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2">Outstanding by Business (Borrower)</p>
+                <div className="space-y-1.5">
+                  {byRecipientBusiness.map(b => (
+                    <div key={b.businessId} className="flex justify-between text-sm">
+                      <span className="text-gray-700 dark:text-gray-300">{b.businessName} <span className="text-gray-400">({b.loanCount})</span></span>
+                      <span className="font-medium text-amber-600 dark:text-amber-400">{formatCurrency(b.totalOutstanding)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {bySourceAccount.length > 0 && (
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2">Outstanding by Source Account</p>
+                <div className="space-y-1.5">
+                  {bySourceAccount.map(a => (
+                    <div key={a.accountId} className="flex justify-between text-sm">
+                      <span className="text-gray-700 dark:text-gray-300">{a.accountName} <span className="text-gray-400">({a.loanCount})</span></span>
+                      <span className="font-medium text-amber-600 dark:text-amber-400">{formatCurrency(a.totalOutstanding)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* MBM-312: loan request / repayment approval audit log */}
+        {requestLog.length > 0 && (
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+            <button onClick={() => setShowRequestLog(v => !v)} className="flex items-center justify-between w-full text-left">
+              <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Requests & Approvals ({requestLog.length})</p>
+              <span className="text-gray-400 text-xs">{showRequestLog ? '▲ Hide' : '▼ Show'}</span>
+            </button>
+            {showRequestLog && (
+              <div className="mt-3 space-y-1.5 max-h-80 overflow-y-auto text-xs">
+                {requestLog.map((r, i) => (
+                  <div key={i} className="flex items-center justify-between border-b border-gray-100 dark:border-gray-700 pb-1.5">
+                    <span className="text-gray-600 dark:text-gray-400">
+                      {r.type === 'loan_request' ? '🤝 Loan' : '📥 Repayment'} <span className="font-medium text-gray-800 dark:text-gray-200">{r.loanNumber}</span> — {formatCurrency(r.amount)}
+                      {r.requestedBy && <span> by {r.requestedBy}</span>}
+                    </span>
+                    <span className={
+                      r.status === 'APPROVED' || r.status === 'ACTIVE' || r.status === 'PAID_OFF' ? 'text-green-600 dark:text-green-400' :
+                      r.status === 'REJECTED' ? 'text-red-600 dark:text-red-400' : 'text-yellow-600 dark:text-yellow-400'
+                    }>
+                      {r.status}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -186,7 +296,10 @@ export default function LendingPortfolioPage() {
                       <p className="font-medium text-gray-900 dark:text-gray-100">{loan.recipientName}</p>
                       {loan.purpose && <p className="text-xs text-gray-400">{loan.purpose}</p>}
                     </div>
-                    <div className="ml-auto">{statusBadge(loan.status)}</div>
+                    <div className="ml-auto flex items-center gap-1">
+                      {loan.isOverdue && <span title={`${loan.daysSinceLastActivity} days since last repayment`}>⚠️</span>}
+                      {statusBadge(loan.status)}
+                    </div>
                   </div>
                   <div>
                     <Link href={`/expense-accounts/${loan.expenseAccountId}`} className="text-blue-600 dark:text-blue-400 hover:underline text-sm">
@@ -275,7 +388,12 @@ export default function LendingPortfolioPage() {
                       <td className="px-4 py-3 text-center text-gray-500 dark:text-gray-400 text-xs">
                         {new Date(loan.disbursementDate).toLocaleDateString()}
                       </td>
-                      <td className="px-4 py-3 text-center">{statusBadge(loan.status)}</td>
+                      <td className="px-4 py-3 text-center">
+                        <div className="flex items-center justify-center gap-1">
+                          {loan.isOverdue && <span title={`${loan.daysSinceLastActivity} days since last repayment`}>⚠️</span>}
+                          {statusBadge(loan.status)}
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>

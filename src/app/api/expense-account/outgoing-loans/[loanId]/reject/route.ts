@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { getEffectivePermissions } from '@/lib/permission-utils'
+import { emitNotification } from '@/lib/notifications/notification-emitter'
 
 /**
  * POST /api/expense-account/outgoing-loans/[loanId]/reject
@@ -28,6 +29,7 @@ export async function POST(
 
     const loan = await prisma.accountOutgoingLoans.findUnique({
       where: { id: params.loanId },
+      include: { recipientBusiness: { select: { name: true } } },
     })
 
     if (!loan) return NextResponse.json({ error: 'Loan not found' }, { status: 404 })
@@ -50,6 +52,20 @@ export async function POST(
             : 'Rejected by manager',
       },
     })
+
+    // MBM-312: tell whoever requested a BUSINESS loan that it was turned down
+    if (loan.loanType === 'BUSINESS') {
+      try {
+        await emitNotification({
+          userIds: [loan.createdBy],
+          type: 'LOAN_REQUEST_REJECTED',
+          title: 'Loan request rejected',
+          message: `${loan.loanNumber} — $${Number(loan.principalAmount).toFixed(2)} to ${loan.recipientBusiness?.name ?? 'business'}${reason ? `: ${reason}` : ''}`,
+          linkUrl: `/expense-accounts/${loan.expenseAccountId}`,
+          metadata: { loanId: loan.id, loanNumber: loan.loanNumber },
+        })
+      } catch { /* non-critical */ }
+    }
 
     return NextResponse.json({
       success: true,

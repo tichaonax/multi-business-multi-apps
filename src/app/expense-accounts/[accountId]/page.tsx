@@ -17,6 +17,7 @@ import { AccountPermissionsTab } from '@/components/expense-account/account-perm
 import { LoansTab } from '@/components/expense-account/loans-tab'
 import { ReturnTransferModal } from '@/components/expense-account/return-transfer-modal'
 import { LendMoneyModal } from '@/components/expense-account/lend-money-modal'
+import { LoansOwedPanel } from '@/components/expense-account/loans-owed-panel'
 import { FundPayrollModal } from '@/components/expense-account/fund-payroll-modal'
 import { OutgoingLoansPanel } from '@/components/expense-account/outgoing-loans-panel'
 import SmartQuickPaymentModal from '@/components/expense-account/smart-quick-payment-modal'
@@ -1928,6 +1929,19 @@ const canCreatePayees = canChangeCategory // Only owners, managers, and admins c
                 </button>
               )}
 
+              {!isRestrictedUser && (
+                <button
+                  onClick={() => setActiveTab('loans-owed')}
+                  className={`px-3 sm:px-6 py-2 sm:py-3 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                    activeTab === 'loans-owed'
+                      ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                      : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300'
+                  }`}
+                >
+                  Loans Owed
+                </button>
+              )}
+
               {(isSystemAdmin || canMakeExpensePayments) && !isRestrictedUser && (
                 <button
                   onClick={() => setActiveTab('permissions')}
@@ -2243,6 +2257,17 @@ const canCreatePayees = canChangeCategory // Only owners, managers, and admins c
                   canManage={canManageLending}
                   refreshKey={loansRefreshKey}
                   onRepaymentSuccess={loadAccount}
+                />
+              </div>
+            )}
+
+            {/* Loans Owed Tab (MBM-312) — borrower-side view + repayment-request entry point */}
+            {activeTab === 'loans-owed' && (
+              <div>
+                <LoansOwedPanel
+                  accountId={accountId}
+                  canRequest={canMakeExpensePayments || isSystemAdmin}
+                  refreshKey={loansRefreshKey}
                 />
               </div>
             )}

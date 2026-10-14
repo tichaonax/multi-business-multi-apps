@@ -153,7 +153,9 @@ export async function POST(
         }
       }
 
-      // Create repayment record
+      // Create repayment record — direct-record, so already "approved" by
+      // the act of recording it (MBM-312: distinguishes these from a
+      // borrower-submitted repayment request awaiting cashier approval).
       await tx.accountOutgoingLoanPayments.create({
         data: {
           loanId: loan.id,
@@ -163,6 +165,9 @@ export async function POST(
           depositId,
           notes: notes ?? null,
           recordedBy: user.id,
+          status: 'APPROVED',
+          approvedBy: user.id,
+          approvedAt: new Date(),
         },
       })
 

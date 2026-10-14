@@ -113,7 +113,14 @@ export function LendMoneyModal({ accountId, accountName, accountBalance, current
       })
 
       if (res.ok) {
-        toast.push(`$${parsedAmount.toFixed(2)} lent to ${recipientName}`, { type: 'success' })
+        // MBM-312: BUSINESS loans now require cashier approval before
+        // disbursing — PERSON/EMPLOYEE behavior is unchanged.
+        toast.push(
+          loanType === 'BUSINESS'
+            ? `Loan request for $${parsedAmount.toFixed(2)} to ${recipientName} submitted — awaiting cashier approval`
+            : `$${parsedAmount.toFixed(2)} lent to ${recipientName}`,
+          { type: 'success' }
+        )
         onSuccess()
         onClose()
       } else {
@@ -256,13 +263,28 @@ export function LendMoneyModal({ accountId, accountName, accountBalance, current
           {step === 'confirm' && (
             <div className="space-y-3">
               <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4 space-y-1 text-sm">
-                <p className="font-semibold text-green-800 dark:text-green-200">Confirm Loan Disbursement</p>
-                <p className="text-green-700 dark:text-green-300">
-                  <span className="font-medium">${parsedAmount.toFixed(2)}</span> will be disbursed to <span className="font-medium">{recipientName}</span>
+                <p className="font-semibold text-green-800 dark:text-green-200">
+                  {loanType === 'BUSINESS' ? 'Confirm Loan Request' : 'Confirm Loan Disbursement'}
                 </p>
-                <p className="text-green-600 dark:text-green-400 text-xs">
-                  This will immediately reduce {accountName}&apos;s balance by ${parsedAmount.toFixed(2)}.
-                </p>
+                {loanType === 'BUSINESS' ? (
+                  <>
+                    <p className="text-green-700 dark:text-green-300">
+                      <span className="font-medium">${parsedAmount.toFixed(2)}</span> will be requested for <span className="font-medium">{recipientName}</span>, sourced from {accountName}
+                    </p>
+                    <p className="text-green-600 dark:text-green-400 text-xs">
+                      This needs cashier approval before it disburses — {accountName}&apos;s balance won&apos;t change yet.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-green-700 dark:text-green-300">
+                      <span className="font-medium">${parsedAmount.toFixed(2)}</span> will be disbursed to <span className="font-medium">{recipientName}</span>
+                    </p>
+                    <p className="text-green-600 dark:text-green-400 text-xs">
+                      This will immediately reduce {accountName}&apos;s balance by ${parsedAmount.toFixed(2)}.
+                    </p>
+                  </>
+                )}
               </div>
               {purpose && <p className="text-sm text-gray-600 dark:text-gray-400">Purpose: {purpose}</p>}
             </div>
@@ -296,7 +318,11 @@ export function LendMoneyModal({ accountId, accountName, accountBalance, current
               disabled={submitting}
               className="px-5 py-2 text-sm font-semibold bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
             >
-              {submitting ? 'Submitting...' : `Disburse $${parsedAmount > 0 ? parsedAmount.toFixed(2) : '—'}`}
+              {submitting
+                ? 'Submitting...'
+                : loanType === 'BUSINESS'
+                  ? `Submit Request for $${parsedAmount > 0 ? parsedAmount.toFixed(2) : '—'}`
+                  : `Disburse $${parsedAmount > 0 ? parsedAmount.toFixed(2) : '—'}`}
             </button>
           )}
         </div>

@@ -19,6 +19,7 @@ import { startBusinessTargetRecalculationScheduler } from './src/lib/business-ta
 import { startComboRequestExpiryScheduler } from './src/lib/expense-account/combo-request-expiry-scheduler'
 import { startReceiptReminderScheduler } from './src/lib/expense-account/receipt-reminder-scheduler'
 import { startVehicleLicenseReminderScheduler } from './src/lib/vehicles/license-reminder-scheduler'
+import { startOverdueLoanScheduler } from './src/lib/loans/overdue-loan-scheduler'
 import { startBackgroundJobs } from './src/lib/background-jobs'
 import { join as joinPath } from 'path'
 
@@ -106,6 +107,9 @@ app.prepare().then(() => {
 
   // MBM-304: overdue/expiring vehicle & driver license reminders.
   startVehicleLicenseReminderScheduler()
+
+  // MBM-312: overdue inter-business/expense-account loan repayments.
+  startOverdueLoanScheduler()
 
   // Print-worker health check, WiFi token sanitization, R710/ESP32 client
   // sync — relocated from the removed legacy sync engine (all opt-in, off

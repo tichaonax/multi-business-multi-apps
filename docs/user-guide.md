@@ -3656,6 +3656,51 @@ If the loan is uncollectable (employee left, debt forgiven):
 
 ---
 
+### Part C — Lending to Another Business or Expense Account
+
+An expense account — whether it belongs to a business or is a standalone personal account (e.g. "Hwandaza Homestead") — can lend money to a business. Unlike a Person or Employee loan, this type always requires a cashier to approve the request before anything actually moves — the money doesn't disburse the instant the loan is created.
+
+#### Requesting the Loan
+
+1. Open the **lending** expense account's page and go to the **Lent Out** tab.
+2. Click **🤝 Lend Money**.
+3. Choose recipient type **Business**, select the recipient business, enter the amount and an optional purpose/due date.
+4. Click **Submit Request**.
+
+The loan now shows **Pending Approval** — nothing has moved yet. The account's balance is unchanged, and the recipient business hasn't received anything.
+
+#### Cashier Approval
+
+Anyone with lending permission (the same people who can already create these loans) sees the pending request on the **Lent Out** tab and can:
+- **Approve** — the loan disburses immediately: the lending account is debited, the recipient business's primary expense account is credited, and the loan becomes **Active**.
+- **Reject** — nothing moves; the loan is marked **Rejected**.
+
+#### Repaying the Loan (Borrower's Side)
+
+The borrowing business sees what it owes on its **own** expense account page, under the **Loans Owed** tab — a view that didn't exist before this: previously only the lender could see the loan at all.
+
+1. Open the **Loans Owed** tab on the borrowing business's expense account.
+2. Find the loan and click **Request Repayment**.
+3. Enter the amount (partial or full), date, and payment method.
+4. Submit — this creates a repayment **request**; like the original loan, no money moves yet.
+
+A cashier then approves or rejects the repayment request from the lending account's **Lent Out** tab, the same way they approve the original loan. Approving it debits the borrower, credits the lender, and reduces the loan's outstanding balance. Once the balance reaches zero, the loan is automatically marked **Paid Off** and no further repayments can be made against it.
+
+> The lending account's cashier can still record a repayment directly (no request/approval step) via the existing **📥 Repayment** button on the **Lent Out** tab — useful when the cashier is the one physically receiving the money and doesn't need a separate approval step for their own entry.
+
+#### Notifications
+
+- A new loan request or repayment request notifies everyone with lending permission.
+- Approving or rejecting either one notifies whoever submitted it.
+- If a loan goes a full calendar month with no approved repayment, a nightly check notifies the lending team so it can be followed up on. A loan that's been fully repaid and closed never triggers this.
+
+#### Viewing the Portfolio
+
+The **Lending Portfolio** report (**Expense Accounts → Reports → Lending**) covers Person, Business, and Employee loans together, and now also shows, for Business loans specifically:
+- An **Overdue** filter tab and a banner when any loan needs follow-up.
+- **Outstanding by Business** and **Outstanding by Source Account** — who owes what, and what's owed to each lending account, at a glance.
+- A **Requests & Approvals** log — every loan and repayment request with its status, so you can see what's pending, approved, or rejected without opening each loan individually.
+
 ### Viewing All Loans
 
 Go to **Finance → Loans** to see both business loans and employee loans in one list. Filter by:
