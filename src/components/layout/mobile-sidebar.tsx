@@ -497,6 +497,10 @@ export function MobileSidebar() {
               )}
 
               {hasBusinessPermission('canViewExpenseReports') && (
+                <Link href="/expense-accounts/reports/lending" className={`${sectionLinkClass} pl-8 text-sm`} onClick={close}>🤝 Lending Portfolio</Link>
+              )}
+
+              {hasBusinessPermission('canViewExpenseReports') && (
                 <Link href="/expense-accounts/reports/categories" className={`${sectionLinkClass} pl-8 text-sm`} onClick={close}>🏷️ Category Analysis</Link>
               )}
 

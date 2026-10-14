@@ -1842,6 +1842,13 @@ export function Sidebar() {
                       <span>Loan Portfolio</span>
                     </Link>
                     <Link
+                      href="/expense-accounts/reports/lending"
+                      className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-800 pl-7 pr-3 py-1.5 rounded flex items-center space-x-2"
+                    >
+                      <span>🤝</span>
+                      <span>Lending Portfolio</span>
+                    </Link>
+                    <Link
                       href="/expense-accounts/reports/categories"
                       className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-800 pl-7 pr-3 py-1.5 rounded flex items-center space-x-2"
                     >
