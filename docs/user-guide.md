@@ -3688,6 +3688,8 @@ The borrowing business sees what it owes on its **own** expense account page, un
 
 A cashier then approves or rejects the repayment request from the lending account's **Lent Out** tab, the same way they approve the original loan. Approving it debits the borrower, credits the lender, and reduces the loan's outstanding balance. Once the balance reaches zero, the loan is automatically marked **Paid Off** and no further repayments can be made against it.
 
+While a repayment request is awaiting approval, the loan shows **"⏳ $X awaiting cashier approval"** everywhere it appears — the Loans Owed tab, the Loans tab's Loans Received list, and the Deposit Details popup — and the **Request Repayment** button is replaced with a disabled **Request Pending** badge so you can't submit a second request on top of one still being reviewed. The **Request Repayment** form itself also shows a running payment history (past approved repayments and how much is left) so you don't need to look it up elsewhere.
+
 > **Every Business loan repayment goes through this request-then-approve step — there is no direct-record shortcut, even for the lending account's own cashier.** The **📥 Request Repayment** button on the **Lent Out** tab submits a request the same as the borrower's own button does; it does not credit anything immediately. (This is specific to Business loans — Person and Employee loans keep their existing direct-record behavior, unchanged.)
 
 Clicking a loan-related deposit on the **Transactions** tab opens **Deposit Details** with the real loan information — loan number, status, outstanding balance, and which account it's from/to — instead of just a generic "Loan Received"/"Loan Repayment" label. If the loan is still active, **Request Repayment** is right there too.
@@ -3697,6 +3699,7 @@ Clicking a loan-related deposit on the **Transactions** tab opens **Deposit Deta
 - A new loan request or repayment request notifies everyone with lending permission.
 - Approving or rejecting either one notifies whoever submitted it.
 - If a loan goes a full calendar month with no approved repayment, a nightly check notifies the lending team so it can be followed up on. A loan that's been fully repaid and closed never triggers this.
+- In the notification bell, loan requests and loan repayments are grouped separately — **🤝 Loan Requests** (new loans, approvals, rejections) and **💵 Loan Repayments** (repayment requests, approvals, rejections, overdue alerts) — so a repayment awaiting approval doesn't get lost among loan-disbursement activity.
 
 #### Viewing the Portfolio
 
