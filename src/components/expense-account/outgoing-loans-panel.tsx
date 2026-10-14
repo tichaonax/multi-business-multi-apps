@@ -1,10 +1,12 @@
 "use client"
 
 import { useState, useEffect } from 'react'
+import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { useToastContext } from '@/components/ui/toast'
 import { RecordRepaymentModal } from './record-repayment-modal'
 import { RequestRepaymentModal } from './request-repayment-modal'
 import { RepaymentApprovalModal } from './repayment-approval-modal'
+import { LoanRequestApprovalModal } from './loan-request-approval-modal'
 
 interface OutgoingLoan {
   id: string
@@ -51,6 +53,9 @@ const TYPE_ICON: Record<string, string> = { PERSON: '👤', BUSINESS: '🏢', EM
 
 export function OutgoingLoansPanel({ accountId, canManage, onApprove, onRepaymentSuccess, refreshKey }: OutgoingLoansPanelProps) {
   const toast = useToastContext()
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const pathname = usePathname()
   const [loans, setLoans] = useState<OutgoingLoan[]>([])
   const [loading, setLoading] = useState(true)
   const [fetchError, setFetchError] = useState<string | null>(null)
@@ -59,6 +64,8 @@ export function OutgoingLoansPanel({ accountId, canManage, onApprove, onRepaymen
   const [rejectingId, setRejectingId] = useState<string | null>(null)
   const [pendingRepayments, setPendingRepayments] = useState<Record<string, PendingRepaymentRequest[]>>({})
   const [reviewingRepayment, setReviewingRepayment] = useState<{ loan: OutgoingLoan; req: PendingRepaymentRequest } | null>(null)
+  const [reviewingLoanRequest, setReviewingLoanRequest] = useState<OutgoingLoan | null>(null)
+  const [autoOpenedFromUrl, setAutoOpenedFromUrl] = useState(false)
 
   const loadLoans = async () => {
     setLoading(true)
@@ -72,6 +79,7 @@ export function OutgoingLoansPanel({ accountId, canManage, onApprove, onRepaymen
 
         // MBM-312: load any pending repayment requests for ACTIVE BUSINESS loans
         const businessLoans = loadedLoans.filter(l => l.loanType === 'BUSINESS' && l.status === 'ACTIVE')
+        let next: Record<string, PendingRepaymentRequest[]> = {}
         if (businessLoans.length > 0) {
           const results = await Promise.all(
             businessLoans.map(l =>
@@ -80,7 +88,6 @@ export function OutgoingLoansPanel({ accountId, canManage, onApprove, onRepaymen
                 .catch(() => null)
             )
           )
-          const next: Record<string, PendingRepaymentRequest[]> = {}
           businessLoans.forEach((l, i) => {
             const all = results[i]?.data?.requests ?? []
             const pending = all.filter((r: any) => r.status === 'PENDING')
@@ -89,6 +96,31 @@ export function OutgoingLoansPanel({ accountId, canManage, onApprove, onRepaymen
           setPendingRepayments(next)
         } else {
           setPendingRepayments({})
+        }
+
+        // MBM-312: a notification can deep-link straight to a specific
+        // pending item's review modal (?reviewLoanId / ?reviewPaymentId)
+        // instead of just landing on this tab and making the cashier find
+        // it in the list themselves. Only fires once per page load.
+        if (!autoOpenedFromUrl) {
+          const reviewLoanId = searchParams.get('reviewLoanId')
+          const reviewPaymentId = searchParams.get('reviewPaymentId')
+          if (reviewLoanId) {
+            const match = loadedLoans.find(l => l.id === reviewLoanId && l.status === 'PENDING_APPROVAL')
+            if (match) setReviewingLoanRequest(match)
+          } else if (reviewPaymentId) {
+            for (const l of businessLoans) {
+              const match = next[l.id]?.find(r => r.id === reviewPaymentId)
+              if (match) { setReviewingRepayment({ loan: l, req: match }); break }
+            }
+          }
+          if (reviewLoanId || reviewPaymentId) {
+            setAutoOpenedFromUrl(true)
+            const params = new URLSearchParams(searchParams.toString())
+            params.delete('reviewLoanId')
+            params.delete('reviewPaymentId')
+            router.replace(`${pathname}?${params.toString()}`)
+          }
         }
       } else {
         const data = await res.json().catch(() => ({}))
@@ -210,22 +242,31 @@ export function OutgoingLoansPanel({ accountId, canManage, onApprove, onRepaymen
               {canManage && (
                 <div className="flex gap-2 flex-shrink-0">
                   {loan.status === 'PENDING_APPROVAL' && (
-                    <>
+                    loan.loanType === 'BUSINESS' ? (
                       <button
-                        onClick={() => handleApprove(loan)}
-                        disabled={approvingId === loan.id || rejectingId === loan.id}
-                        className="px-2.5 py-1 text-xs font-medium text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg hover:bg-amber-100 transition-colors"
+                        onClick={() => setReviewingLoanRequest(loan)}
+                        className="px-2.5 py-1 text-xs font-medium text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg hover:bg-blue-100 transition-colors"
                       >
-                        {approvingId === loan.id ? '...' : 'Approve'}
+                        Review
                       </button>
-                      <button
-                        onClick={() => handleReject(loan)}
-                        disabled={approvingId === loan.id || rejectingId === loan.id}
-                        className="px-2.5 py-1 text-xs font-medium text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg hover:bg-red-100 transition-colors"
-                      >
-                        {rejectingId === loan.id ? '...' : 'Reject'}
-                      </button>
-                    </>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => handleApprove(loan)}
+                          disabled={approvingId === loan.id || rejectingId === loan.id}
+                          className="px-2.5 py-1 text-xs font-medium text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg hover:bg-amber-100 transition-colors"
+                        >
+                          {approvingId === loan.id ? '...' : 'Approve'}
+                        </button>
+                        <button
+                          onClick={() => handleReject(loan)}
+                          disabled={approvingId === loan.id || rejectingId === loan.id}
+                          className="px-2.5 py-1 text-xs font-medium text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg hover:bg-red-100 transition-colors"
+                        >
+                          {rejectingId === loan.id ? '...' : 'Reject'}
+                        </button>
+                      </>
+                    )
                   )}
                   {loan.status === 'ACTIVE' && (
                     <button
@@ -303,6 +344,18 @@ export function OutgoingLoansPanel({ accountId, canManage, onApprove, onRepaymen
           requestedBy={reviewingRepayment.req.requestedBy}
           onSuccess={() => { setReviewingRepayment(null); loadLoans(); onRepaymentSuccess?.() }}
           onClose={() => setReviewingRepayment(null)}
+        />
+      )}
+
+      {reviewingLoanRequest && (
+        <LoanRequestApprovalModal
+          loanId={reviewingLoanRequest.id}
+          loanNumber={reviewingLoanRequest.loanNumber}
+          recipientName={reviewingLoanRequest.recipientName}
+          requestedAmount={reviewingLoanRequest.principalAmount}
+          purpose={reviewingLoanRequest.purpose}
+          onSuccess={() => { setReviewingLoanRequest(null); loadLoans(); onApprove?.(reviewingLoanRequest.id) }}
+          onClose={() => setReviewingLoanRequest(null)}
         />
       )}
     </>

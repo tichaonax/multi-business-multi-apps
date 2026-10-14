@@ -71,6 +71,17 @@ interface Transaction {
   project?: { id: string; name: string } | null
   createdBy?: { id: string; name: string }
   createdAt: string
+  // MBM-312: real loan detail for LOAN_RECEIVED/LOAN_REPAYMENT deposits and
+  // LOAN_DISBURSEMENT/LOAN_REPAYMENT payments, shown inline so the row is
+  // self-contained without opening Deposit/Payment Details.
+  loan?: {
+    id: string
+    loanNumber: string
+    status: string
+    principalAmount: number
+    remainingBalance: number
+    counterpartName: string | null
+  } | null
 }
 
 interface TransactionHistoryProps {
@@ -1333,6 +1344,17 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
                           <span className="font-medium text-sky-700 dark:text-sky-400">↩ {transaction.autoTransferSource}</span>
                         ) : transaction.comboRequestId && transaction.comboRequester ? (
                           <span className="font-medium text-purple-700 dark:text-purple-400">📎 {transaction.comboRequester.name}</span>
+                        ) : transaction.loan ? (
+                          <span className="font-medium">
+                            {transaction.loan.counterpartName ? (
+                              <span>{transaction.loan.counterpartName}</span>
+                            ) : (
+                              <span className="text-gray-400 dark:text-gray-500">Unknown</span>
+                            )}
+                            <span className="block text-xs text-gray-500 dark:text-gray-400 font-normal">
+                              #{transaction.loan.loanNumber} · {transaction.loan.status.replace(/_/g, ' ')} · ${transaction.loan.remainingBalance.toFixed(2)} of ${transaction.loan.principalAmount.toFixed(2)} left
+                            </span>
+                          </span>
                         ) : transaction.sourceBusiness ? (
                           <span className="font-medium">{transaction.sourceBusiness.name}</span>
                         ) : (transaction.fundSource || transaction.fundSourceNote) ? (

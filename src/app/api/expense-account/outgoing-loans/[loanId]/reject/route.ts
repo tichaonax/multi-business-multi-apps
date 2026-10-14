@@ -9,7 +9,9 @@ import { emitNotification } from '@/lib/notifications/notification-emitter'
  * Manager/admin rejects a pending loan — moves PENDING_APPROVAL → REJECTED
  *
  * Body:
- * - reason?: string  (optional rejection reason stored on the loan)
+ * - reason: string  (required for BUSINESS loans — stored on the loan;
+ *   PERSON/EMPLOYEE rejection keeps its pre-existing optional-reason
+ *   behavior, unchanged by MBM-312)
  */
 export async function POST(
   request: NextRequest,
@@ -25,7 +27,7 @@ export async function POST(
     }
 
     const body = await request.json().catch(() => ({}))
-    const { reason } = body
+    const reason: string | undefined = body.reason?.trim()
 
     const loan = await prisma.accountOutgoingLoans.findUnique({
       where: { id: params.loanId },
@@ -39,6 +41,10 @@ export async function POST(
         { error: `Cannot reject a loan in status: ${loan.status}` },
         { status: 400 }
       )
+    }
+
+    if (loan.loanType === 'BUSINESS' && !reason) {
+      return NextResponse.json({ error: 'A rejection reason is required' }, { status: 400 })
     }
 
     const updated = await prisma.accountOutgoingLoans.update({

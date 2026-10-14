@@ -127,6 +127,7 @@ export async function POST(
               amount: repayAmount,
               paymentDate: pending.paymentDate,
               paymentType: 'LOAN_REPAYMENT',
+              outgoingLoanId: loan.id,
               notes: pending.notes ?? `💸 Loan repayment — ${loan.loanNumber}`,
               status: 'SUBMITTED',
               createdBy: user.id,

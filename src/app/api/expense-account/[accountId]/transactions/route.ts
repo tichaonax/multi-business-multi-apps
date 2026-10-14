@@ -178,6 +178,17 @@ export async function GET(
               creator: {
                 select: { id: true, name: true, email: true },
               },
+              // MBM-312: loan number/status/balance for LOAN_RECEIVED and
+              // LOAN_REPAYMENT deposits, so the row shows real loan detail
+              // instead of just the generic sourceType label.
+              source_outgoing_loan: {
+                select: {
+                  id: true, loanNumber: true, status: true,
+                  principalAmount: true, remainingBalance: true,
+                  expenseAccount: { select: { accountName: true } },
+                  recipientBusiness: { select: { name: true } },
+                },
+              },
             },
             orderBy: { depositDate: sortOrder as 'asc' | 'desc' },
           })
@@ -344,6 +355,36 @@ export async function GET(
       }
     }
 
+    // MBM-312: loan number/status/balance for LOAN_DISBURSEMENT/LOAN_REPAYMENT
+    // payments — ExpenseAccountPayments.outgoingLoanId has no Prisma relation
+    // defined (raw FK only), so this is a batch lookup, same pattern as the
+    // combo/petty-cash maps above.
+    const outgoingLoanIds = [...new Set(
+      payments.map((p) => (p as any).outgoingLoanId).filter(Boolean) as string[]
+    )]
+    const outgoingLoanMap = new Map<string, {
+      id: string; loanNumber: string; status: string
+      principalAmount: number; remainingBalance: number
+      sourceAccountName: string | null; recipientBusinessName: string | null
+    }>()
+    if (outgoingLoanIds.length > 0) {
+      const outgoingLoans = await prisma.accountOutgoingLoans.findMany({
+        where: { id: { in: outgoingLoanIds } },
+        select: {
+          id: true, loanNumber: true, status: true,
+          principalAmount: true, remainingBalance: true,
+          expenseAccount: { select: { accountName: true } },
+          recipientBusiness: { select: { name: true } },
+        },
+      })
+      outgoingLoans.forEach((l) => outgoingLoanMap.set(l.id, {
+        id: l.id, loanNumber: l.loanNumber, status: l.status,
+        principalAmount: Number(l.principalAmount), remainingBalance: Number(l.remainingBalance),
+        sourceAccountName: l.expenseAccount?.accountName ?? null,
+        recipientBusinessName: l.recipientBusiness?.name ?? null,
+      }))
+    }
+
     // Batch-lookup income category and subcategory names for deposits
     const incomeCategoryIds = deposits.map(d => (d as any).incomeCategoryId).filter(Boolean) as string[]
     const incomeSubcategoryIds = deposits.map(d => (d as any).incomeSubcategoryId).filter(Boolean) as string[]
@@ -432,6 +473,19 @@ export async function GET(
         createdBy: deposit.creator,
         createdAt: deposit.createdAt,
         batchSubmissionId: batchMap.get(deposit.id) ?? null,
+        loan: (deposit as any).source_outgoing_loan ? {
+          id: (deposit as any).source_outgoing_loan.id,
+          loanNumber: (deposit as any).source_outgoing_loan.loanNumber,
+          status: (deposit as any).source_outgoing_loan.status,
+          principalAmount: Number((deposit as any).source_outgoing_loan.principalAmount),
+          remainingBalance: Number((deposit as any).source_outgoing_loan.remainingBalance),
+          // This deposit is on the RECIPIENT side (LOAN_RECEIVED) or the
+          // LENDER side (LOAN_REPAYMENT) — show whichever account is the
+          // counterpart to the one this list is already for.
+          counterpartName: deposit.sourceType === 'LOAN_RECEIVED'
+            ? (deposit as any).source_outgoing_loan.expenseAccount?.accountName ?? null
+            : (deposit as any).source_outgoing_loan.recipientBusiness?.name ?? null,
+        } : null,
       })
     })
 
@@ -501,6 +555,20 @@ export async function GET(
         project: (payment as any).project ?? null,
         createdBy: payment.creator,
         createdAt: payment.createdAt,
+        loan: (payment as any).outgoingLoanId && outgoingLoanMap.has((payment as any).outgoingLoanId) ? (() => {
+          const l = outgoingLoanMap.get((payment as any).outgoingLoanId)!
+          return {
+            id: l.id,
+            loanNumber: l.loanNumber,
+            status: l.status,
+            principalAmount: l.principalAmount,
+            remainingBalance: l.remainingBalance,
+            // LOAN_DISBURSEMENT: this account is the lender — counterpart is
+            // the recipient business. LOAN_REPAYMENT: this account is the
+            // borrower being debited — counterpart is the lending account.
+            counterpartName: (payment as any).paymentType === 'LOAN_DISBURSEMENT' ? l.recipientBusinessName : l.sourceAccountName,
+          }
+        })() : null,
       })
     })
 

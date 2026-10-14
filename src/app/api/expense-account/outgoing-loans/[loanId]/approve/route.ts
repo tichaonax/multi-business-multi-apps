@@ -54,7 +54,22 @@ export async function POST(
         return NextResponse.json({ error: 'Loan is missing its source account or recipient business' }, { status: 400 })
       }
       const sourceBalance = Number(loan.expenseAccount?.balance ?? 0)
-      const loanAmount = Number(loan.principalAmount)
+      const requestedAmount = Number(loan.principalAmount)
+
+      const body = await request.json().catch(() => ({}))
+      const loanAmount = body.approvedAmount != null ? Number(body.approvedAmount) : requestedAmount
+      const approvalNote: string | null = body.approvalNote?.trim() || null
+      const isPartial = loanAmount < requestedAmount - 0.001
+
+      if (!loanAmount || loanAmount <= 0) {
+        return NextResponse.json({ error: 'Approved amount must be greater than zero' }, { status: 400 })
+      }
+      if (loanAmount > requestedAmount + 0.001) {
+        return NextResponse.json({ error: `Approved amount cannot exceed the requested $${requestedAmount.toFixed(2)}` }, { status: 400 })
+      }
+      if (isPartial && !approvalNote) {
+        return NextResponse.json({ error: 'An approval note is required when approving a partial amount' }, { status: 400 })
+      }
       if (sourceBalance < loanAmount) {
         return NextResponse.json({
           error: `Insufficient balance. Account balance: $${sourceBalance.toFixed(2)}`,
@@ -106,6 +121,10 @@ export async function POST(
           })
         }
 
+        // Partial approval: the loan only ever existed at the approved size —
+        // adjust principal/remainingBalance down to match what was actually
+        // disbursed, and record why on the loan's notes (mirrors how /reject
+        // already appends its reason there; no separate column needed).
         return tx.accountOutgoingLoans.update({
           where: { id: loan.id },
           data: {
@@ -113,6 +132,13 @@ export async function POST(
             approvedByEmployeeId: employeeRecord?.id ?? null,
             approvedAt: new Date(),
             disbursementPaymentId: payment.id,
+            ...(isPartial ? {
+              principalAmount: loanAmount,
+              remainingBalance: loanAmount,
+              notes: loan.notes
+                ? `${loan.notes}\nPartially approved ($${loanAmount.toFixed(2)} of $${requestedAmount.toFixed(2)} requested): ${approvalNote}`
+                : `Partially approved ($${loanAmount.toFixed(2)} of $${requestedAmount.toFixed(2)} requested): ${approvalNote}`,
+            } : {}),
           },
         })
       })
@@ -122,7 +148,9 @@ export async function POST(
           userIds: [loan.createdBy],
           type: 'LOAN_REQUEST_APPROVED',
           title: 'Loan request approved',
-          message: `${loan.loanNumber} — $${loanAmount.toFixed(2)} to ${loan.recipientBusiness?.name ?? 'business'} has been disbursed`,
+          message: isPartial
+            ? `${loan.loanNumber} — $${loanAmount.toFixed(2)} of $${requestedAmount.toFixed(2)} requested disbursed to ${loan.recipientBusiness?.name ?? 'business'} (partial)`
+            : `${loan.loanNumber} — $${loanAmount.toFixed(2)} to ${loan.recipientBusiness?.name ?? 'business'} has been disbursed`,
           linkUrl: `/expense-accounts/${loan.expenseAccountId}?tab=lent-out`,
           metadata: { loanId: loan.id, loanNumber: loan.loanNumber },
         })

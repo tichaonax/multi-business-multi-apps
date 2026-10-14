@@ -262,7 +262,7 @@ export async function POST(
             type: 'LOAN_REQUEST_SUBMITTED',
             title: 'Loan request awaiting approval',
             message: `${account.accountName} → ${recipientBiz?.name ?? 'business'}: $${amount.toFixed(2)}`,
-            linkUrl: `/expense-accounts/${params.accountId}?tab=lent-out`,
+            linkUrl: `/expense-accounts/${params.accountId}?tab=lent-out&reviewLoanId=${loan.id}`,
             metadata: { loanId: loan.id, loanNumber: loan.loanNumber },
           })
         }
