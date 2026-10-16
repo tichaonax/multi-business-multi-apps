@@ -21,6 +21,7 @@ import {
 import { AttachButton, PendingAttachmentsRow, ChatAttachmentsGroup, uploadChatAttachment, useChatFileDrop, DropOverlay, MAX_ATTACHMENTS_PER_MESSAGE, isOversizedVideo, type ChatAttachmentMeta } from '@/components/chat/chat-attachments'
 import { VideoTrimModal } from '@/components/chat/video-trim-modal'
 import { useConfirm } from '@/components/ui/confirm-modal'
+import { useChatHistory } from '@/hooks/use-chat-history'
 import { useToastContext } from '@/components/ui/toast'
 
 interface Recipient { id: string; name: string }
@@ -70,7 +71,6 @@ interface SearchResult {
   messageId: string
   jumpToId: string
   isReply: boolean
-  month: string
   snippet: string
   createdAt: string
 }
@@ -79,7 +79,6 @@ interface TeamSearchResult {
   messageId: string
   jumpToId: string
   isReply: boolean
-  month: string
   snippet: string
   createdAt: string
 }
@@ -89,6 +88,8 @@ const PANEL_H = 500
 // Composer grows with the message up to ~5 lines, then scrolls internally
 // rather than keep shrinking the message list above it.
 const MAX_INPUT_HEIGHT = 120
+// Legacy (pre-MBM-315) per-browser Team Chat read marker — only read once
+// to hand it over to the server (Users.teamChatLastReadAt), then removed.
 const LAST_OPENED_KEY = 'chat_last_opened_at'
 // A message can only be edited by its sender, only while it's still their
 // most recent message in the room, and only within this window of sending
@@ -150,7 +151,26 @@ export function FloatingChat() {
   const isMobile = useIsMobile()
 
   const [isOpen, setIsOpen] = useState(false)
-  const [messages, setMessages] = useState<Message[]>([])
+  // MBM-315 — Team Chat history as a sliding window (see use-chat-history.ts):
+  // opens at the first message after this user's server-side read position
+  // (Users.teamChatLastReadAt — follows them across browsers/devices), which
+  // only moves forward as messages are actually scrolled into view while
+  // they're present — not to "now" just because the panel opened.
+  const team = useChatHistory<Message>({
+    roomId: null,
+    onSeen: m => {
+      const generalId = generalRoomIdRef.current
+      if (!generalId) return
+      fetch(`/api/chat/rooms/${generalId}/read`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ upTo: m.createdAt }),
+      }).catch(() => {})
+    },
+    countsAsSeen: m => m.userId !== currentUserId,
+  })
+  const { messages, setMessages } = team
   const [newMessage, setNewMessage] = useState('')
   const [sending, setSending] = useState(false)
   // Attachments mid-compose for Team Chat's own composer — same pattern as
@@ -183,12 +203,6 @@ export function FloatingChat() {
   const [connected, setConnected] = useState(false)
   const [unread, setUnread] = useState(0)
   const [unreadDirect, setUnreadDirect] = useState(0)
-  // Snapshot of LAST_OPENED_KEY taken the moment the panel is opened, BEFORE
-  // it gets overwritten to "now" — without this, the unread badge resets to
-  // 0 the instant you open the panel with no trace of which message was
-  // actually new, so there was nothing left to visually flag. Cleared again
-  // on minimise so the next open takes a fresh snapshot.
-  const [unreadSinceSnapshot, setUnreadSinceSnapshot] = useState<string | null>(null)
 
   // Threading
   const [replyingTo, setReplyingTo] = useState<{ id: string; userName: string } | null>(null)
@@ -217,13 +231,6 @@ export function FloatingChat() {
     const id = setInterval(() => setEditClockTick(Date.now()), 30000)
     return () => clearInterval(id)
   }, [])
-
-  // Older-than-30-days history — collapsed behind per-month placeholders the
-  // user expands on demand; resets (re-collapses) every time the panel is
-  // reopened, since loadMessages(null) always refetches just the last 30 days.
-  const [olderMonths, setOlderMonths] = useState<{ month: string; count: number }[]>([])
-  const [loadedMonths, setLoadedMonths] = useState<Set<string>>(new Set())
-  const [loadingMonth, setLoadingMonth] = useState<string | null>(null)
 
   // MBM-301 — the hub panel itself only ever shows the conversation list or
   // Team/General. Every DM/group opens as its own satellite ChatWindow
@@ -262,7 +269,6 @@ export function FloatingChat() {
   // The hub stays put (right: 24, bottom: 72) — it's the one fixed anchor;
   // satellite ChatWindows are the ones that can be dragged out of the way.
   const socketRef = useRef<Socket | null>(null)
-  const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const isOpenRef = useRef(isOpen)
   useEffect(() => { isOpenRef.current = isOpen }, [isOpen])
@@ -325,14 +331,11 @@ export function FloatingChat() {
   // openManually() cleared this unconditionally, so a message stayed
   // flagged "new" only until you opened the hub panel at all — even if you
   // landed on the DM list and never actually looked at Team/General.
+  // (MBM-315: clears the badges only — the read position itself advances
+  // as messages are actually seen, see `team` above.)
   const markTeamRead = useCallback(() => {
-    // Capture what "new" meant for this session before clearing it, so the
-    // Team Chat message list can show a divider at the first message that
-    // arrived since last time — see unreadSinceSnapshot above.
-    setUnreadSinceSnapshot(localStorage.getItem(LAST_OPENED_KEY))
     setUnread(0)
     setUnreadDirect(0)
-    localStorage.setItem(LAST_OPENED_KEY, new Date().toISOString())
   }, [])
 
   // Cancel auto-close on unmount
@@ -347,43 +350,10 @@ export function FloatingChat() {
   }, [unread, unreadDirect, allUsers, rooms])
 
 
-  const scrollToBottom = useCallback(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [])
-
-  // MBM-301 — fetch a room's message history (null = General/Team).
-  const loadMessages = useCallback((roomId: string | null) => {
-    const qs = roomId ? `?roomId=${encodeURIComponent(roomId)}` : ''
-    return fetch(`/api/chat/messages${qs}`, { credentials: 'include' })
-      .then(r => r.ok ? r.json() : [])
-      .catch(() => [])
-  }, [])
-
-  // MBM-301 follow-up — list calendar months older than the default 30-day
-  // window that have messages, for the collapsed "older messages" placeholders.
-  const loadOlderMonths = useCallback((roomId: string | null) => {
-    setLoadedMonths(new Set())
-    const qs = roomId ? `?roomId=${encodeURIComponent(roomId)}` : ''
-    fetch(`/api/chat/messages/months${qs}`, { credentials: 'include' })
-      .then(r => r.ok ? r.json() : [])
-      .then((data: { month: string; count: number }[]) => setOlderMonths(data || []))
-      .catch(() => setOlderMonths([]))
-  }, [])
-
-  // Expand one older-month placeholder — fetches that month's messages and
-  // merges them into the already-loaded list.
-  const expandMonth = async (month: string) => {
-    setLoadingMonth(month)
-    try {
-      const data: Message[] = await fetch(`/api/chat/messages?month=${month}`, { credentials: 'include' })
-        .then(r => r.ok ? r.json() : [])
-      setMessages(prev => [...data, ...prev].sort((a, b) => a.createdAt.localeCompare(b.createdAt)))
-      setLoadedMonths(prev => new Set(prev).add(month))
-      setTimeout(scrollToBottom, 50)
-    } catch { /* non-critical */ } finally {
-      setLoadingMonth(null)
-    }
-  }
+  const scrollToBottom = team.scrollToBottom
+  const loadTeam = team.load
+  // (Re)load Team Chat at the first message after the read position.
+  const loadTeamHistory = useCallback(() => loadTeam({ kind: 'initial' }), [loadTeam])
 
   // MBM-301 — fetch the current user's DM/group conversation list.
   //
@@ -458,8 +428,10 @@ export function FloatingChat() {
       }
       return next
     })
+    // Badge clears locally; the server-side read position is advanced by the
+    // ChatWindow itself, only up to messages actually scrolled into view
+    // (MBM-315) — the next loadRooms() shows whatever is still unseen.
     setRooms(prev => prev.map(r => r.id === roomId ? { ...r, unreadCount: 0 } : r))
-    fetch(`/api/chat/rooms/${roomId}/read`, { method: 'POST', credentials: 'include' }).catch(() => {})
   }, [])
 
   const closeConversationWindow = useCallback((roomId: string) => {
@@ -515,32 +487,47 @@ export function FloatingChat() {
     setExpandedThreads({})
     setReplyingTo(null)
     setReplyScope('ALL')
-    loadMessages(null).then((data: Message[]) => { setMessages(data || []); setTimeout(scrollToBottom, 50) })
-    loadOlderMonths(null)
+    loadTeamHistory()
     markTeamRead()
-  }, [loadMessages, loadOlderMonths, scrollToBottom, openConversationWindow, markTeamRead])
+  }, [loadTeamHistory, openConversationWindow, markTeamRead])
 
-  // Fetch message history and seed unread counts from messages received since last open
+  // Seed the Team Chat unread badges from messages after the user's read
+  // position — counted server-side (MBM-315), since the history itself is
+  // only loaded a page at a time when the view opens.
   useEffect(() => {
     if (status !== 'authenticated' || isAuthPage) return
-    fetch('/api/chat/rooms/general', { credentials: 'include' })
-      .then(r => r.ok ? r.json() : null)
-      .then((data: { id: string } | null) => { if (data) generalRoomIdRef.current = data.id })
-      .catch(() => {})
-    fetch('/api/chat/messages', { credentials: 'include' })
-      .then(r => r.ok ? r.json() : [])
-      .then((data: Message[]) => {
-        setMessages(data)
-        setTimeout(scrollToBottom, 50)
-        const since = new Date(localStorage.getItem(LAST_OPENED_KEY) ?? 0)
-        const fresh = data.filter(m => m.userId !== currentUserId && !m.deletedAt && new Date(m.createdAt) > since)
-        setUnreadDirect(fresh.filter(m => m.recipients.some(r => r.id === currentUserId)).length)
-        setUnread(fresh.filter(m => m.recipients.length === 0).length)
-      })
-      .catch(() => {})
-    loadOlderMonths(null)
+    ;(async () => {
+      const general: { id: string } | null = await fetch('/api/chat/rooms/general', { credentials: 'include' })
+        .then(r => r.ok ? r.json() : null)
+        .catch(() => null)
+      if (general) generalRoomIdRef.current = general.id
+
+      // One-time handover: the read position used to live in this
+      // browser's localStorage. Send it to the server (which keeps
+      // whichever is later) and forget it.
+      let legacy: string | null = null
+      try { legacy = localStorage.getItem(LAST_OPENED_KEY) } catch { /* non-critical */ }
+      if (legacy && general) {
+        const ok = await fetch(`/api/chat/rooms/${general.id}/read`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ upTo: legacy }),
+        }).then(r => r.ok).catch(() => false)
+        if (ok) { try { localStorage.removeItem(LAST_OPENED_KEY) } catch { /* non-critical */ } }
+      }
+
+      const data: { unseenCounts?: { direct: number; broadcast: number } } | null =
+        await fetch('/api/chat/messages?countsOnly=1', { credentials: 'include' })
+          .then(r => r.ok ? r.json() : null)
+          .catch(() => null)
+      if (data?.unseenCounts) {
+        setUnreadDirect(data.unseenCounts.direct)
+        setUnread(data.unseenCounts.broadcast)
+      }
+    })()
     loadRooms()
-  }, [status, isAuthPage, scrollToBottom, loadRooms, loadOlderMonths])
+  }, [status, isAuthPage, loadRooms])
 
   // Socket.io connection
   useEffect(() => {
@@ -651,11 +638,9 @@ export function FloatingChat() {
       }
 
       if (isTeamOpen) {
-        setMessages(prev => {
-          if (prev.some(m => m.id === msg.id)) return prev
-          return [...prev, msg]
-        })
-        setTimeout(scrollToBottom, 50)
+        // Appends (and follows) only if the window reaches the newest
+        // message; otherwise counted for "↓ N new" (MBM-315).
+        team.receiveLive(msg, msg.userId === currentUserId)
       }
 
       if (msg.userId === currentUserId) return // never badge our own message
@@ -739,12 +724,9 @@ export function FloatingChat() {
   useEffect(() => {
     if (isOpen) {
       loadRooms()
-      if (view === 'team') {
-        loadMessages(null).then((data: Message[]) => { setMessages(data || []); setTimeout(scrollToBottom, 50) })
-        loadOlderMonths(null)
-      }
+      if (view === 'team') loadTeamHistory()
       fetch('/api/notifications/read-all?type=CHAT_MESSAGE', { method: 'PUT', credentials: 'include' }).catch(() => {})
-      setTimeout(() => { scrollToBottom(); inputRef.current?.focus() }, 100)
+      setTimeout(() => { inputRef.current?.focus() }, 100)
     }
     // Only re-run on open/close — intentionally not on every room/view change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -818,23 +800,27 @@ export function FloatingChat() {
     return () => clearTimeout(t)
   }, [teamSearch])
 
-  // Jump to a Team Chat search result — expand its month/thread if needed
-  // (using live state, since this fires from a click while the view is
-  // already settled, unlike jumpToTeamMessage's fresh-fetch approach for a
-  // cross-conversation result arriving via the hub's top-level search).
-  const jumpToTeamSearchResult = async (result: TeamSearchResult) => {
-    if (olderMonths.some(m => m.month === result.month) && !loadedMonths.has(result.month)) {
-      await expandMonth(result.month)
+  // Jump to a Team Chat message (in-room search, or a hub search result):
+  // load the page around it if it isn't already in the window (its parent,
+  // for a reply — then expand that thread), then scroll to and highlight it.
+  const jumpToTeamResult = async (result: { messageId: string; jumpToId: string; isReply: boolean }) => {
+    await team.ensureLoaded(result.jumpToId)
+    if (result.isReply) {
+      const replies: Message[] = await fetch(`/api/chat/messages/${result.jumpToId}/replies`, { credentials: 'include' })
+        .then(r => r.ok ? r.json() : [])
+        .catch(() => [])
+      setExpandedThreads(prev => ({ ...prev, [result.jumpToId]: replies }))
     }
-    if (result.isReply && !expandedThreads[result.jumpToId]) {
-      await toggleThread(result.jumpToId)
-    }
-    setShowTeamSearch(false)
     setTimeout(() => {
       document.getElementById(`chat-msg-${result.messageId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
       setHighlightedMsgId(result.messageId)
       setTimeout(() => setHighlightedMsgId(null), 2000)
-    }, 150)
+    }, 200)
+  }
+
+  const jumpToTeamSearchResult = async (result: TeamSearchResult) => {
+    setShowTeamSearch(false)
+    await jumpToTeamResult(result)
   }
 
 
@@ -938,42 +924,13 @@ export function FloatingChat() {
     }
   }
 
-  // Jump to a General/Team search result. Fetches fresh (ignoring whatever
-  // React state currently holds) rather than relying on switchRoom's own
-  // async state updates, which would otherwise race this function's own
-  // month/thread checks — same approach ChatWindow's initialJumpTarget uses
-  // for a DM/group result (see jumpTargets below).
+  // Jump to a General/Team result from the hub's cross-conversation search.
   const jumpToTeamMessage = async (result: SearchResult) => {
     setView('team')
     setReplyingTo(null)
     setExpandedThreads({})
-    const [msgs, months] = await Promise.all([
-      loadMessages(null),
-      fetch('/api/chat/messages/months', { credentials: 'include' }).then(r => r.ok ? r.json() : []).catch(() => []),
-    ])
-    setMessages(msgs || [])
-    setLoadedMonths(new Set())
-    setOlderMonths(months || [])
     markTeamRead()
-
-    if ((months || []).some((m: { month: string }) => m.month === result.month)) {
-      const monthData: Message[] = await fetch(`/api/chat/messages?month=${result.month}`, { credentials: 'include' })
-        .then(r => r.ok ? r.json() : [])
-        .catch(() => [])
-      setMessages(prev => [...monthData, ...prev].sort((a, b) => a.createdAt.localeCompare(b.createdAt)))
-      setLoadedMonths(prev => new Set(prev).add(result.month))
-    }
-    if (result.isReply) {
-      const replies: Message[] = await fetch(`/api/chat/messages/${result.jumpToId}/replies`, { credentials: 'include' })
-        .then(r => r.ok ? r.json() : [])
-        .catch(() => [])
-      setExpandedThreads(prev => ({ ...prev, [result.jumpToId]: replies }))
-    }
-    setTimeout(() => {
-      document.getElementById(`chat-msg-${result.messageId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      setHighlightedMsgId(result.messageId)
-      setTimeout(() => setHighlightedMsgId(null), 2000)
-    }, 200)
+    await jumpToTeamResult(result)
   }
 
   // A search result either jumps within this panel's own Team/General view,
@@ -1030,9 +987,12 @@ export function FloatingChat() {
             m.id === saved.parentId ? { ...m, replyCount: m.replyCount + 1 } : m
           ))
           setTimeout(scrollToBottom, 100)
+        } else if (team.hasMoreAfter) {
+          // Scrolled back into history — jump to the newest page (which
+          // includes this message) rather than appending after a gap.
+          await team.jumpToLatest()
         } else {
-          setMessages(prev => prev.some(m => m.id === saved.id) ? prev : [...prev, saved])
-          setTimeout(scrollToBottom, 50)
+          team.receiveLive(saved, true)
         }
       }
       setReplyingTo(null)
@@ -1138,13 +1098,13 @@ export function FloatingChat() {
   const formatTime = (iso: string) =>
     new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 
-  const formatDate = (iso: string) =>
-    new Date(iso).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })
-
-  // 'YYYY-MM' -> "September 2026"
-  const formatMonthLabel = (month: string) => {
-    const [y, m] = month.split('-').map(Number)
-    return new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString([], { month: 'long', year: 'numeric', timeZone: 'UTC' })
+  // Year only for dates outside the current year (same as chat-window.tsx).
+  const formatDate = (iso: string) => {
+    const d = new Date(iso)
+    return d.toLocaleDateString([], {
+      weekday: 'short', month: 'short', day: 'numeric',
+      ...(d.getFullYear() !== new Date().getFullYear() ? { year: 'numeric' as const } : {}),
+    })
   }
 
   type GroupedMessages = { date: string; msgs: Message[] }[]
@@ -1156,22 +1116,10 @@ export function FloatingChat() {
     return acc
   }, [])
 
-  // The first Team/General message that arrived since this session's open
-  // snapshot (see unreadSinceSnapshot) — gets a "New messages" divider so
-  // the unread badge's count has something to actually point at, instead of
-  // vanishing the instant the panel opens with no trace of what was new.
-  // Public broadcasts AND targeted system alerts (e.g. the vehicle license
-  // compliance digest — a system message with the admin/manager listed as
-  // a recipient) both qualify: excluding isSystem/recipients here used to
-  // mean a targeted system broadcast could bump the unread badge but could
-  // never actually be pointed at once you opened the panel.
-  const firstNewMessageId = unreadSinceSnapshot
-    ? messages.find(m =>
-        m.userId !== currentUserId &&
-        (m.recipients.length === 0 || m.recipients.some(r => r.id === currentUserId)) &&
-        new Date(m.createdAt) > new Date(unreadSinceSnapshot)
-      )?.id ?? null
-    : null
+  // The first Team/General message after this browser's "last seen" marker
+  // — computed server-side (visibility-filtered: public broadcasts plus
+  // anything targeted at me, never my own) and returned with the page.
+  const firstNewMessageId = team.firstUnreadId
 
   /** Render a single message bubble (used for both top-level and thread replies) */
   const renderMessage = (msg: Message, isReply = false) => {
@@ -1589,7 +1537,7 @@ export function FloatingChat() {
           <button
             type="button"
             onMouseDown={e => e.stopPropagation()}
-            onClick={() => { cancelAutoClose(); setIsOpen(false); setUnreadSinceSnapshot(null) }}
+            onClick={() => { cancelAutoClose(); setIsOpen(false) }}
             className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-white/20 transition-colors"
             title="Minimise"
           >
@@ -1769,26 +1717,11 @@ export function FloatingChat() {
       ) : (
       <>
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-3 py-3 bg-gray-50 dark:bg-gray-950">
-        {messages.length === 0 && olderMonths.length === 0 && (
+      <div ref={team.scrollRef} onScroll={team.onScroll} className="flex-1 overflow-y-auto px-3 py-3 bg-gray-50 dark:bg-gray-950">
+        {team.loaded && messages.length === 0 && !team.hasMoreBefore && (
           <p className="text-center text-xs text-secondary mt-8">No messages yet. Say hello!</p>
         )}
-        {/* Collapsed older-than-30-days history, oldest first — click to load that month's messages */}
-        {olderMonths.filter(m => !loadedMonths.has(m.month)).slice().reverse().map(({ month, count }) => (
-          <button
-            key={month}
-            type="button"
-            onClick={() => expandMonth(month)}
-            disabled={loadingMonth === month}
-            className="w-full flex items-center gap-2 my-2 group"
-          >
-            <div className="flex-1 h-px bg-border" />
-            <span className="text-[10px] text-indigo-500 group-hover:text-indigo-700 font-medium px-2 py-0.5 rounded-full border border-indigo-200 dark:border-indigo-800">
-              {loadingMonth === month ? 'Loading…' : `${formatMonthLabel(month)} (${count}) — click to load`}
-            </span>
-            <div className="flex-1 h-px bg-border" />
-          </button>
-        ))}
+        {team.loadingOlder && <p className="text-center text-[10px] text-secondary py-1">Loading earlier messages…</p>}
         {grouped.map(({ date, msgs }) => (
           <div key={date}>
             <div className="flex items-center gap-2 my-2">
@@ -1810,7 +1743,18 @@ export function FloatingChat() {
             ))}
           </div>
         ))}
-        <div ref={bottomRef} />
+        {team.loadingNewer && <p className="text-center text-[10px] text-secondary py-1">Loading newer messages…</p>}
+        {(team.hasMoreAfter || team.newBelowCount > 0) && (
+          <div className="sticky bottom-0 flex justify-end pointer-events-none">
+            <button
+              type="button"
+              onClick={() => team.jumpToLatest()}
+              className="pointer-events-auto text-[11px] font-medium px-3 py-1 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg"
+            >
+              ↓ {team.newBelowCount > 0 ? `${team.newBelowCount} new message${team.newBelowCount === 1 ? '' : 's'}` : 'Latest'}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Input area */}

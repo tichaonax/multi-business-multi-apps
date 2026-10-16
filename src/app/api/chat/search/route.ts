@@ -74,7 +74,6 @@ export async function GET(request: NextRequest) {
         // the client expands its parent thread and jumps there instead.
         jumpToId: m.parentId ?? m.id,
         isReply: !!m.parentId,
-        month: m.createdAt.toISOString().slice(0, 7),
         snippet: m.message.length > 140 ? `${m.message.slice(0, 140)}…` : m.message,
         createdAt: m.createdAt.toISOString(),
       }

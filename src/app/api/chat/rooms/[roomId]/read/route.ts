@@ -2,8 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { emitToUsers } from '@/lib/customer-display/socket-server'
+import { getGeneralRoom } from '@/lib/chat/rooms'
 
-/** POST /api/chat/rooms/[roomId]/read — clears this user's unread badge for the room. */
+/** POST /api/chat/rooms/[roomId]/read — marks the room read for this user.
+ * Optional body `{ upTo: ISO }` (MBM-315): read only up to that message time
+ * — the newest message actually scrolled into view — instead of "now".
+ * lastReadAt only ever moves forward. For General (Team Chat), which has no
+ * ChatParticipants rows, the position lives on Users.teamChatLastReadAt and
+ * no read receipt is broadcast (Team Chat shows no ticks). */
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ roomId: string }> }
@@ -13,9 +19,22 @@ export async function POST(
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const { roomId } = await params
-    const readAt = new Date()
+    const body = await request.json().catch(() => null)
+    const now = new Date()
+    const upTo = typeof body?.upTo === 'string' && !isNaN(Date.parse(body.upTo)) ? new Date(body.upTo) : null
+    const readAt = upTo && upTo < now ? upTo : now
+
+    const generalRoom = await getGeneralRoom()
+    if (roomId === generalRoom.id) {
+      await prisma.users.updateMany({
+        where: { id: user.id, OR: [{ teamChatLastReadAt: null }, { teamChatLastReadAt: { lt: readAt } }] },
+        data: { teamChatLastReadAt: readAt },
+      })
+      return NextResponse.json({ success: true })
+    }
+
     const { count } = await prisma.chatParticipants.updateMany({
-      where: { roomId, userId: user.id },
+      where: { roomId, userId: user.id, OR: [{ lastReadAt: null }, { lastReadAt: { lt: readAt } }] },
       data: { lastReadAt: readAt },
     })
 

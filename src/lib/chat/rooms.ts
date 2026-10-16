@@ -13,10 +13,6 @@ export const SYSTEM_ALERTS_ROOM_NAME = 'System Alerts'
 // most recent message in the room, and only within this window of sending.
 export const EDIT_WINDOW_MS = 15 * 60 * 1000
 
-// Default history load shows only the last 30 days — anything older sits
-// behind a collapsed per-month placeholder the user can expand on demand
-// (see /api/chat/messages/months and the ?month= param on the main GET).
-export const DEFAULT_HISTORY_WINDOW_MS = 30 * 24 * 60 * 60 * 1000
 
 /** Get or create the single general chat room. A startup race here (two
  * near-simultaneous calls both finding nothing, both creating a row) once

@@ -8,7 +8,7 @@ import { AttachButton, PendingAttachmentsRow, ChatAttachmentsGroup, uploadChatAt
 import { VideoTrimModal } from '@/components/chat/video-trim-modal'
 import { useConfirm } from '@/components/ui/confirm-modal'
 import { useToastContext } from '@/components/ui/toast'
-import { isUserPresent, onUserPresent } from '@/lib/chat/user-presence'
+import { useChatHistory } from '@/hooks/use-chat-history'
 
 interface Recipient { id: string; name: string }
 
@@ -16,7 +16,6 @@ interface InRoomSearchResult {
   messageId: string
   jumpToId: string
   isReply: boolean
-  month: string
   snippet: string
   createdAt: string
 }
@@ -72,10 +71,14 @@ function ReadReceiptTick({ read }: { read: boolean }) {
   )
 }
 
-// 'YYYY-MM' -> "September 2026"
-function formatMonthLabel(month: string) {
-  const [y, m] = month.split('-').map(Number)
-  return new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString([], { month: 'long', year: 'numeric', timeZone: 'UTC' })
+// Day divider label — same format as Team Chat's (floating-chat.tsx); the
+// year only appears for dates outside the current year.
+function formatDate(iso: string) {
+  const d = new Date(iso)
+  return d.toLocaleDateString([], {
+    weekday: 'short', month: 'short', day: 'numeric',
+    ...(d.getFullYear() !== new Date().getFullYear() ? { year: 'numeric' as const } : {}),
+  })
 }
 
 // Each open satellite window gets its own header colour (deterministic from
@@ -135,7 +138,26 @@ interface ChatWindowProps {
 export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUserId, currentUserName, isAdmin = false, socket, onClose, rightOffset, isMobile = false, customPosition, onPositionChange, onMessageSent, initialJumpTarget, onJumpHandled }: ChatWindowProps) {
   const confirmModal = useConfirm()
   const toast = useToastContext()
-  const [messages, setMessages] = useState<Message[]>([])
+  // Read receipts only up to the newest message actually on screen
+  // (MBM-315), and only while a human is actually here (MBM-313) — both
+  // handled by the hook's onSeen, which also batches the updates.
+  const postRead = useCallback((upTo: string) => {
+    fetch(`/api/chat/rooms/${roomId}/read`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ upTo }),
+    }).catch(() => {})
+  }, [roomId])
+
+  // MBM-315 — sliding window: ~30 messages at a time, opening at the first
+  // unseen one, more fetched on scroll (see use-chat-history.ts).
+  const history = useChatHistory<Message>({
+    roomId,
+    onSeen: m => postRead(m.createdAt),
+    countsAsSeen: m => m.userId !== currentUserId,
+  })
+  const { messages, setMessages } = history
   const [newMessage, setNewMessage] = useState('')
   const [sending, setSending] = useState(false)
   const [replyingTo, setReplyingTo] = useState<{ id: string; userName: string } | null>(null)
@@ -190,13 +212,6 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
     const id = setInterval(() => setEditClockTick(Date.now()), 30000)
     return () => clearInterval(id)
   }, [])
-
-  // Older-than-30-days history — collapsed behind per-month placeholders,
-  // reset (re-collapsed) every time this window is reopened since it's a
-  // fresh mount (see "Load history + mark read on mount" below).
-  const [olderMonths, setOlderMonths] = useState<{ month: string; count: number }[]>([])
-  const [loadedMonths, setLoadedMonths] = useState<Set<string>>(new Set())
-  const [loadingMonth, setLoadingMonth] = useState<string | null>(null)
 
   // In-conversation search — every match within this room (unlike the hub's
   // cross-conversation search, which collapses to one result per room).
@@ -257,99 +272,45 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
     }
   }, [onPositionChange])
 
-  const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const scrollToBottom = history.scrollToBottom
 
-  const scrollToBottom = useCallback(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [])
+  // Jump to a search result: load the page around it if it isn't already
+  // in the window (or its parent, for a reply — then expand that thread),
+  // then scroll to and briefly highlight the actual message element.
+  const jumpToResult = async (result: InRoomSearchResult) => {
+    await history.ensureLoaded(result.jumpToId)
+    if (result.isReply) {
+      const replies: Message[] = await fetch(`/api/chat/messages/${result.jumpToId}/replies`, { credentials: 'include' })
+        .then(r => r.ok ? r.json() : [])
+        .catch(() => [])
+      setExpandedThreads(prev => ({ ...prev, [result.jumpToId]: replies }))
+    }
+    setTimeout(() => {
+      document.getElementById(`chat-msg-${result.messageId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      setHighlightedMsgId(result.messageId)
+      setTimeout(() => setHighlightedMsgId(null), 2000)
+    }, 150)
+  }
 
-  // Read receipts only count when a human is actually here: page visible
-  // and recent activity (see user-presence.ts, MBM-313). Otherwise the read
-  // is deferred and sent the moment they come back.
-  const pendingReadRef = useRef(false)
-  const postRead = useCallback(() => {
-    pendingReadRef.current = false
-    fetch(`/api/chat/rooms/${roomId}/read`, { method: 'POST', credentials: 'include' }).catch(() => {})
-  }, [roomId])
-  const markRead = useCallback(() => {
-    if (isUserPresent()) postRead()
-    else pendingReadRef.current = true
-  }, [postRead])
-  useEffect(() => onUserPresent(() => {
-    if (pendingReadRef.current) postRead()
-  }), [postRead])
-
-  // Load history + mark read on mount. When opened from a cross-conversation
-  // search result (floating-chat.tsx), also jump straight to that message.
-  // Deliberately one sequential async chain (not two independent effects)
-  // keyed on BOTH roomId and initialJumpTarget — re-opening an ALREADY-
-  // mounted window's search result changes initialJumpTarget without
-  // roomId changing, and a second effect racing this one would risk its
-  // unconditional base setMessages(data) stomping on the jump's merge
-  // (whichever finishes last wins). Sequencing everything here, written
-  // against each fetch's own freshly-returned data rather than component
-  // state, avoids that race entirely.
+  // Load history on mount — at the first unseen message, or straight at a
+  // cross-conversation search result (floating-chat.tsx) if opened from one.
+  // Also re-runs when an ALREADY-open window is handed a new search target;
+  // clearing the target afterwards (onJumpHandled) must not reload.
+  const didInitialLoadRef = useRef(false)
   useEffect(() => {
-    let cancelled = false
-    ;(async () => {
-      const data: Message[] = await fetch(`/api/chat/messages?roomId=${encodeURIComponent(roomId)}`, { credentials: 'include' })
-        .then(r => r.ok ? r.json() : [])
-        .catch(() => [])
-      if (cancelled) return
-      setMessages(data || [])
-      setTimeout(scrollToBottom, 50)
-      markRead()
-      setLoadedMonths(new Set())
-
-      const months: { month: string; count: number }[] = await fetch(`/api/chat/messages/months?roomId=${encodeURIComponent(roomId)}`, { credentials: 'include' })
-        .then(r => r.ok ? r.json() : [])
-        .catch(() => [])
-      if (cancelled) return
-      setOlderMonths(months || [])
-
-      const target = initialJumpTarget
-      if (!target) return
-      if ((months || []).some(m => m.month === target.month)) {
-        const monthData: Message[] = await fetch(`/api/chat/messages?roomId=${encodeURIComponent(roomId)}&month=${target.month}`, { credentials: 'include' })
-          .then(r => r.ok ? r.json() : [])
-          .catch(() => [])
-        if (cancelled) return
-        setMessages(prev => [...monthData, ...prev].sort((a, b) => a.createdAt.localeCompare(b.createdAt)))
-        setLoadedMonths(prev => new Set(prev).add(target.month))
+    const target = initialJumpTarget
+    if (!target) {
+      if (!didInitialLoadRef.current) {
+        didInitialLoadRef.current = true
+        history.load({ kind: 'initial' })
       }
-      if (target.isReply) {
-        const replies: Message[] = await fetch(`/api/chat/messages/${target.jumpToId}/replies`, { credentials: 'include' })
-          .then(r => r.ok ? r.json() : [])
-          .catch(() => [])
-        if (cancelled) return
-        setExpandedThreads(prev => ({ ...prev, [target.jumpToId]: replies }))
-      }
-      setTimeout(() => {
-        document.getElementById(`chat-msg-${target.messageId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-        setHighlightedMsgId(target.messageId)
-        setTimeout(() => setHighlightedMsgId(null), 2000)
-      }, 200)
-      onJumpHandled?.()
-    })()
-    return () => { cancelled = true }
+      return
+    }
+    didInitialLoadRef.current = true
+    jumpToResult(target).then(() => onJumpHandled?.())
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId, initialJumpTarget])
-
-  // Expand one older-month placeholder — fetches that month's messages and
-  // merges them into the already-loaded list.
-  const expandMonth = async (month: string) => {
-    setLoadingMonth(month)
-    try {
-      const data: Message[] = await fetch(`/api/chat/messages?roomId=${encodeURIComponent(roomId)}&month=${month}`, { credentials: 'include' })
-        .then(r => r.ok ? r.json() : [])
-      setMessages(prev => [...data, ...prev].sort((a, b) => a.createdAt.localeCompare(b.createdAt)))
-      setLoadedMonths(prev => new Set(prev).add(month))
-      setTimeout(scrollToBottom, 50)
-    } catch { /* non-critical */ } finally {
-      setLoadingMonth(null)
-    }
-  }
 
   // Debounced in-conversation search — every match in this room, not just
   // the latest one (unlike the hub's cross-conversation search).
@@ -367,26 +328,9 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
     return () => clearTimeout(t)
   }, [inRoomSearch, roomId])
 
-  // Jump to a search result: expand its month if it's older history, expand
-  // its parent thread if it's a reply, then scroll to and briefly highlight
-  // the actual message element.
   const jumpToMessage = async (result: InRoomSearchResult) => {
-    // Only expand if that month is one of the known older-history buckets
-    // and not already loaded — a match within the default 30-day window is
-    // already present in `messages`.
-    if (olderMonths.some(m => m.month === result.month) && !loadedMonths.has(result.month)) {
-      await expandMonth(result.month)
-    }
-    if (result.isReply && !expandedThreads[result.jumpToId]) {
-      await toggleThread(result.jumpToId)
-    }
     setShowSearch(false)
-    setTimeout(() => {
-      const el = document.getElementById(`chat-msg-${result.messageId}`)
-      el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      setHighlightedMsgId(result.messageId)
-      setTimeout(() => setHighlightedMsgId(null), 2000)
-    }, 150)
+    await jumpToResult(result)
   }
 
   // This window's own slice of the shared socket connection
@@ -404,12 +348,13 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
           return prev
         })
         setMessages(prev => prev.map(m => m.id === msg.parentId ? { ...m, replyCount: m.replyCount + 1 } : m))
-        if (msg.userId !== currentUserId) setTimeout(scrollToBottom, 100)
+        if (msg.userId !== currentUserId && history.isNearBottom()) setTimeout(scrollToBottom, 100)
         return
       }
-      setMessages(prev => prev.some(m => m.id === msg.id) ? prev : [...prev, msg])
-      setTimeout(scrollToBottom, 50)
-      if (msg.userId !== currentUserId) markRead()
+      // Appends (and follows) only if the window already reaches the newest
+      // message; otherwise counted for "↓ N new". Read receipts follow from
+      // what's actually on screen (onSeen), not from arrival.
+      history.receiveLive(msg, msg.userId === currentUserId)
     }
     const onDeleted = ({ id }: { id: string }) => {
       setMessages(prev => prev.map(m => m.id === id ? { ...m, deletedAt: new Date().toISOString() } : m))
@@ -447,7 +392,8 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
       socket.off('chat:message:removed', onRemoved)
       socket.off('chat:room:cleared', onRoomCleared)
     }
-  }, [socket, roomId, currentUserId, scrollToBottom, markRead])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [socket, roomId, currentUserId, scrollToBottom])
 
   // Auto-grow composer, same behaviour as the hub's
   useEffect(() => {
@@ -487,8 +433,11 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
         setMessages(prev => prev.map(m => m.id === saved.parentId ? { ...m, replyCount: m.replyCount + 1 } : m))
         setTimeout(scrollToBottom, 100)
       } else {
-        setMessages(prev => prev.some(m => m.id === saved.id) ? prev : [...prev, saved])
-        setTimeout(scrollToBottom, 50)
+        if (history.hasMoreAfter) {
+          await history.jumpToLatest()
+        } else {
+          history.receiveLive(saved, true)
+        }
         onMessageSent({ text: saved.message, at: saved.createdAt })
       }
       setReplyingTo(null)
@@ -1136,28 +1085,42 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
       )}
 
       <div className="relative flex-1 min-h-0 flex flex-col">
-      <div className="flex-1 overflow-y-auto px-2.5 py-2.5 bg-gray-50 dark:bg-gray-950">
-        {messages.length === 0 && olderMonths.length === 0 && (
+      <div ref={history.scrollRef} onScroll={history.onScroll} className="flex-1 overflow-y-auto px-2.5 py-2.5 bg-gray-50 dark:bg-gray-950">
+        {history.loaded && messages.length === 0 && !history.hasMoreBefore && (
           <p className="text-center text-xs text-secondary mt-6">No messages yet. Say hello!</p>
         )}
-        {/* Collapsed older-than-30-days history, oldest first — click to load that month's messages */}
-        {olderMonths.filter(m => !loadedMonths.has(m.month)).slice().reverse().map(({ month, count }) => (
-          <button
-            key={month}
-            type="button"
-            onClick={() => expandMonth(month)}
-            disabled={loadingMonth === month}
-            className="w-full flex items-center gap-2 my-1.5 group"
-          >
-            <div className="flex-1 h-px bg-border" />
-            <span className="text-[9px] text-indigo-500 group-hover:text-indigo-700 font-medium px-1.5 py-0.5 rounded-full border border-indigo-200 dark:border-indigo-800">
-              {loadingMonth === month ? 'Loading…' : `${formatMonthLabel(month)} (${count}) — click to load`}
-            </span>
-            <div className="flex-1 h-px bg-border" />
-          </button>
+        {history.loadingOlder && <p className="text-center text-[10px] text-secondary py-1">Loading earlier messages…</p>}
+        {messages.map((msg, i) => (
+          <div key={msg.id}>
+            {(i === 0 || formatDate(messages[i - 1].createdAt) !== formatDate(msg.createdAt)) && (
+              <div className="flex items-center gap-2 my-1.5">
+                <div className="flex-1 h-px bg-border" />
+                <span className="text-[9px] text-secondary font-medium">{formatDate(msg.createdAt)}</span>
+                <div className="flex-1 h-px bg-border" />
+              </div>
+            )}
+            {msg.id === history.firstUnreadId && (
+              <div className="flex items-center gap-2 my-1.5">
+                <div className="flex-1 h-px bg-rose-300 dark:bg-rose-700" />
+                <span className="text-[9px] text-rose-600 dark:text-rose-400 font-semibold uppercase tracking-wide">New messages</span>
+                <div className="flex-1 h-px bg-rose-300 dark:bg-rose-700" />
+              </div>
+            )}
+            {renderMessage(msg)}
+          </div>
         ))}
-        {messages.map(msg => renderMessage(msg))}
-        <div ref={bottomRef} />
+        {history.loadingNewer && <p className="text-center text-[10px] text-secondary py-1">Loading newer messages…</p>}
+        {(history.hasMoreAfter || history.newBelowCount > 0) && (
+          <div className="sticky bottom-0 flex justify-end pointer-events-none">
+            <button
+              type="button"
+              onClick={() => history.jumpToLatest()}
+              className="pointer-events-auto text-[10px] font-medium px-2.5 py-1 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg"
+            >
+              ↓ {history.newBelowCount > 0 ? `${history.newBelowCount} new message${history.newBelowCount === 1 ? '' : 's'}` : 'Latest'}
+            </button>
+          </div>
+        )}
       </div>
 
       {roomType === 'system' ? (

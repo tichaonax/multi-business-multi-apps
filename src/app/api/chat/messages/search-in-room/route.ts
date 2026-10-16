@@ -6,9 +6,8 @@ import { getGeneralRoom } from '@/lib/chat/rooms'
 /**
  * GET /api/chat/messages/search-in-room?roomId=...&q=... — every matching
  * message within one conversation (unlike /api/chat/search, which collapses
- * to one result per conversation across all of them). Each result carries
- * its calendar month so the client can expand that older-month placeholder
- * before scrolling to it, same bucketing as /api/chat/messages/months.
+ * to one result per conversation across all of them). The client jumps to a
+ * result by loading the page around it (GET /api/chat/messages?around=…).
  */
 export async function GET(request: NextRequest) {
   try {
@@ -55,7 +54,6 @@ export async function GET(request: NextRequest) {
       // client jumps to and expands its parent instead.
       jumpToId: m.parentId ?? m.id,
       isReply: !!m.parentId,
-      month: m.createdAt.toISOString().slice(0, 7),
       snippet: m.message.length > 140 ? `${m.message.slice(0, 140)}…` : m.message,
       createdAt: m.createdAt.toISOString(),
     }))

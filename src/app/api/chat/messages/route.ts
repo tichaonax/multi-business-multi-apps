@@ -3,113 +3,202 @@ import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { emitToRoom, emitToUsers } from '@/lib/customer-display/socket-server'
 import { emitNotification } from '@/lib/notifications/notification-emitter'
-import { getGeneralRoom, shapeMessage, DEFAULT_HISTORY_WINDOW_MS } from '@/lib/chat/rooms'
+import { getGeneralRoom, shapeMessage } from '@/lib/chat/rooms'
 
-/** Parse a "YYYY-MM" param into [start, end) bounds for that calendar month,
- * or null if missing/malformed. */
-function parseMonthRange(month: string | null): { gte: Date; lt: Date } | null {
-  if (!month || !/^\d{4}-\d{2}$/.test(month)) return null
-  const [year, m] = month.split('-').map(Number)
-  if (m < 1 || m > 12) return null
-  return { gte: new Date(Date.UTC(year, m - 1, 1)), lt: new Date(Date.UTC(year, m, 1)) }
+// MBM-315 — history is loaded ~one screen at a time (sliding window) instead
+// of "the whole last 30 days". Keyset paging on (createdAt, id): stable while
+// new messages arrive, and served by the (roomId, createdAt) index.
+const PAGE_SIZE = 30
+const CONTEXT_BEFORE_UNREAD = 5
+const MESSAGE_INCLUDE = {
+  users: { select: { name: true, firstName: true, lastName: true, profilePhotoUrl: true } },
+  chat_message_recipients: { include: { users: { select: { id: true, name: true } } } },
+  chat_attachments: { select: { id: true, fileName: true, mimeType: true, size: true } },
+} as const
+
+type Cursor = { id: string; createdAt: Date }
+const olderThan = (c: Cursor) => ({ OR: [{ createdAt: { lt: c.createdAt } }, { createdAt: c.createdAt, id: { lt: c.id } }] })
+const newerThan = (c: Cursor) => ({ OR: [{ createdAt: { gt: c.createdAt } }, { createdAt: c.createdAt, id: { gt: c.id } }] })
+
+/** Up to `n` visible messages strictly older than `c` (or the newest `n` when
+ * `c` is null), returned oldest-first, plus whether more exist beyond them. */
+async function pageOlder(base: any, c: Cursor | null, n: number) {
+  const rows = await prisma.chatMessages.findMany({
+    where: c ? { AND: [base, olderThan(c)] } : base,
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    take: n + 1,
+    include: MESSAGE_INCLUDE,
+  })
+  return { rows: rows.slice(0, n).reverse(), hasMore: rows.length > n }
 }
 
-/** GET /api/chat/messages?roomId=...[&month=YYYY-MM] — fetch messages
- * visible to the current user. Omit roomId for the General/Team room.
- * Without `month`, returns only the last 30 days (DEFAULT_HISTORY_WINDOW_MS)
- * — older history sits behind collapsed per-month placeholders the client
- * expands on demand via `month`, see /api/chat/messages/months. */
+/** Up to `n` visible messages strictly newer than `c`, oldest-first. */
+async function pageNewer(base: any, c: Cursor, n: number) {
+  const rows = await prisma.chatMessages.findMany({
+    where: { AND: [base, newerThan(c)] },
+    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    take: n + 1,
+    include: MESSAGE_INCLUDE,
+  })
+  return { rows: rows.slice(0, n), hasMore: rows.length > n }
+}
+
+/** A window centred on `anchor`: `before` older messages, the anchor, then up
+ * to PAGE_SIZE - before - 1 newer ones. */
+async function pageAround(base: any, anchor: Cursor, before: number) {
+  const [older, newer] = await Promise.all([
+    pageOlder(base, anchor, before),
+    pageNewer(base, anchor, PAGE_SIZE - before - 1),
+  ])
+  return { rows: [...older.rows, anchor, ...newer.rows], hasMoreBefore: older.hasMore, hasMoreAfter: newer.hasMore }
+}
+
+/** GET /api/chat/messages?roomId=… — one page of top-level messages visible
+ * to the current user. Omit roomId for the General/Team room. Paging params
+ * (at most one):
+ *   (none)               page starting at the first unseen message (5 earlier
+ *                        for context), or the newest page if nothing is unseen.
+ *                        "Unseen" = after this user's read position:
+ *                        ChatParticipants.lastReadAt (DM/group) or
+ *                        Users.teamChatLastReadAt (General/Team).
+ *   before=<messageId>   the page older than that message
+ *   after=<messageId>    the page newer than that message
+ *   around=<messageId>   a page centred on that message (search jump)
+ *   latest=1             the newest page
+ *   countsOnly=1         Team Chat badge seeding — just `unseenCounts`, no messages
+ * → { messages, hasMoreBefore, hasMoreAfter, firstUnreadId, unseenCounts? }
+ *   unseenCounts = { direct, broadcast } — General only. */
 export async function GET(request: NextRequest) {
   try {
     const user = await getServerUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const requestedRoomId = request.nextUrl.searchParams.get('roomId')
-    const monthRange = parseMonthRange(request.nextUrl.searchParams.get('month'))
-    const createdAtFilter = monthRange ?? { gte: new Date(Date.now() - DEFAULT_HISTORY_WINDOW_MS) }
+    const params = request.nextUrl.searchParams
+    const requestedRoomId = params.get('roomId')
     const generalRoom = await getGeneralRoom()
     const isGeneral = !requestedRoomId || requestedRoomId === generalRoom.id
+    const roomId = isGeneral ? generalRoom.id : requestedRoomId!
 
+    let base: any
+    let lastReadAt: Date | null = null
     if (isGeneral) {
       // Prune messages older than 7 days (fire-and-forget) — only the
       // General feed accumulates unbounded broadcast traffic like this.
-      // (This also means General never has a "last month" to page
-      // through — /api/chat/messages/months short-circuits for it.)
       const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-      prisma.chatMessages.deleteMany({ where: { roomId: generalRoom.id, createdAt: { lt: cutoff } } }).catch(() => {})
+      prisma.chatMessages.deleteMany({ where: { roomId, createdAt: { lt: cutoff } } }).catch(() => {})
 
-      // Fetch top-level messages (no parentId) the current user can see:
+      // Top-level messages the current user can see:
       //  - message has no recipients (public), OR
       //  - user is the sender, OR
       //  - user is listed as a recipient
-      const messages = await prisma.chatMessages.findMany({
-        where: {
-          roomId: generalRoom.id,
-          parentId: null,
-          createdAt: createdAtFilter,
-          OR: [
-            // Public broadcast: no recipient rows exist
-            { chat_message_recipients: { none: {} } },
-            // Sender always sees their own messages
-            { userId: user.id },
-            // Explicitly listed as recipient
-            { chat_message_recipients: { some: { userId: user.id } } },
-          ],
-          // "Delete for me" on a system message (see chat_message_dismissals)
-          // — hides it only for the user who dismissed it.
-          chat_message_dismissals: { none: { userId: user.id } },
-        },
-        orderBy: { createdAt: 'asc' },
-        take: monthRange ? 1000 : 500,
-        include: {
-          users: { select: { name: true, firstName: true, lastName: true, profilePhotoUrl: true } },
-          chat_message_recipients: { include: { users: { select: { id: true, name: true } } } },
-          replies: { where: { deletedAt: null }, select: { id: true } },
-          chat_attachments: { select: { id: true, fileName: true, mimeType: true, size: true } },
-        },
-      })
-
-      return NextResponse.json(messages.map(m => shapeMessage(m, m.replies.length)))
-    }
-
-    // DM/group room — membership itself is the audience, so every top-level
-    // message in the room is visible to every participant, no recipient
-    // filtering needed.
-    const membership = await prisma.chatParticipants.findFirst({
-      where: { roomId: requestedRoomId, userId: user.id },
-    })
-    if (!membership) return NextResponse.json({ error: 'Not a participant of this conversation' }, { status: 403 })
-
-    // Read-only system channels (e.g. "System Alerts") auto-expire after 30
-    // days — same fire-and-forget pruning idea as General's 7-day cutoff
-    // below, just a longer window since these are deliberate compliance
-    // digests, not routine chat traffic.
-    prisma.chatRooms.findUnique({ where: { id: requestedRoomId! }, select: { type: true } }).then(r => {
-      if (r?.type !== 'system') return
-      const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-      return prisma.chatMessages.deleteMany({ where: { roomId: requestedRoomId!, createdAt: { lt: cutoff } } })
-    }).catch(() => {})
-
-    const messages = await prisma.chatMessages.findMany({
-      where: {
-        roomId: requestedRoomId,
+      base = {
+        roomId,
         parentId: null,
-        createdAt: createdAtFilter,
+        OR: [
+          { chat_message_recipients: { none: {} } },
+          { userId: user.id },
+          { chat_message_recipients: { some: { userId: user.id } } },
+        ],
         // "Delete for me" on a system message (see chat_message_dismissals)
         // — hides it only for the user who dismissed it.
         chat_message_dismissals: { none: { userId: user.id } },
-      },
-      orderBy: { createdAt: 'asc' },
-      take: monthRange ? 1000 : 500,
-      include: {
-        users: { select: { name: true, firstName: true, lastName: true, profilePhotoUrl: true } },
-        chat_message_recipients: { include: { users: { select: { id: true, name: true } } } },
-        replies: { where: { deletedAt: null }, select: { id: true } },
-        chat_attachments: { select: { id: true, fileName: true, mimeType: true, size: true } },
-      },
-    })
+      }
+      const me = await prisma.users.findUnique({ where: { id: user.id }, select: { teamChatLastReadAt: true } })
+      lastReadAt = me?.teamChatLastReadAt ?? null
+    } else {
+      // DM/group room — membership itself is the audience, so every
+      // top-level message in the room is visible to every participant.
+      const membership = await prisma.chatParticipants.findFirst({ where: { roomId, userId: user.id } })
+      if (!membership) return NextResponse.json({ error: 'Not a participant of this conversation' }, { status: 403 })
+      lastReadAt = membership.lastReadAt
 
-    return NextResponse.json(messages.map(m => shapeMessage(m, m.replies.length)))
+      // Read-only system channels (e.g. "System Alerts") auto-expire after
+      // 30 days — same fire-and-forget pruning idea as General's 7 days.
+      prisma.chatRooms.findUnique({ where: { id: roomId }, select: { type: true } }).then(r => {
+        if (r?.type !== 'system') return
+        const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+        return prisma.chatMessages.deleteMany({ where: { roomId, createdAt: { lt: cutoff } } })
+      }).catch(() => {})
+
+      base = { roomId, parentId: null, chat_message_dismissals: { none: { userId: user.id } } }
+    }
+
+    // The hub's Team Chat unread badges (private-to-me vs. broadcast) are
+    // counted here — the client only ever holds a page of history.
+    let unseenCounts: { direct: number; broadcast: number } | undefined
+    if (isGeneral) {
+      const unseen = { AND: [base, lastReadAt ? { createdAt: { gt: lastReadAt } } : {}, { deletedAt: null }, { OR: [{ userId: null }, { userId: { not: user.id } }] }] }
+      const [direct, broadcast] = await Promise.all([
+        prisma.chatMessages.count({ where: { AND: [unseen, { chat_message_recipients: { some: { userId: user.id } } }] } }),
+        prisma.chatMessages.count({ where: { AND: [unseen, { chat_message_recipients: { none: {} } }] } }),
+      ])
+      unseenCounts = { direct, broadcast }
+    }
+    if (params.get('countsOnly')) return NextResponse.json({ unseenCounts: unseenCounts ?? { direct: 0, broadcast: 0 } })
+
+    // A cursor message must itself be visible to this user (same filters).
+    const findVisible = (id: string) => prisma.chatMessages.findFirst({ where: { AND: [base, { id }] }, include: MESSAGE_INCLUDE })
+
+    let rows: any[] = []
+    let hasMoreBefore = false
+    let hasMoreAfter = false
+    let firstUnreadId: string | null = null
+
+    const before = params.get('before')
+    const after = params.get('after')
+    const around = params.get('around')
+
+    if (before || after || around) {
+      const cursor = await findVisible((before || after || around)!)
+      if (!cursor) return NextResponse.json({ error: 'Message not found' }, { status: 404 })
+      if (before) {
+        const p = await pageOlder(base, cursor, PAGE_SIZE)
+        rows = p.rows; hasMoreBefore = p.hasMore; hasMoreAfter = true
+      } else if (after) {
+        const p = await pageNewer(base, cursor, PAGE_SIZE)
+        rows = p.rows; hasMoreAfter = p.hasMore; hasMoreBefore = true
+      } else {
+        ;({ rows, hasMoreBefore, hasMoreAfter } = await pageAround(base, cursor, Math.floor(PAGE_SIZE / 2)))
+      }
+    } else {
+      // Initial open: start at the oldest message this user hasn't seen
+      // (someone else's or a system message — never their own). `latest=1`
+      // skips straight to the newest page.
+      const firstUnread = params.get('latest') ? null : await prisma.chatMessages.findFirst({
+        where: {
+          AND: [
+            base,
+            lastReadAt ? { createdAt: { gt: lastReadAt } } : {},
+            { OR: [{ userId: null }, { userId: { not: user.id } }] },
+          ],
+        },
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+        include: MESSAGE_INCLUDE,
+      })
+      if (firstUnread) {
+        firstUnreadId = firstUnread.id
+        ;({ rows, hasMoreBefore, hasMoreAfter } = await pageAround(base, firstUnread, CONTEXT_BEFORE_UNREAD))
+      } else {
+        const p = await pageOlder(base, null, PAGE_SIZE)
+        rows = p.rows; hasMoreBefore = p.hasMore
+      }
+    }
+
+    // Reply counts for just this page, in one query.
+    const replyCounts = rows.length === 0 ? [] : await prisma.chatMessages.groupBy({
+      by: ['parentId'],
+      where: { parentId: { in: rows.map(r => r.id) }, deletedAt: null },
+      _count: { _all: true },
+    })
+    const replyCountById = new Map(replyCounts.map(r => [r.parentId as string, r._count._all]))
+
+    return NextResponse.json({
+      messages: rows.map(m => shapeMessage(m, replyCountById.get(m.id) ?? 0)),
+      hasMoreBefore,
+      hasMoreAfter,
+      firstUnreadId,
+      unseenCounts,
+    })
   } catch (err) {
     console.error('[GET /api/chat/messages]', err)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

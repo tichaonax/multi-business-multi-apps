@@ -780,6 +780,8 @@ model ChatMessages {
   chat_attachments        ChatAttachments[]
 
   @@index([parentId])
+  // MBM-315 — cursor paging of a room's history (newest/oldest page, before/after a message)
+  @@index([roomId, createdAt])
   @@map("chat_messages")
 }
 
@@ -3735,6 +3737,10 @@ model Users {
   createdAt                                                       DateTime                          @default(now())
   updatedAt                                                       DateTime                          @default(now())
   lastAccessedAt                                                  DateTime?
+  // MBM-315 — Team Chat (General) "last seen" position. General has no
+  // ChatParticipants rows (everyone sees it), so this plays the role
+  // ChatParticipants.lastReadAt plays for DM/group rooms. Only moves forward.
+  teamChatLastReadAt                                              DateTime?
   lastAccessedBusinessId                                          String?
   lastAccessedBusinessType                                        String?
   defaultBusinessId                                               String?
