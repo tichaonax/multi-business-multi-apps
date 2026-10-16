@@ -232,6 +232,9 @@ export function FloatingChat() {
   const [view, setView] = useState<'list' | 'team'>(DEFAULT_CHAT_SETTINGS.defaultView)
   const [rooms, setRooms] = useState<RoomSummary[]>([])
   const [openWindows, setOpenWindows] = useState<string[]>([])
+  // Rooms whose window was auto-popped by an incoming message (see
+  // openConversationWindow) — not read until the user engages.
+  const [autoOpenedRooms, setAutoOpenedRooms] = useState<Set<string>>(new Set())
   // Pending "jump to this message" target for a satellite window just opened
   // from a cross-conversation search result — consumed once by that
   // ChatWindow on mount (see initialJumpTarget/onJumpHandled), keyed by
@@ -402,6 +405,10 @@ export function FloatingChat() {
       clearTimeout(autoCloseTimerRef.current)
       autoCloseTimerRef.current = null
     }
+    // Restoring from the bubble is an explicit open — any auto-popped
+    // windows now count as seen (still gated on presence in ChatWindow).
+    setAutoOpenedRooms(new Set())
+    setRooms(prev => prev.map(r => openWindowsRef.current.includes(r.id) ? { ...r, unreadCount: 0 } : r))
     const defaultView = chatSettingsRef.current.defaultView
     if (defaultView === 'team') markTeamRead()
     setView(defaultView)
@@ -412,7 +419,15 @@ export function FloatingChat() {
   // Open (or re-focus) a DM/group as its own satellite window, clearing its
   // unread badge. Re-opening an already-open one just brings it to front.
   // Capped by the user's own maxOpenWindows setting (see chat-settings.ts).
-  const openConversationWindow = useCallback((roomId: string) => {
+  // `auto` = popped open by an incoming message, not by the user — it must
+  // not count as read (no /read, badge kept) until they engage with it.
+  const openConversationWindow = useCallback((roomId: string, { auto = false }: { auto?: boolean } = {}) => {
+    setAutoOpenedRooms(prev => {
+      if (auto === prev.has(roomId)) return prev
+      const next = new Set(prev)
+      if (auto) next.add(roomId); else next.delete(roomId)
+      return next
+    })
     setOpenWindows(prev => {
       const without = prev.filter(id => id !== roomId)
       let next = [...without, roomId]
@@ -436,6 +451,7 @@ export function FloatingChat() {
       }
       return next
     })
+    if (auto) return
     setRooms(prev => prev.map(r => r.id === roomId ? { ...r, unreadCount: 0 } : r))
     fetch(`/api/chat/rooms/${roomId}/read`, { method: 'POST', credentials: 'include' }).catch(() => {})
   }, [])
@@ -583,7 +599,7 @@ export function FloatingChat() {
 
         if (!isOpenRef.current) {
           cancelAutoClose()
-          switchRoom(targetRoomId) // opens straight into it as a satellite window
+          openConversationWindow(targetRoomId!, { auto: true }) // satellite window, NOT marked read
           loadRooms()
           setIsOpen(true)
           autoCloseTimerRef.current = setTimeout(() => {
@@ -853,9 +869,13 @@ export function FloatingChat() {
   }
 
   // MBM-301 — find-or-create a DM (one person) or create a group (2+, named)
+  // Ref, not just the creatingRoom state — state only blocks after a
+  // re-render, so a fast double click sent two creates (MBM-314).
+  const creatingRoomRef = useRef(false)
   const startNewChat = async () => {
-    if (newChatSelectedIds.length === 0 || creatingRoom) return
+    if (newChatSelectedIds.length === 0 || creatingRoomRef.current) return
     if (newChatSelectedIds.length > 1 && !newChatGroupName.trim()) return
+    creatingRoomRef.current = true
     setCreatingRoom(true)
     try {
       const body: any = { userIds: newChatSelectedIds }
@@ -872,6 +892,7 @@ export function FloatingChat() {
       await loadRooms()
       switchRoom(created.id)
     } catch { /* non-critical */ } finally {
+      creatingRoomRef.current = false
       setCreatingRoom(false)
     }
   }
@@ -879,7 +900,8 @@ export function FloatingChat() {
   // Quick-start a DM directly from the "N online" list — same find-or-create
   // as startNewChat, without going through the multi-select picker.
   const startDirectChat = async (userId: string) => {
-    if (creatingRoom) return
+    if (creatingRoomRef.current) return
+    creatingRoomRef.current = true
     setCreatingRoom(true)
     try {
       const res = await fetch('/api/chat/rooms', {
@@ -894,6 +916,7 @@ export function FloatingChat() {
       await loadRooms()
       switchRoom(created.id)
     } catch { /* non-critical */ } finally {
+      creatingRoomRef.current = false
       setCreatingRoom(false)
     }
   }
@@ -2062,6 +2085,11 @@ export function FloatingChat() {
           }}
           initialJumpTarget={jumpTargets[roomId] ?? null}
           onJumpHandled={() => setJumpTargets(prev => { const n = { ...prev }; delete n[roomId]; return n })}
+          autoOpened={autoOpenedRooms.has(roomId)}
+          onEngaged={() => {
+            setAutoOpenedRooms(prev => { const n = new Set(prev); n.delete(roomId); return n })
+            setRooms(prev => prev.map(r => r.id === roomId ? { ...r, unreadCount: 0 } : r))
+          }}
         />
       )
     })}

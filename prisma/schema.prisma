@@ -868,6 +868,10 @@ model ChatRooms {
   type              String             @default("group")
   createdAt         DateTime           @default(now())
   createdBy         String?
+  // MBM-314 — direct rooms only: the two participant userIds, sorted and
+  // ':'-joined. Unique, so the DB itself allows one direct room per pair;
+  // NULL for group/system rooms (Postgres allows many NULLs).
+  directKey         String?            @unique
   chat_messages     ChatMessages[]
   chat_participants ChatParticipants[]
   users             Users?             @relation(fields: [createdBy], references: [id])

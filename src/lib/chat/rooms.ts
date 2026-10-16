@@ -99,35 +99,57 @@ export async function getOrCreateDirectRoom(userId: string, otherUserId: string)
     throw new Error('Cannot start a direct conversation with yourself')
   }
 
+  // MBM-314 — chat_rooms.directKey (sorted pair) is UNIQUE, so the DB itself
+  // guarantees one direct room per pair. Two near-simultaneous requests
+  // (double click, two tabs/devices) can still both miss and both try to
+  // create; the loser gets P2002 and just returns the winner's room.
+  const directKey = directRoomKey(userId, otherUserId)
+  const byKey = await prisma.chatRooms.findUnique({ where: { directKey } })
+  if (byKey) return byKey
+
+  // Fallback for a direct room with no key yet (e.g. restored from a backup
+  // taken before directKey existed) — adopt it and give it the key rather
+  // than creating a second room for the same pair.
   const candidates = await prisma.chatRooms.findMany({
     where: {
       type: 'direct',
+      directKey: null,
       AND: [
         { chat_participants: { some: { userId } } },
         { chat_participants: { some: { userId: otherUserId } } },
       ],
     },
     include: { chat_participants: true },
+    orderBy: { createdAt: 'asc' },
   })
-  // AND-of-some can match a room that also has other members (defensive —
-  // direct rooms are only ever created with exactly these two below); only
-  // reuse one that is actually just the two of them. Compares the DISTINCT
-  // set of userIds, not raw row count — a stray duplicate ChatParticipants
-  // row (possible before the roomId+userId unique constraint was added,
-  // see dedupe_chat_participants/merge_duplicate_direct_rooms migrations)
-  // used to make a plain length check fail and silently create a second
-  // "duplicate" direct room between the same two people.
-  const exact = candidates.find(r => new Set(r.chat_participants.map(p => p.userId)).size === 2)
-  if (exact) return exact
+  // Only reuse a room that is exactly these two users (distinct userIds).
+  const legacy = candidates.find(r => new Set(r.chat_participants.map(p => p.userId)).size === 2)
 
-  return prisma.chatRooms.create({
-    data: {
-      name: '',
-      type: 'direct',
-      createdBy: userId,
-      chat_participants: { create: [{ userId }, { userId: otherUserId }] },
-    },
-  })
+  try {
+    if (legacy) {
+      return await prisma.chatRooms.update({ where: { id: legacy.id }, data: { directKey } })
+    }
+    return await prisma.chatRooms.create({
+      data: {
+        name: '',
+        type: 'direct',
+        createdBy: userId,
+        directKey,
+        chat_participants: { create: [{ userId }, { userId: otherUserId }] },
+      },
+    })
+  } catch (err: any) {
+    if (err?.code === 'P2002') {
+      const winner = await prisma.chatRooms.findUnique({ where: { directKey } })
+      if (winner) return winner
+    }
+    throw err
+  }
+}
+
+/** The chat_rooms.directKey for a pair of users — order-independent. */
+export function directRoomKey(userIdA: string, userIdB: string) {
+  return [userIdA, userIdB].sort().join(':')
 }
 
 /** Create a new named group room with the creator plus the given members. */

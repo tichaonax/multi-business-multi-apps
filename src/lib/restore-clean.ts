@@ -857,6 +857,10 @@ export async function restoreCleanBackup(
   // FK fields to use the target's IDs. This preserves ALL target data and prevents P2002/P2003
   // errors from ID mismatches in reference tables.
   const idRemap: Map<string, string> = new Map()
+  // MBM-314 — backup direct-room id → its directKey, stamped onto every
+  // restored direct room (older backups predate the column, and a NULL
+  // would otherwise overwrite the key of the room it's remapped onto).
+  const directKeyByBackupRoomId: Map<string, string> = new Map()
 
   {
     console.log('[restore-clean] Building ID remap for reference data (same-device and cross-machine)...')
@@ -972,6 +976,55 @@ export async function restoreCleanBackup(
             idRemap.set(record.id, existing.id)
           }
         } catch { /* skip on error */ }
+      }
+    }
+
+    // MBM-314 — direct (1:1) chat rooms: one room per pair of users. Rooms
+    // were blindly upserted by id, so restoring a pre-merge backup (or one
+    // from another system with its own direct room for the same pair)
+    // re-created duplicate conversations. Map every backup direct room onto
+    // the target's existing room for that pair (or the first such room in
+    // this backup); the generic FK remap below then points its messages
+    // and participants there.
+    const backupChatRooms: any[] = Array.isArray(bd.chatRooms) ? bd.chatRooms : []
+    const backupChatParticipants: any[] = Array.isArray(bd.chatParticipants) ? bd.chatParticipants : []
+    if (backupChatRooms.length > 0 && backupChatParticipants.length > 0) {
+      const usersByRoom = new Map<string, Set<string>>()
+      for (const p of backupChatParticipants) {
+        if (!p.roomId || !p.userId) continue
+        if (!usersByRoom.has(p.roomId)) usersByRoom.set(p.roomId, new Set())
+        usersByRoom.get(p.roomId)!.add(p.userId)
+      }
+      const canonicalByPair = new Map<string, string>()
+      const directRooms = backupChatRooms
+        .filter(r => r.type === 'direct' && r.id)
+        .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)))
+      for (const room of directRooms) {
+        const users = usersByRoom.get(room.id)
+        if (!users || users.size !== 2) continue
+        const [a, b] = Array.from(users).sort()
+        const pairKey = `${a}:${b}` // same format as directRoomKey() in lib/chat/rooms.ts
+        directKeyByBackupRoomId.set(room.id, pairKey)
+        let canonicalId = canonicalByPair.get(pairKey)
+        if (!canonicalId) {
+          try {
+            canonicalId = (await prisma.chatRooms.findUnique({ where: { directKey: pairKey }, select: { id: true } }))?.id
+          } catch { /* skip on error */ }
+          // Fallback: an existing direct room for this pair that has no key yet.
+          if (!canonicalId) {
+            try {
+              const existing = await prisma.chatRooms.findMany({
+                where: { type: 'direct', AND: [{ chat_participants: { some: { userId: a } } }, { chat_participants: { some: { userId: b } } }] },
+                include: { chat_participants: { select: { userId: true } } },
+                orderBy: { createdAt: 'asc' },
+              })
+              canonicalId = existing.find((r: any) => new Set(r.chat_participants.map((p: any) => p.userId)).size === 2)?.id
+            } catch { /* skip on error */ }
+          }
+          canonicalId = canonicalId || room.id
+          canonicalByPair.set(pairKey, canonicalId)
+        }
+        if (canonicalId !== room.id) idRemap.set(room.id, canonicalId)
       }
     }
 
@@ -1121,6 +1174,10 @@ export async function restoreCleanBackup(
             // source machine to the corresponding IDs on the target machine.
             // Also remap the record's own ID if it's in the mapping (i.e., the target
             // already has a record with the same unique key but different ID).
+            if (tableName === 'chatRooms' && directKeyByBackupRoomId.has(recordToInsert.id)) {
+              recordToInsert.directKey = directKeyByBackupRoomId.get(recordToInsert.id)
+            }
+
             if (idRemap.size > 0) {
               // Remap the record's own ID if needed
               const remappedId = idRemap.get(recordToInsert.id)
@@ -1316,9 +1373,12 @@ export async function restoreCleanBackup(
               } else if (typeof uniqueConstraint === 'object' && uniqueConstraint.fields) {
                 const whereClause: Record<string, any> = {}
                 let hasAllFields = true
+                // Match on the REMAPPED values (recordToInsert) — that's what
+                // actually gets written, e.g. a chatParticipants row whose
+                // roomId was remapped onto an existing direct room (MBM-314).
                 for (const field of uniqueConstraint.fields) {
-                  if (record[field] !== undefined && record[field] !== null) {
-                    whereClause[field] = record[field]
+                  if (recordToInsert[field] !== undefined && recordToInsert[field] !== null) {
+                    whereClause[field] = recordToInsert[field]
                   } else {
                     hasAllFields = false
                     break

@@ -8,6 +8,7 @@ import { AttachButton, PendingAttachmentsRow, ChatAttachmentsGroup, uploadChatAt
 import { VideoTrimModal } from '@/components/chat/video-trim-modal'
 import { useConfirm } from '@/components/ui/confirm-modal'
 import { useToastContext } from '@/components/ui/toast'
+import { isUserPresent, onUserPresent } from '@/lib/chat/user-presence'
 
 interface Recipient { id: string; name: string }
 
@@ -123,6 +124,11 @@ interface ChatWindowProps {
   // onJumpHandled so re-renders/re-opens don't re-trigger it.
   initialJumpTarget?: InRoomSearchResult | null
   onJumpHandled?: () => void
+  // Set when the hub auto-popped this window for an incoming message rather
+  // than the user opening it — nothing is marked read until the user
+  // actually clicks/types inside it, then onEngaged lets the parent forget.
+  autoOpened?: boolean
+  onEngaged?: () => void
 }
 
 /**
@@ -131,7 +137,7 @@ interface ChatWindowProps {
  * floating-chat.tsx), each tracking its own messages/composer/threads, so
  * switching between DMs/groups never loses what you were doing in another.
  */
-export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUserId, currentUserName, isAdmin = false, socket, onClose, rightOffset, isMobile = false, customPosition, onPositionChange, onMessageSent, initialJumpTarget, onJumpHandled }: ChatWindowProps) {
+export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUserId, currentUserName, isAdmin = false, socket, onClose, rightOffset, isMobile = false, customPosition, onPositionChange, onMessageSent, initialJumpTarget, onJumpHandled, autoOpened = false, onEngaged }: ChatWindowProps) {
   const confirmModal = useConfirm()
   const toast = useToastContext()
   const [messages, setMessages] = useState<Message[]>([])
@@ -263,6 +269,31 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [])
 
+  // Read receipts only count when a human is actually here: window not
+  // auto-popped, page visible, recent activity (see user-presence.ts).
+  // Otherwise the read is deferred and sent the moment they come back.
+  const autoOpenedRef = useRef(autoOpened)
+  const pendingReadRef = useRef(false)
+  const postRead = useCallback(() => {
+    pendingReadRef.current = false
+    fetch(`/api/chat/rooms/${roomId}/read`, { method: 'POST', credentials: 'include' }).catch(() => {})
+  }, [roomId])
+  const markRead = useCallback(() => {
+    if (!autoOpenedRef.current && isUserPresent()) postRead()
+    else pendingReadRef.current = true
+  }, [postRead])
+  useEffect(() => onUserPresent(() => {
+    if (pendingReadRef.current && !autoOpenedRef.current) postRead()
+  }), [postRead])
+  useEffect(() => {
+    autoOpenedRef.current = autoOpened
+    if (!autoOpened && pendingReadRef.current) markRead()
+  }, [autoOpened, markRead])
+  const handleEngaged = () => {
+    if (autoOpenedRef.current) { autoOpenedRef.current = false; onEngaged?.() }
+    if (pendingReadRef.current) markRead()
+  }
+
   // Load history + mark read on mount. When opened from a cross-conversation
   // search result (floating-chat.tsx), also jump straight to that message.
   // Deliberately one sequential async chain (not two independent effects)
@@ -282,7 +313,7 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
       if (cancelled) return
       setMessages(data || [])
       setTimeout(scrollToBottom, 50)
-      fetch(`/api/chat/rooms/${roomId}/read`, { method: 'POST', credentials: 'include' }).catch(() => {})
+      markRead()
       setLoadedMonths(new Set())
 
       const months: { month: string; count: number }[] = await fetch(`/api/chat/messages/months?roomId=${encodeURIComponent(roomId)}`, { credentials: 'include' })
@@ -392,9 +423,7 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
       }
       setMessages(prev => prev.some(m => m.id === msg.id) ? prev : [...prev, msg])
       setTimeout(scrollToBottom, 50)
-      if (msg.userId !== currentUserId) {
-        fetch(`/api/chat/rooms/${roomId}/read`, { method: 'POST', credentials: 'include' }).catch(() => {})
-      }
+      if (msg.userId !== currentUserId) markRead()
     }
     const onDeleted = ({ id }: { id: string }) => {
       setMessages(prev => prev.map(m => m.id === id ? { ...m, deletedAt: new Date().toISOString() } : m))
@@ -432,7 +461,7 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
       socket.off('chat:message:removed', onRemoved)
       socket.off('chat:room:cleared', onRoomCleared)
     }
-  }, [socket, roomId, currentUserId, scrollToBottom])
+  }, [socket, roomId, currentUserId, scrollToBottom, markRead])
 
   // Auto-grow composer, same behaviour as the hub's
   useEffect(() => {
@@ -966,6 +995,8 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
     <div
       style={windowStyle}
       className="relative flex flex-col rounded-2xl shadow-2xl border border-border bg-white dark:bg-gray-900 overflow-hidden"
+      onPointerDownCapture={handleEngaged}
+      onKeyDownCapture={handleEngaged}
       {...(roomType === 'system' ? {} : dropZoneProps)}
     >
       {isDraggingFiles && roomType !== 'system' && <DropOverlay />}
