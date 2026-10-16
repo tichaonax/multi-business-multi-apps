@@ -107,8 +107,10 @@ export function DailySalesLineChart({ data, onDotClick, groupBy: controlledGroup
     }
   }
 
-  // Determine whether any expense data was supplied
-  const hasExpenses = data.some(d => (d.expenses ?? 0) > 0)
+  // Whether expense data was supplied at all — NOT whether any day had
+  // expenses above zero. A range with no expenses (e.g. Today) must still
+  // show Expenses $0.00 and its margin, not hide the summary (MBM-316).
+  const hasExpenses = data.some(d => d.expenses !== undefined)
 
   // Build chart data based on grouping mode
   const chartData = isMonthly
@@ -185,19 +187,24 @@ export function DailySalesLineChart({ data, onDotClick, groupBy: controlledGroup
             </button>
           </div>
         </div>
-        {hasExpenses && periodMargin !== null && (
-          <div className="flex gap-4 text-sm">
-            <span className="text-purple-600 dark:text-purple-400 font-medium">
-              Sales: ${totalSales.toFixed(2)}
-            </span>
+        {/* Period totals — the sales total always shows; expenses and margin
+            whenever expense data is supplied (even $0.00). Margin is "—" when
+            there were no sales to divide by. */}
+        <div className="flex gap-4 text-sm">
+          <span className="text-purple-600 dark:text-purple-400 font-medium">
+            Sales: ${totalSales.toFixed(2)}
+          </span>
+          {hasExpenses && (
             <span className="text-red-500 dark:text-red-400 font-medium">
               Expenses: ${totalExpenses.toFixed(2)}
             </span>
-            <span className={`font-bold ${Number(periodMargin) >= 50 ? 'text-green-600 dark:text-green-400' : Number(periodMargin) >= 20 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'}`}>
-              Margin: {periodMargin}%
+          )}
+          {hasExpenses && (
+            <span className={`font-bold ${periodMargin === null ? 'text-gray-500 dark:text-gray-400' : Number(periodMargin) >= 50 ? 'text-green-600 dark:text-green-400' : Number(periodMargin) >= 20 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'}`}>
+              Margin: {periodMargin === null ? '—' : `${periodMargin}%`}
             </span>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {!isMonthly && onDotClick && (
