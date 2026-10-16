@@ -232,9 +232,6 @@ export function FloatingChat() {
   const [view, setView] = useState<'list' | 'team'>(DEFAULT_CHAT_SETTINGS.defaultView)
   const [rooms, setRooms] = useState<RoomSummary[]>([])
   const [openWindows, setOpenWindows] = useState<string[]>([])
-  // Rooms whose window was auto-popped by an incoming message (see
-  // openConversationWindow) — not read until the user engages.
-  const [autoOpenedRooms, setAutoOpenedRooms] = useState<Set<string>>(new Set())
   // Pending "jump to this message" target for a satellite window just opened
   // from a cross-conversation search result — consumed once by that
   // ChatWindow on mount (see initialJumpTarget/onJumpHandled), keyed by
@@ -304,6 +301,22 @@ export function FloatingChat() {
       clearTimeout(autoCloseTimerRef.current)
       autoCloseTimerRef.current = null
     }
+  }
+
+  // An incoming message briefly pops the hub open (list + badges) for 5s.
+  // While it's popped by itself, conversation windows stay hidden — they
+  // only show when the user restores the hub or clicks a conversation, so
+  // nothing is put in front of them (or marked read) uninvited (MBM-313).
+  const [autoPopped, setAutoPopped] = useState(false)
+  const autoPop = () => {
+    cancelAutoClose()
+    setAutoPopped(true)
+    setIsOpen(true)
+    autoCloseTimerRef.current = setTimeout(() => {
+      autoCloseTimerRef.current = null
+      setIsOpen(false)
+      setAutoPopped(false)
+    }, 5000)
   }
 
   // Marks Team/General as read — called only when that view is actually
@@ -405,9 +418,9 @@ export function FloatingChat() {
       clearTimeout(autoCloseTimerRef.current)
       autoCloseTimerRef.current = null
     }
-    // Restoring from the bubble is an explicit open — any auto-popped
-    // windows now count as seen (still gated on presence in ChatWindow).
-    setAutoOpenedRooms(new Set())
+    setAutoPopped(false)
+    // Restoring from the bubble re-shows the windows the user left open —
+    // they count as seen (still gated on presence in ChatWindow).
     setRooms(prev => prev.map(r => openWindowsRef.current.includes(r.id) ? { ...r, unreadCount: 0 } : r))
     const defaultView = chatSettingsRef.current.defaultView
     if (defaultView === 'team') markTeamRead()
@@ -419,15 +432,9 @@ export function FloatingChat() {
   // Open (or re-focus) a DM/group as its own satellite window, clearing its
   // unread badge. Re-opening an already-open one just brings it to front.
   // Capped by the user's own maxOpenWindows setting (see chat-settings.ts).
-  // `auto` = popped open by an incoming message, not by the user — it must
-  // not count as read (no /read, badge kept) until they engage with it.
-  const openConversationWindow = useCallback((roomId: string, { auto = false }: { auto?: boolean } = {}) => {
-    setAutoOpenedRooms(prev => {
-      if (auto === prev.has(roomId)) return prev
-      const next = new Set(prev)
-      if (auto) next.add(roomId); else next.delete(roomId)
-      return next
-    })
+  const openConversationWindow = useCallback((roomId: string) => {
+    if (autoCloseTimerRef.current) { clearTimeout(autoCloseTimerRef.current); autoCloseTimerRef.current = null }
+    setAutoPopped(false)
     setOpenWindows(prev => {
       const without = prev.filter(id => id !== roomId)
       let next = [...without, roomId]
@@ -451,7 +458,6 @@ export function FloatingChat() {
       }
       return next
     })
-    if (auto) return
     setRooms(prev => prev.map(r => r.id === roomId ? { ...r, unreadCount: 0 } : r))
     fetch(`/api/chat/rooms/${roomId}/read`, { method: 'POST', credentials: 'include' }).catch(() => {})
   }, [])
@@ -598,14 +604,11 @@ export function FloatingChat() {
         if (msg.userId === currentUserId) return // never badge our own message
 
         if (!isOpenRef.current) {
-          cancelAutoClose()
-          openConversationWindow(targetRoomId!, { auto: true }) // satellite window, NOT marked read
+          // Pop the hub (list + unread badge) only — never re-open the
+          // conversation's own window. Windows open/close only when the
+          // user says so (MBM-313); loadRooms() picks up the new badge.
           loadRooms()
-          setIsOpen(true)
-          autoCloseTimerRef.current = setTimeout(() => {
-            autoCloseTimerRef.current = null
-            setIsOpen(false)
-          }, 5000)
+          autoPop()
         } else if (!openWindowsRef.current.includes(targetRoomId!)) {
           setRooms(prev => {
             if (prev.some(r => r.id === targetRoomId)) {
@@ -641,12 +644,7 @@ export function FloatingChat() {
           setTimeout(scrollToBottom, 100)
           if (!isOpenRef.current) {
             setUnreadDirect(u => u + 1)
-            cancelAutoClose()
-            setIsOpen(true)
-            autoCloseTimerRef.current = setTimeout(() => {
-              autoCloseTimerRef.current = null
-              setIsOpen(false)
-            }, 5000)
+            autoPop()
           }
         }
         return
@@ -663,14 +661,9 @@ export function FloatingChat() {
       if (msg.userId === currentUserId) return // never badge our own message
 
       if (!isOpenRef.current) {
-        cancelAutoClose()
         const isDirect = msg.recipients.length > 0 && msg.recipients.some(r => r.id === currentUserId)
         if (isDirect) setUnreadDirect(u => u + 1); else setUnread(u => u + 1)
-        setIsOpen(true)
-        autoCloseTimerRef.current = setTimeout(() => {
-          autoCloseTimerRef.current = null
-          setIsOpen(false)
-        }, 5000)
+        autoPop()
       } else if (!isTeamOpen) {
         const isDirect = msg.recipients.length > 0 && msg.recipients.some(r => r.id === currentUserId)
         if (isDirect) setUnreadDirect(u => u + 1); else setUnread(u => u + 1)
@@ -781,6 +774,7 @@ export function FloatingChat() {
     const handler = (e: Event) => {
       const query = (e as CustomEvent<{ query?: string }>).detail?.query ?? ''
       if (autoCloseTimerRef.current) { clearTimeout(autoCloseTimerRef.current); autoCloseTimerRef.current = null }
+      setAutoPopped(false)
       setIsOpen(true)
       setView('list')
       if (query) setListSearch(query)
@@ -2059,7 +2053,7 @@ export function FloatingChat() {
     {/* Satellite windows — one per open DM/group, cascading left of the hub
         so several conversations can be open and told apart at once. Most
         recently opened/focused sits closest to the hub. */}
-    {openWindows.map((roomId, i) => {
+    {!autoPopped && openWindows.map((roomId, i) => {
       const room = rooms.find(r => r.id === roomId)
       if (!room) return null
       const indexFromHub = openWindows.length - 1 - i
@@ -2085,11 +2079,6 @@ export function FloatingChat() {
           }}
           initialJumpTarget={jumpTargets[roomId] ?? null}
           onJumpHandled={() => setJumpTargets(prev => { const n = { ...prev }; delete n[roomId]; return n })}
-          autoOpened={autoOpenedRooms.has(roomId)}
-          onEngaged={() => {
-            setAutoOpenedRooms(prev => { const n = new Set(prev); n.delete(roomId); return n })
-            setRooms(prev => prev.map(r => r.id === roomId ? { ...r, unreadCount: 0 } : r))
-          }}
         />
       )
     })}
