@@ -87,23 +87,30 @@ export function payeeRef(r: Partial<PayeeColumns>): { type: PayeeType; id: strin
 
 export const payeeKey = (p: { type: string; id: string }) => `${p.type}:${p.id}`
 
-/** Display names for a set of payees, keyed by payeeKey(). */
-export async function resolvePayeeNames(payees: { type: string; id: string }[]) {
+/** Name + phone for a set of payees, keyed by payeeKey(). Phone comes from
+ * the person / employee / supplier / business record (users have none). */
+export async function resolvePayeeInfo(payees: { type: string; id: string }[]) {
   const ids = (t: string) => Array.from(new Set(payees.filter(p => p.type === t).map(p => p.id)))
   const [persons, users, employees, businesses, suppliers] = await Promise.all([
-    ids('PERSON').length ? prisma.persons.findMany({ where: { id: { in: ids('PERSON') } }, select: { id: true, fullName: true } }) : [],
+    ids('PERSON').length ? prisma.persons.findMany({ where: { id: { in: ids('PERSON') } }, select: { id: true, fullName: true, phone: true } }) : [],
     ids('USER').length ? prisma.users.findMany({ where: { id: { in: ids('USER') } }, select: { id: true, name: true } }) : [],
-    ids('EMPLOYEE').length ? prisma.employees.findMany({ where: { id: { in: ids('EMPLOYEE') } }, select: { id: true, fullName: true } }) : [],
-    ids('BUSINESS').length ? prisma.businesses.findMany({ where: { id: { in: ids('BUSINESS') } }, select: { id: true, name: true } }) : [],
-    ids('SUPPLIER').length ? prisma.businessSuppliers.findMany({ where: { id: { in: ids('SUPPLIER') } }, select: { id: true, name: true } }) : [],
+    ids('EMPLOYEE').length ? prisma.employees.findMany({ where: { id: { in: ids('EMPLOYEE') } }, select: { id: true, fullName: true, phone: true } }) : [],
+    ids('BUSINESS').length ? prisma.businesses.findMany({ where: { id: { in: ids('BUSINESS') } }, select: { id: true, name: true, phone: true } }) : [],
+    ids('SUPPLIER').length ? prisma.businessSuppliers.findMany({ where: { id: { in: ids('SUPPLIER') } }, select: { id: true, name: true, phone: true } }) : [],
   ])
-  const names = new Map<string, string>()
-  persons.forEach(p => names.set(`PERSON:${p.id}`, p.fullName))
-  users.forEach(u => names.set(`USER:${u.id}`, u.name))
-  employees.forEach(e => names.set(`EMPLOYEE:${e.id}`, e.fullName))
-  businesses.forEach(b => names.set(`BUSINESS:${b.id}`, b.name))
-  suppliers.forEach(s => names.set(`SUPPLIER:${s.id}`, s.name))
-  return names
+  const info = new Map<string, { name: string; phone: string | null }>()
+  persons.forEach(p => info.set(`PERSON:${p.id}`, { name: p.fullName, phone: p.phone || null }))
+  users.forEach(u => info.set(`USER:${u.id}`, { name: u.name, phone: null }))
+  employees.forEach(e => info.set(`EMPLOYEE:${e.id}`, { name: e.fullName, phone: e.phone || null }))
+  businesses.forEach(b => info.set(`BUSINESS:${b.id}`, { name: b.name, phone: b.phone || null }))
+  suppliers.forEach(s => info.set(`SUPPLIER:${s.id}`, { name: s.name, phone: s.phone || null }))
+  return info
+}
+
+/** Display names for a set of payees, keyed by payeeKey(). */
+export async function resolvePayeeNames(payees: { type: string; id: string }[]) {
+  const info = await resolvePayeeInfo(payees)
+  return new Map(Array.from(info.entries()).map(([k, v]) => [k, v.name]))
 }
 
 /**

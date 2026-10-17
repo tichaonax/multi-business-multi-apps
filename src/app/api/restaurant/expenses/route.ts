@@ -4,7 +4,7 @@ import { getServerUser } from '@/lib/get-server-user'
 import { refreshRestaurantExpenseNotice } from '@/lib/restaurant-expense-notify'
 import {
   checkRestaurantAccess, getDefaultExpenseAccount, itemNameKey, nextReference,
-  payeeColumns, payeeRef, payeeKey, resolvePayeeNames, LINE_STATUS, OPEN_LINE_STATUSES,
+  payeeColumns, payeeRef, payeeKey, resolvePayeeInfo, LINE_STATUS, OPEN_LINE_STATUSES,
 } from '@/lib/restaurant-expenses'
 
 const MAX_LINES = 50
@@ -154,18 +154,23 @@ export async function GET(request: NextRequest) {
     const denied = await checkRestaurantAccess(user, businessId)
     if (denied) return denied
 
-    // open = still owed (queue/report); unpaid = awaiting selection only; all
+    // open = still owed (queue/report); unpaid = awaiting selection only;
+    // paid = fully paid (salesperson's "My purchases"); all
     const status = params.get('status') || 'open'
+    // mine=1: only purchases this user recorded (MBM-322)
+    const mineOnly = params.get('mine') === '1'
     const start = params.get('start') ? new Date(params.get('start')!) : null
     const end = params.get('end') ? new Date(params.get('end')!) : null
     const lineWhere = status === 'open' ? { status: { in: OPEN_LINE_STATUSES } }
       : status === 'unpaid' ? { status: LINE_STATUS.UNPAID }
+      : status === 'paid' ? { status: LINE_STATUS.PAID }
       : {}
 
     const txns = await prisma.restaurantExpenseTransactions.findMany({
       where: {
         businessId: businessId!,
         voidedAt: null,
+        ...(mineOnly ? { createdBy: user.id } : {}),
         ...(start || end ? { purchasedAt: { ...(start ? { gte: start } : {}), ...(end ? { lte: end } : {}) } } : {}),
         lines: { some: lineWhere },
       },
@@ -179,14 +184,14 @@ export async function GET(request: NextRequest) {
           include: {
             category: { select: { id: true, name: true, emoji: true, domain: { select: { id: true, name: true, emoji: true } } } },
             subcategory: { select: { id: true, name: true, emoji: true } },
-            comboItem: { select: { id: true, request: { select: { id: true, title: true, status: true, accountId: true } } } },
+            comboItem: { select: { id: true, request: { select: { id: true, title: true, status: true, accountId: true, submittedAt: true, approvedAt: true, creator: { select: { name: true } } } } } },
           },
         },
       },
     })
 
     const refs = txns.map(t => payeeRef(t)).filter(Boolean) as { type: string; id: string }[]
-    const names = await resolvePayeeNames(refs)
+    const payees = await resolvePayeeInfo(refs)
 
     const data = txns.map(t => {
       const ref = payeeRef(t)
@@ -195,7 +200,7 @@ export async function GET(request: NextRequest) {
         reference: t.reference,
         purchasedAt: t.purchasedAt,
         expenseAccountId: t.expenseAccountId,
-        payee: ref ? { ...ref, name: names.get(payeeKey(ref)) ?? 'Unknown payee' } : null,
+        payee: ref ? { ...ref, name: payees.get(payeeKey(ref))?.name ?? 'Unknown payee', phone: payees.get(payeeKey(ref))?.phone ?? null } : null,
         notes: t.notes,
         totalAmount: Number(t.totalAmount),
         createdBy: t.creator,
@@ -212,7 +217,10 @@ export async function GET(request: NextRequest) {
           subcategoryId: l.subcategoryId,
           category: l.category,
           subcategory: l.subcategory,
-          comboRequest: l.comboItem?.request ?? null,
+          paidAt: l.paidAt,
+          comboRequest: l.comboItem?.request
+            ? { ...l.comboItem.request, creator: undefined, requestedBy: l.comboItem.request.creator?.name ?? null }
+            : null,
         })),
       }
     })

@@ -5,9 +5,11 @@
  * unpaid expense, on the day it happened, regardless of available funds.
  * Payment happens later through a combo payment request.
  */
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
+import { createPortal } from 'react-dom'
 import { useToastContext } from '@/components/ui/toast'
 import { PayeeSelector } from '@/components/expense-account/payee-selector'
+import { MyPurchasesList } from './my-purchases-list'
 
 interface CatalogueItem {
   id: string
@@ -16,7 +18,8 @@ interface CatalogueItem {
   category: { name: string; emoji: string } | null
   subcategory: { name: string } | null
 }
-interface RankedPayee { type: string; id: string; name: string; useCount: number }
+interface RankedPayee { type: string; id: string; name: string; phone?: string | null; useCount: number }
+type Payee = { type: string; id: string; name: string; phone?: string | null }
 interface Line { key: string; item: { id?: string; name: string } | null; amount: string }
 
 const newLine = (): Line => ({ key: crypto.randomUUID(), item: null, amount: '' })
@@ -32,7 +35,9 @@ interface Props {
 export function RecordExpenseModal({ businessId, isOpen, onClose, onSaved }: Props) {
   const toast = useToastContext()
   const [date, setDate] = useState(todayStr)
-  const [payee, setPayee] = useState<{ type: string; id: string; name: string } | null>(null)
+  const [payee, setPayee] = useState<Payee | null>(null)
+  // MBM-322: "My purchases" — see where recorded purchases are in the payment process
+  const [tab, setTab] = useState<'new' | 'mine'>('new')
   const [lines, setLines] = useState<Line[]>([newLine()])
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
@@ -46,6 +51,7 @@ export function RecordExpenseModal({ businessId, isOpen, onClose, onSaved }: Pro
     setLines([newLine()])
     setNotes('')
     setError(null)
+    setTab('new')
   }, [isOpen])
 
   const total = useMemo(() => lines.reduce((s, l) => s + (Number(l.amount) > 0 ? Number(l.amount) : 0), 0), [lines])
@@ -101,6 +107,20 @@ export function RecordExpenseModal({ businessId, isOpen, onClose, onSaved }: Pro
           <button onClick={onClose} disabled={saving} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-xl leading-none">✕</button>
         </div>
 
+        <div className="px-5 pt-3 flex gap-1 border-b border-gray-200 dark:border-gray-700">
+          {([['new', '➕ New purchase'], ['mine', '📋 My purchases']] as const).map(([key, label]) => (
+            <button key={key} type="button" onClick={() => setTab(key)}
+              className={`px-3 py-2 text-sm font-medium -mb-px border-b-2 ${tab === key ? 'border-blue-600 text-blue-600 dark:text-blue-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {tab === 'mine' ? (
+          <div className="p-5 overflow-y-auto">
+            <MyPurchasesList businessId={businessId} />
+          </div>
+        ) : (
         <div className="p-5 space-y-4 overflow-y-auto">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <label className="block">
@@ -116,6 +136,9 @@ export function RecordExpenseModal({ businessId, isOpen, onClose, onSaved }: Pro
             <div>
               <span className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Payee <span className="font-normal text-gray-400">(optional)</span></span>
               <PayeePicker businessId={businessId} value={payee} onChange={setPayee} />
+              {payee?.phone && (
+                <a href={`tel:${payee.phone.replace(/\s+/g, '')}`} className="mt-1 inline-block text-sm text-blue-600 dark:text-blue-400 hover:underline">📞 {payee.phone}</a>
+              )}
             </div>
           </div>
 
@@ -169,7 +192,9 @@ export function RecordExpenseModal({ businessId, isOpen, onClose, onSaved }: Pro
 
           {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
         </div>
+        )}
 
+        {tab === 'new' && (
         <div className="px-5 py-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between gap-3">
           <div className="text-sm text-gray-600 dark:text-gray-300">
             Total <span className="text-lg font-bold text-gray-900 dark:text-white">${total.toFixed(2)}</span>
@@ -183,8 +208,59 @@ export function RecordExpenseModal({ businessId, isOpen, onClose, onSaved }: Pro
             </button>
           </div>
         </div>
+        )}
       </div>
     </div>
+  )
+}
+
+/**
+ * Dropdown list rendered on document.body with fixed positioning, under its
+ * input (or above it when there's more room there). Inside a modal's
+ * scrolling body an absolutely-positioned list gets clipped and adds an
+ * inner scrollbar instead of floating over the form.
+ */
+function FloatingList({ anchorRef, listRef, children }: {
+  anchorRef: RefObject<HTMLElement | null>
+  listRef: RefObject<HTMLDivElement | null>
+  children: ReactNode
+}) {
+  const [pos, setPos] = useState<{ left: number; width: number; top?: number; bottom?: number; maxHeight: number } | null>(null)
+
+  useLayoutEffect(() => {
+    const place = () => {
+      const el = anchorRef.current
+      if (!el) return
+      const r = el.getBoundingClientRect()
+      const below = window.innerHeight - r.bottom - 8
+      const above = r.top - 8
+      const openUp = below < 200 && above > below
+      setPos({
+        left: r.left,
+        width: r.width,
+        maxHeight: Math.max(120, Math.min(288, openUp ? above : below)),
+        ...(openUp ? { bottom: window.innerHeight - r.top + 4 } : { top: r.bottom + 4 }),
+      })
+    }
+    place()
+    window.addEventListener('resize', place)
+    window.addEventListener('scroll', place, true) // capture: the modal body scrolls, not the window
+    return () => {
+      window.removeEventListener('resize', place)
+      window.removeEventListener('scroll', place, true)
+    }
+  }, [anchorRef])
+
+  if (!pos || typeof document === 'undefined') return null
+  return createPortal(
+    <div
+      ref={listRef}
+      style={{ position: 'fixed', left: pos.left, width: pos.width, top: pos.top, bottom: pos.bottom, maxHeight: pos.maxHeight }}
+      className="z-[9999] overflow-y-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg"
+    >
+      {children}
+    </div>,
+    document.body,
   )
 }
 
@@ -199,6 +275,7 @@ function ItemPicker({ businessId, value, onChange, autoFocus }: {
   const [open, setOpen] = useState(false)
   const [items, setItems] = useState<CatalogueItem[]>([])
   const boxRef = useRef<HTMLDivElement>(null)
+  const listRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => { setQuery(value?.name ?? '') }, [value])
 
@@ -215,7 +292,11 @@ function ItemPicker({ businessId, value, onChange, autoFocus }: {
   }, [businessId, query, open])
 
   useEffect(() => {
-    const close = (e: MouseEvent) => { if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false) }
+    const close = (e: MouseEvent) => {
+      const t = e.target as Node
+      if (boxRef.current?.contains(t) || listRef.current?.contains(t)) return
+      setOpen(false)
+    }
     document.addEventListener('mousedown', close)
     return () => document.removeEventListener('mousedown', close)
   }, [])
@@ -234,7 +315,7 @@ function ItemPicker({ businessId, value, onChange, autoFocus }: {
         className={`w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm ${value ? 'border-green-500' : 'border-gray-300 dark:border-gray-600'}`}
       />
       {open && (
-        <div className="absolute z-20 mt-1 w-full max-h-60 overflow-y-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg">
+        <FloatingList anchorRef={boxRef} listRef={listRef}>
           {items.map(i => (
             <button
               key={i.id}
@@ -260,7 +341,7 @@ function ItemPicker({ businessId, value, onChange, autoFocus }: {
             </button>
           )}
           {!q && items.length === 0 && <p className="px-3 py-2 text-sm text-gray-500">Type to add the first item</p>}
-        </div>
+        </FloatingList>
       )}
     </div>
   )
@@ -270,8 +351,8 @@ function ItemPicker({ businessId, value, onChange, autoFocus }: {
  * first, with the full payee search as a fallback for a first-time payee. */
 export function PayeePicker({ businessId, value, onChange, placeholder = 'Not specified' }: {
   businessId: string
-  value: { type: string; id: string; name: string } | null
-  onChange: (p: { type: string; id: string; name: string } | null) => void
+  value: Payee | null
+  onChange: (p: Payee | null) => void
   placeholder?: string
 }) {
   const [payees, setPayees] = useState<RankedPayee[]>([])
@@ -279,6 +360,7 @@ export function PayeePicker({ businessId, value, onChange, placeholder = 'Not sp
   const [open, setOpen] = useState(false)
   const [searchAll, setSearchAll] = useState(false)
   const boxRef = useRef<HTMLDivElement>(null)
+  const listRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     fetch(`/api/restaurant/expenses/payees?businessId=${encodeURIComponent(businessId)}`)
@@ -288,7 +370,11 @@ export function PayeePicker({ businessId, value, onChange, placeholder = 'Not sp
   }, [businessId])
 
   useEffect(() => {
-    const close = (e: MouseEvent) => { if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false) }
+    const close = (e: MouseEvent) => {
+      const t = e.target as Node
+      if (boxRef.current?.contains(t) || listRef.current?.contains(t)) return
+      setOpen(false)
+    }
     document.addEventListener('mousedown', close)
     return () => document.removeEventListener('mousedown', close)
   }, [])
@@ -296,7 +382,16 @@ export function PayeePicker({ businessId, value, onChange, placeholder = 'Not sp
   if (searchAll) {
     return (
       <div className="space-y-1">
-        <PayeeSelector value={value} onChange={p => { onChange(p); if (p) setSearchAll(false) }} />
+        <PayeeSelector value={value} onChange={p => {
+          onChange(p)
+          if (!p) return
+          setSearchAll(false)
+          // The full search doesn't return phones — look this one up (MBM-322)
+          fetch(`/api/restaurant/expenses/payees?businessId=${encodeURIComponent(businessId)}&lookup=${encodeURIComponent(`${p.type}:${p.id}`)}`)
+            .then(r => (r.ok ? r.json() : null))
+            .then(j => { if (j?.data?.phone) onChange({ ...p, phone: j.data.phone }) })
+            .catch(() => {})
+        }} />
         <button type="button" onClick={() => setSearchAll(false)} className="text-xs text-blue-600 dark:text-blue-400 hover:underline">← Back to recent payees</button>
       </div>
     )
@@ -315,7 +410,7 @@ export function PayeePicker({ businessId, value, onChange, placeholder = 'Not sp
         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
       />
       {open && (
-        <div className="absolute z-20 mt-1 w-full max-h-60 overflow-y-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg">
+        <FloatingList anchorRef={boxRef} listRef={listRef}>
           <button type="button" onMouseDown={e => e.preventDefault()} onClick={() => { onChange(null); setOpen(false) }}
             className="w-full text-left px-3 py-2 text-sm text-gray-500 hover:bg-blue-50 dark:hover:bg-gray-700 italic">
             Not specified (decide when paying)
@@ -324,14 +419,14 @@ export function PayeePicker({ businessId, value, onChange, placeholder = 'Not sp
             <button key={`${p.type}:${p.id}`} type="button" onMouseDown={e => e.preventDefault()} onClick={() => { onChange(p); setOpen(false) }}
               className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 dark:hover:bg-gray-700 flex justify-between gap-2">
               <span className="text-gray-900 dark:text-white truncate">{p.name}</span>
-              <span className="text-xs text-gray-400 shrink-0">{p.type.toLowerCase()}</span>
+              <span className="text-xs text-gray-400 shrink-0">{p.phone ? `📞 ${p.phone}` : p.type.toLowerCase()}</span>
             </button>
           ))}
           <button type="button" onMouseDown={e => e.preventDefault()} onClick={() => { setSearchAll(true); setOpen(false) }}
             className="w-full text-left px-3 py-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-gray-700 border-t border-gray-100 dark:border-gray-700">
             🔍 Search all payees…
           </button>
-        </div>
+        </FloatingList>
       )}
     </div>
   )

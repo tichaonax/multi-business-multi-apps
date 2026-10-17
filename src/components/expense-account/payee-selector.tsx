@@ -52,7 +52,7 @@ export function PayeeSelector({
   const [activeFilter, setActiveFilter] = useState<PayeeFilter>('ALL')
   const [isOpen, setIsOpen] = useState(false)
   const buttonRef = useRef<HTMLButtonElement>(null)
-  const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number; width: number } | null>(null)
+  const [dropdownPos, setDropdownPos] = useState<{ top?: number; bottom?: number; left: number; width: number } | null>(null)
 
   // Load payees on mount and when refreshTrigger changes
   useEffect(() => {
@@ -180,7 +180,13 @@ export function PayeeSelector({
             if (!disabled) {
               if (!isOpen && buttonRef.current) {
                 const rect = buttonRef.current.getBoundingClientRect()
-                setDropdownPos({ top: rect.bottom + 4, left: rect.left, width: rect.width })
+                // Open upward when the panel (up to 384px) won't fit below
+                // but there's more room above — e.g. near the bottom of a modal
+                const below = window.innerHeight - rect.bottom
+                const openUp = below < 392 && rect.top > below
+                setDropdownPos(openUp
+                  ? { bottom: window.innerHeight - rect.top + 4, left: rect.left, width: rect.width }
+                  : { top: rect.bottom + 4, left: rect.left, width: rect.width })
               }
               setIsOpen(!isOpen)
             }
@@ -221,7 +227,7 @@ export function PayeeSelector({
       {/* Dropdown Panel — fixed positioning so it isn't clipped by overflow-y-auto parents */}
       {isOpen && dropdownPos && (
         <div
-          style={{ position: 'fixed', top: dropdownPos.top, left: dropdownPos.left, width: dropdownPos.width, zIndex: 9999 }}
+          style={{ position: 'fixed', top: dropdownPos.top, bottom: dropdownPos.bottom, left: dropdownPos.left, width: dropdownPos.width, zIndex: 9999 }}
           className="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-96 overflow-hidden"
         >
           {/* Search Input */}

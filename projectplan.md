@@ -10,6 +10,7 @@ All detailed project plans live in `ai-contexts/project-plans/`.
 
 | ID | Title | File | Status |
 |----|-------|------|--------|
+| MBM-322 | Restaurant salesperson: "My purchases" tab (Pending/Paid/All with plain-words payment status) + payee phone in Record Expense | [view](ai-contexts/project-plans/review/projectplan-MBM-322-salesperson-purchase-status-2026-10-17.md) | 🟢 BUILT — verified on dev |
 | MBM-321 | Build-time check: fail `build:server` / smoke check if dist/server.js can reach next/server (prevents MBM-320 repeat) | [view](ai-contexts/project-plans/review/projectplan-MBM-321-server-bundle-startup-check-2026-10-17.md) | 🟢 BUILT — verified locally |
 | MBM-320 | Service won't start after MBM-319 (AsyncLocalStorage invariant — next/server pulled into server.ts startup) + R710 WLAN XML parse error on unescaped & | [view](ai-contexts/project-plans/review/projectplan-MBM-320-service-startup-crash-r710-xml-2026-10-17.md) | 🟢 BUILT — rebuild + restart production |
 | MBM-319 | Restaurant: record daily expenses at purchase (even with no funds), pay later via combo requests; unpaid queue + Unpaid Expenses report; incurred-basis daily expenses | [view](ai-contexts/project-plans/review/projectplan-MBM-319-restaurant-deferred-expenses-2026-10-17.md) | 🟢 Built (record, unpaid report, pay via combo, incurred reporting, pending notifications) — awaiting user testing |

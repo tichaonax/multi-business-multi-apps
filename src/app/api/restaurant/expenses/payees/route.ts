@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
-import { checkRestaurantAccess, payeeRef, payeeKey, resolvePayeeNames } from '@/lib/restaurant-expenses'
+import { checkRestaurantAccess, payeeRef, payeeKey, resolvePayeeInfo } from '@/lib/restaurant-expenses'
 
 const PAYEE_FIELDS = {
   payeeType: true, payeePersonId: true, payeeUserId: true,
@@ -10,7 +10,9 @@ const PAYEE_FIELDS = {
 
 /** GET /api/restaurant/expenses/payees?businessId — MBM-319: payees this
  * restaurant has used before, most-used first. Counts recorded expenses,
- * expense-account payments and combo request items/sections. */
+ * expense-account payments and combo request items/sections.
+ * ?lookup=TYPE:id — MBM-322: just that payee's name + phone (for a payee
+ * picked through the full payee search, which doesn't return phones). */
 export async function GET(request: NextRequest) {
   try {
     const user = await getServerUser()
@@ -19,6 +21,13 @@ export async function GET(request: NextRequest) {
     const businessId = request.nextUrl.searchParams.get('businessId')
     const denied = await checkRestaurantAccess(user, businessId)
     if (denied) return denied
+
+    const lookup = request.nextUrl.searchParams.get('lookup')
+    if (lookup) {
+      const [type, id] = lookup.split(':')
+      const one = (await resolvePayeeInfo([{ type, id }])).get(payeeKey({ type, id }))
+      return NextResponse.json({ success: true, data: one ? { type, id, ...one } : null })
+    }
 
     const accounts = await prisma.expenseAccounts.findMany({ where: { businessId: businessId! }, select: { id: true } })
     const accountIds = accounts.map(a => a.id)
@@ -55,10 +64,10 @@ export async function GET(request: NextRequest) {
     const ranked = Array.from(usage.values())
       .sort((a, b) => b.count - a.count || b.lastUsedAt.getTime() - a.lastUsedAt.getTime())
       .slice(0, 200)
-    const names = await resolvePayeeNames(ranked)
+    const info = await resolvePayeeInfo(ranked)
     const data = ranked
-      .filter(p => names.has(payeeKey(p)))
-      .map(p => ({ type: p.type, id: p.id, name: names.get(payeeKey(p))!, useCount: p.count }))
+      .filter(p => info.has(payeeKey(p)))
+      .map(p => ({ type: p.type, id: p.id, name: info.get(payeeKey(p))!.name, phone: info.get(payeeKey(p))!.phone, useCount: p.count }))
 
     return NextResponse.json({ success: true, data })
   } catch (err) {
