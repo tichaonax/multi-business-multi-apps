@@ -10,6 +10,8 @@ All detailed project plans live in `ai-contexts/project-plans/`.
 
 | ID | Title | File | Status |
 |----|-------|------|--------|
+| MBM-318 | Team Chat history deleted after 7 days (auto-prune on every load) — stop pruning so users can scroll back | [view](ai-contexts/project-plans/review/projectplan-MBM-318-team-chat-keep-history-2026-10-17.md) | 🟢 BUILT — not yet verified |
+| MBM-317 | Customer display crashes after deployment — Electron kiosk window keeps stale bundle; cache-clear reload must also reload it | [view](ai-contexts/project-plans/review/projectplan-MBM-317-customer-display-stale-bundle-2026-10-17.md) | 🟢 BUILT — not yet verified |
 | MBM-316 | Sales report chart: Sales / Expenses / Margin summary missing for ranges with no expenses — always show it ($0.00 expenses) | [view](ai-contexts/project-plans/review/projectplan-MBM-316-sales-chart-margin-always-shown-2026-10-16.md) | 🟢 BUILT — typechecked clean, not yet browser-verified |
 | MBM-315 | Chat sliding-window loading — open at first unread, ~30 per page, fetch older/newer on scroll (DM/group + Team Chat), remove month placeholders, read receipts only up to what was seen | [view](ai-contexts/project-plans/review/projectplan-MBM-315-chat-sliding-window-history-2026-10-16.md) | 🟢 BUILT — index applied, paging verified on dev data, typechecked clean; not yet browser-verified |
 | MBM-314 | Duplicate direct chats with the same person — root cause (restore upsert-by-id + create race) + re-merge migration | [view](ai-contexts/project-plans/review/projectplan-MBM-314-duplicate-direct-chats-2026-10-16.md) | 🟢 BUILT — migration applied on dev (unique `directKey`), duplicates merged & verified, typechecked clean |

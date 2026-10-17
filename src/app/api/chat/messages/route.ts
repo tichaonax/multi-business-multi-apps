@@ -82,10 +82,8 @@ export async function GET(request: NextRequest) {
     let base: any
     let lastReadAt: Date | null = null
     if (isGeneral) {
-      // Prune messages older than 7 days (fire-and-forget) — only the
-      // General feed accumulates unbounded broadcast traffic like this.
-      const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-      prisma.chatMessages.deleteMany({ where: { roomId, createdAt: { lt: cutoff } } }).catch(() => {})
+      // No auto-prune here (MBM-318) — Team Chat keeps its full history so
+      // users can scroll back; the sliding window only loads a page at a time.
 
       // Top-level messages the current user can see:
       //  - message has no recipients (public), OR
@@ -113,7 +111,7 @@ export async function GET(request: NextRequest) {
       lastReadAt = membership.lastReadAt
 
       // Read-only system channels (e.g. "System Alerts") auto-expire after
-      // 30 days — same fire-and-forget pruning idea as General's 7 days.
+      // 30 days (fire-and-forget). Team Chat is never pruned (MBM-318).
       prisma.chatRooms.findUnique({ where: { id: roomId }, select: { type: true } }).then(r => {
         if (r?.type !== 'system') return
         const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)

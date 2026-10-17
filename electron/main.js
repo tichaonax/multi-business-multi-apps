@@ -726,11 +726,19 @@ ipcMain.handle('scale:detect-baud', (_event, comPort) => scaleService.detectBaud
 // visible sign anything is wrong. Shared by the manual "Reload (Clear
 // Cache)" menu item and the renderer-triggered auto version check
 // (electron:clearCacheAndReload) so there's exactly one implementation.
+// The customer display window shares this session (and so this cache) but is
+// only ever hidden, never recreated — reload it too, or it keeps running the
+// old bundle against the new server after a redeploy (MBM-317).
 function clearCacheAndReload() {
   if (!mainWindow || mainWindow.isDestroyed()) return
   mainWindow.webContents.session.clearCache()
     .catch((err) => console.error('[App] clearCache failed:', err))
-    .finally(() => mainWindow.webContents.reloadIgnoringCache())
+    .finally(() => {
+      mainWindow.webContents.reloadIgnoringCache()
+      if (customerWindow && !customerWindow.isDestroyed()) {
+        customerWindow.webContents.reloadIgnoringCache()
+      }
+    })
 }
 
 ipcMain.handle('app:clearCacheAndReload', () => {

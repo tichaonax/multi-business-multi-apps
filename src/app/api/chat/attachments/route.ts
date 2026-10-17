@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
     // the composer without sending sits here forever otherwise (messageId
     // stays null, nothing else ever claims or deletes it). Same
     // fire-and-forget prune-while-fetching pattern already used for
-    // General's 7-day message cutoff — no separate cron job needed.
+    // System Alerts' 30-day message cutoff — no separate cron job needed.
     prisma.chatAttachments.deleteMany({
       where: { messageId: null, createdAt: { lt: new Date(Date.now() - 2 * 60 * 60 * 1000) } },
     }).catch(() => {})
