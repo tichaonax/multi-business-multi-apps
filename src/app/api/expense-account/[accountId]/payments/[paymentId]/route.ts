@@ -10,6 +10,7 @@ import { validatePayee } from '@/lib/payee-utils'
 import { getEffectivePermissions, isSystemAdmin } from '@/lib/permission-utils'
 import { sumAbsBusinessTransactionAmounts } from '@/lib/business-balance-utils'
 import { getServerUser } from '@/lib/get-server-user'
+import { settleComboRequestForPaymentTx, notifyComboRequestSettled, type SettledComboRequest } from '@/lib/expense-account/combo-request-settle'
 
 /**
  * GET /api/expense-account/[accountId]/payments/[paymentId]
@@ -316,6 +317,7 @@ export async function PATCH(
       const now = new Date()
       const paidAt = body.paidAt ? new Date(body.paidAt) : now
       const isEcocash = (existingPayment as any).paymentChannel === 'ECOCASH'
+      let settledCombo: SettledComboRequest | null = null // MBM-324
       const businessId = (existingPayment.expenseAccount as any)?.businessId as string | null
 
       // For EcoCash payments: require txCode and create deposit + bucket entry
@@ -381,8 +383,11 @@ export async function PATCH(
             data: { status: 'PAID', paidAt },
           })
           await updateExpenseAccountBalanceTx(tx, accountId)
+          // MBM-324: a combo payment paid in full settles its request + items
+          settledCombo = await settleComboRequestForPaymentTx(tx, paymentId, paidAt)
           return p
         })
+        if (settledCombo) await notifyComboRequestSettled(settledCombo, user.id)
         return NextResponse.json({
           success: true,
           message: 'EcoCash payment marked as sent',
@@ -449,8 +454,11 @@ export async function PATCH(
           data: { status: 'PAID', paidAt },
         })
         await updateExpenseAccountBalanceTx(tx, accountId)
+        // MBM-324: a combo payment paid in full settles its request + items
+        settledCombo = await settleComboRequestForPaymentTx(tx, paymentId, paidAt)
         return p
       })
+      if (settledCombo) await notifyComboRequestSettled(settledCombo, user.id)
 
       // Clear "Payment Approved — Action Required" notification for the requester now that it's paid
       if (existingPayment.createdBy) {

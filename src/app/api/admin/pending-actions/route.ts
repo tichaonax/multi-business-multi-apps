@@ -440,6 +440,47 @@ export async function GET() {
       }
     }
 
+    // MBM-326: submitted combo payment requests awaiting cashier approval — for
+    // admins (all accounts) and canMakeExpensePayments users (accounts they hold
+    // a FULL grant on, the same people notified on submit). Unlike payment
+    // requests, the viewer's own requests are included (flagged isMine): the
+    // approve route lets an approver approve their own request, and in a small
+    // team the owner both raises and approves — otherwise their own submitted
+    // request is listed nowhere (they aren't notified of their own submission).
+    let pendingComboRequests: object[] = []
+    if (sysAdmin || permissions.canMakeExpensePayments) {
+      const fullGrantAccountIds = sysAdmin ? null : (await prisma.expenseAccountGrants.findMany({
+        where: { userId: user.id, permissionLevel: 'FULL' },
+        select: { expenseAccountId: true },
+      })).map(g => g.expenseAccountId)
+      if (fullGrantAccountIds === null || fullGrantAccountIds.length > 0) {
+        const rows = await prisma.comboPaymentRequests.findMany({
+          where: {
+            status: 'SUBMITTED',
+            ...(fullGrantAccountIds ? { accountId: { in: fullGrantAccountIds } } : {}),
+          },
+          select: {
+            id: true, accountId: true, title: true, requestedAmount: true, overrideAmount: true, submittedAt: true, createdBy: true,
+            creator: { select: { name: true } },
+            expenseAccount: { select: { accountName: true, business: { select: { name: true } } } },
+          },
+          orderBy: { submittedAt: 'asc' },
+          take: 50,
+        })
+        pendingComboRequests = rows.map(r => ({
+          id: r.id,
+          accountId: r.accountId,
+          title: r.title,
+          amount: Number(r.overrideAmount ?? r.requestedAmount),
+          submittedAt: r.submittedAt?.toISOString() ?? null,
+          requesterName: r.creator?.name ?? '—',
+          accountName: r.expenseAccount?.accountName ?? '—',
+          businessName: r.expenseAccount?.business?.name ?? null,
+          isMine: r.createdBy === user.id,
+        }))
+      }
+    }
+
     // Pending bulk stock (stock-take) drafts — drafts started by the current user that are still DRAFT
     const stockTakeDraftRows = await prisma.stockTakeDrafts.findMany({
       where: { createdById: user.id, status: 'DRAFT' },
@@ -649,7 +690,8 @@ export async function GET() {
       myApprovedPettyCash.length +
       pendingStockTakeDrafts.length +
       (personalPaymentRequests as unknown[]).length +
-      (pendingEcocashConversions as unknown[]).length
+      (pendingEcocashConversions as unknown[]).length +
+      pendingComboRequests.length
 
     return NextResponse.json({
       loanLockRequests,
@@ -669,6 +711,7 @@ export async function GET() {
       pendingStockTakeDrafts,
       personalPaymentRequests,
       pendingEcocashConversions,
+      pendingComboRequests,
       canApprovePettyCash,
       canRequestPettyCash,
       canApproveCashAlloc: canApproveCashAllocation,

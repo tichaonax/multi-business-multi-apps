@@ -52,7 +52,8 @@ export async function sweepComboRequestExpiry(): Promise<{ expired: number; warn
 
   for (const req of requests) {
     if (isComboRequestExpired(req)) {
-      await prisma.$transaction(tx => expireComboRequestTx(tx, req))
+      const result = await prisma.$transaction(tx => expireComboRequestTx(tx, req))
+      if (result?.status !== 'EXPIRED') continue // MBM-324: already paid — settled, not expired
       expired++
       try {
         await emitNotification({

@@ -24,6 +24,9 @@ export async function PATCH(
 
     if (isComboRequestExpired(comboRequest)) {
       const expired = await prisma.$transaction(tx => expireComboRequestTx(tx, comboRequest))
+      if (expired?.status === 'PAID') {
+        return NextResponse.json({ error: 'This request has already been paid in full from the expense account' }, { status: 400 })
+      }
       try {
         await emitNotification({
           userIds: [comboRequest.createdBy],

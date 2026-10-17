@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { isSystemAdmin } from '@/lib/permission-utils'
 import { updateExpenseAccountBalanceTx } from '@/lib/expense-account-utils'
+import { settleComboRequestForPaymentTx, notifyComboRequestSettled, type SettledComboRequest } from '@/lib/expense-account/combo-request-settle'
 
 /**
  * POST /api/expense-account/[accountId]/payments/[paymentId]/submit
@@ -94,6 +95,7 @@ export async function POST(
     } : {}
 
     const now = new Date()
+    let settledCombo: SettledComboRequest | null = null
     const updated = await prisma.$transaction(async (tx: any) => {
       const p = await tx.expenseAccountPayments.update({
         where: { id: paymentId },
@@ -108,8 +110,11 @@ export async function POST(
         select: { id: true, status: true, paidAt: true, submittedAt: true, submittedBy: true },
       })
       await updateExpenseAccountBalanceTx(tx, accountId)
+      // MBM-324: a combo payment paid in full settles its request + items
+      settledCombo = await settleComboRequestForPaymentTx(tx, paymentId, now)
       return p
     })
+    if (settledCombo) await notifyComboRequestSettled(settledCombo, user.id)
 
     // Propagate PAID status to linked supplier payment request (non-blocking)
     prisma.supplierPaymentRequests.updateMany({

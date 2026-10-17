@@ -293,7 +293,7 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
       ?? transaction.payeeUser?.name
       ?? transaction.payeeBusiness?.name
       ?? transaction.payeePerson?.fullName
-      ?? 'Unknown'
+      ?? (transaction.payeeType === 'COMBO' ? 'Multiple payees' : 'Unknown') // MBM-323
 
     const payment: PaymentSummary = {
       id: paymentId,

@@ -10,6 +10,10 @@ All detailed project plans live in `ai-contexts/project-plans/`.
 
 | ID | Title | File | Status |
 |----|-------|------|--------|
+| MBM-326 | Submitted combo requests missing from the cashier's Pending Actions (only reachable via notification / account page); admin fallback when no other FULL grantee to notify | [view](ai-contexts/project-plans/review/projectplan-MBM-326-combo-requests-in-pending-actions-2026-10-17.md) | 🟢 BUILT — awaiting user testing |
+| MBM-325 | Restaurant POS "Record Expense" button shows the salesperson's status: red with unpaid count/amount, green when all paid | [view](ai-contexts/project-plans/review/projectplan-MBM-325-record-expense-button-status-2026-10-17.md) | 🟢 BUILT — verified on dev |
+| MBM-324 | Account-level "Mark as Paid" on a combo payment leaves the combo request/items (and recorded restaurant purchases) unpaid; expiry could then release them | [view](ai-contexts/project-plans/review/projectplan-MBM-324-combo-payment-mark-paid-sync-2026-10-17.md) | 🟢 BUILT — repair migration to apply |
+| MBM-323 | Combo "No Receipt": pick a previously used reason; combo payments show "Multiple payees" instead of "Unknown" | [view](ai-contexts/project-plans/review/projectplan-MBM-323-no-receipt-phrases-combo-payee-label-2026-10-17.md) | 🟡 PLANNED — awaiting go-ahead |
 | MBM-322 | Restaurant salesperson: "My purchases" tab (Pending/Paid/All with plain-words payment status) + payee phone in Record Expense | [view](ai-contexts/project-plans/review/projectplan-MBM-322-salesperson-purchase-status-2026-10-17.md) | 🟢 BUILT — verified on dev |
 | MBM-321 | Build-time check: fail `build:server` / smoke check if dist/server.js can reach next/server (prevents MBM-320 repeat) | [view](ai-contexts/project-plans/review/projectplan-MBM-321-server-bundle-startup-check-2026-10-17.md) | 🟢 BUILT — verified locally |
 | MBM-320 | Service won't start after MBM-319 (AsyncLocalStorage invariant — next/server pulled into server.ts startup) + R710 WLAN XML parse error on unescaped & | [view](ai-contexts/project-plans/review/projectplan-MBM-320-service-startup-crash-r710-xml-2026-10-17.md) | 🟢 BUILT — rebuild + restart production |

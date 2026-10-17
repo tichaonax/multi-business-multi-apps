@@ -162,6 +162,7 @@ export function ComboRequestDetail({ accountId, requestId }: ComboRequestDetailP
   const [noReceiptItem, setNoReceiptItem] = useState<ComboItem | null>(null) // MBM-303: item-level "No Receipt" explanation
   const [noReceiptText, setNoReceiptText] = useState('')
   const [noReceiptSubmitting, setNoReceiptSubmitting] = useState(false)
+  const [noReceiptReasons, setNoReceiptReasons] = useState<string[]>([]) // MBM-323: reasons used before
   const [showReceipts, setShowReceipts] = useState(false) // MBM-286: request-level "Manage Receipts"
   const [showVoucherModal, setShowVoucherModal] = useState(false)
   const [accountInfo, setAccountInfo] = useState<{ accountName: string; accountNumber: string } | null>(null)
@@ -382,6 +383,19 @@ export function ComboRequestDetail({ accountId, requestId }: ComboRequestDetailP
       setSettleSubmitting(false)
     }
   }
+
+  // MBM-323: reload previously used reasons each time the box opens, so a
+  // reason typed a moment ago is offered for the next item.
+  const noReceiptItemId = noReceiptItem?.id
+  useEffect(() => {
+    if (!noReceiptItemId) return
+    let current = true
+    fetch(`/api/expense-account/${accountId}/combo-requests/no-receipt-reasons`, { credentials: 'include' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(j => { if (current && j?.data) setNoReceiptReasons(j.data) })
+      .catch(() => {})
+    return () => { current = false }
+  }, [noReceiptItemId, accountId])
 
   // MBM-303: mark/clear an item's "no receipt" explanation — item accounts
   // for itself without a matching receipt total once this is set.
@@ -1013,6 +1027,25 @@ export function ComboRequestDetail({ accountId, requestId }: ComboRequestDetailP
               <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{noReceiptItem.description}</p>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Why isn't there a receipt for this? <span className="text-red-500">*</span></label>
+                {noReceiptReasons.length > 0 && (
+                  <div className="mb-2">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Pick a reason used before, or type a new one:</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {noReceiptReasons.map(r => (
+                        <button
+                          key={r}
+                          type="button"
+                          onClick={() => setNoReceiptText(r)}
+                          className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${noReceiptText.trim().toLowerCase() === r.toLowerCase()
+                            ? 'bg-amber-100 dark:bg-amber-900/40 border-amber-400 dark:border-amber-600 text-amber-800 dark:text-amber-200'
+                            : 'bg-gray-50 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600'}`}
+                        >
+                          {r}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <textarea
                   value={noReceiptText}
                   onChange={e => setNoReceiptText(e.target.value)}

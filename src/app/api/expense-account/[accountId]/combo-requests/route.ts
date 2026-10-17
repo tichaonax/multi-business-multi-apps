@@ -4,6 +4,7 @@ import { getServerUser } from '@/lib/get-server-user'
 import { getEffectivePermissions } from '@/lib/permission-utils'
 import { canUserViewAccount, canUserWriteAccount, getUserGrantLevel } from '@/lib/expense-account-access'
 import { emitNotification } from '@/lib/notifications/notification-emitter'
+import { comboRequestApproverIds } from '@/lib/expense-account/combo-request-approvers'
 import { validateExpenseLinks, linkExpenseLineTx, ExpenseLinkError } from '@/lib/restaurant-expense-combo'
 import { refreshRestaurantExpenseNoticeForAccount } from '@/lib/restaurant-expense-notify'
 
@@ -180,11 +181,7 @@ export async function POST(
     // Notify cashiers/managers when submitted (non-blocking)
     if (isSubmitting) {
       try {
-        const grants = await prisma.expenseAccountGrants.findMany({
-          where: { expenseAccountId: accountId, permissionLevel: 'FULL' },
-          select: { userId: true },
-        })
-        const cashierIds = grants.map(g => g.userId).filter(id => id !== user.id)
+        const cashierIds = await comboRequestApproverIds(accountId, user.id) // MBM-326: admin fallback
         if (cashierIds.length > 0) {
           await emitNotification({
             userIds: cashierIds,

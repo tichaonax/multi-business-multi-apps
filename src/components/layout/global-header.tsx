@@ -987,6 +987,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                             const myApprovedPayments = ((pendingActions as any).myApprovedPayments ?? []).filter((r: any) => !bellSearch || matchesAmountSearch(r.amount, bellSearch) || [r.businessName, r.categoryName, r.payeeName, r.notes].some((v: string | undefined) => v?.toLowerCase().includes(bellSearch.toLowerCase())))
                             const myApprovedPettyCash = ((pendingActions as any).myApprovedPettyCash ?? []).filter((r: any) => !bellSearch || matchesAmountSearch(r.approvedAmount, bellSearch) || [r.business?.name, r.purpose].some((v: string | undefined) => v?.toLowerCase().includes(bellSearch.toLowerCase())))
                             const returnConfirmations = ((pendingActions as any).pendingReturnConfirmations ?? []).filter((r: any) => !bellSearch || matchesAmountSearch(r.returnRequestedAmount, bellSearch) || [r.requesterName, r.accountName, r.businessName, r.notes, r.returnNote].some((v: string | undefined) => v?.toLowerCase().includes(bellSearch.toLowerCase())))
+                            const comboRequests = (pendingActions.pendingComboRequests ?? []).filter((c) => !bellSearch || matchesAmountSearch(c.amount, bellSearch) || [c.title, c.requesterName, c.accountName, c.businessName ?? undefined].some((v: string | undefined) => v?.toLowerCase().includes(bellSearch.toLowerCase())))
                             const pettyCashReturns = ((pendingActions as any).pendingPettyCashReturns ?? []).filter((r: any) => !bellSearch || matchesAmountSearch(r.remainingBalance, bellSearch) || [r.requesterName, r.purpose, r.businessName].some((v: string | undefined) => v?.toLowerCase().includes(bellSearch.toLowerCase())))
 
                             return (
@@ -1175,6 +1176,25 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                                           <p className="text-secondary">{d.businessName} · <span className="text-teal-600 dark:text-teal-400 font-medium">{d.itemCount} item{d.itemCount !== 1 ? 's' : ''} saved</span></p>
                                         </div>
                                       </button>
+                                    ))}
+                                  </div>
+                                )}
+
+                                {/* MBM-326: combo payment requests awaiting cashier approval */}
+                                {renderPendingHeader('combo', '🧺', 'Combo Requests to Approve', comboRequests.length)}
+                                {isPendingExpanded('combo') && (
+                                  <div className="divide-y divide-border">
+                                    {comboRequests.map((c) => (
+                                      <Link key={c.id} href={`/expense-accounts/${c.accountId}/combo-requests/${c.id}`} onClick={() => setShowBellPreview(false)} className="flex items-start gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 text-xs">
+                                        <span className="mt-0.5 shrink-0">🧺</span>
+                                        <div className="min-w-0">
+                                          <p className="font-medium text-primary truncate">{c.title}</p>
+                                          <p className="text-secondary truncate">
+                                            {c.isMine ? 'Your request' : c.requesterName} · {c.businessName ?? c.accountName}
+                                            {' · '}<span className="text-orange-500 dark:text-orange-400 font-semibold">${c.amount.toFixed(2)}</span>
+                                          </p>
+                                        </div>
+                                      </Link>
                                     ))}
                                   </div>
                                 )}

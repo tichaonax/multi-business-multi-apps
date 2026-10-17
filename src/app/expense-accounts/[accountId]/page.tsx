@@ -177,6 +177,7 @@ function RecentPaymentsPanel({ accountId, refreshKey }: { accountId: string; ref
     if (p.payeePerson) return p.payeePerson.fullName
     if (p.payeeBusiness) return p.payeeBusiness.name
     if (p.payeeSupplier) return p.payeeSupplier.name
+    if (p.payeeType === 'COMBO') return 'Multiple payees' // MBM-323: combo request — one payment, several payees
     return 'Unknown'
   }
 
@@ -212,7 +213,7 @@ function RecentPaymentsPanel({ accountId, refreshKey }: { accountId: string; ref
                 <p className="text-xs text-gray-400 dark:text-gray-500 truncate">
                   {p.paymentType === 'PETTY_CASH_RETURN'
                     ? 'Unused cash returned'
-                    : (p.category?.name ?? 'No category')}
+                    : (p.category?.name ?? (p.payeeType === 'COMBO' ? 'Multiple categories' : 'No category'))}
                   {p.receiptNumber ? ` · #${p.receiptNumber}` : ''}
                 </p>
               </div>
@@ -423,6 +424,7 @@ function MyQueuePanel({
     if (p.payeePerson) return p.payeePerson.fullName
     if (p.payeeBusiness) return p.payeeBusiness.name
     if (p.payeeSupplier) return p.payeeSupplier.name
+    if (p.payeeType === 'COMBO') return 'Multiple payees' // MBM-323: combo request — one payment, several payees
     return 'Unknown'
   }
 
@@ -725,7 +727,7 @@ function MyQueuePanel({
                       : <span className="shrink-0 text-[9px] px-1 py-0.5 rounded bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 font-medium">💵 Cash</span>
                     }
                   </div>
-                  <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{p.category?.name ?? 'No category'}{p.createdAt && <span className="ml-1 text-gray-300 dark:text-gray-600">· {timeAgo(p.createdAt)}</span>}</p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{p.category?.name ?? (p.payeeType === 'COMBO' ? 'Multiple categories' : 'No category')}{p.createdAt && <span className="ml-1 text-gray-300 dark:text-gray-600">· {timeAgo(p.createdAt)}</span>}</p>
                   {p.notes && <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5 italic">{p.notes}</p>}
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
@@ -765,7 +767,7 @@ function MyQueuePanel({
                   : <span className="shrink-0 text-[9px] px-1 py-0.5 rounded bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 font-medium">💵 Cash</span>
                 }
               </div>
-              <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{p.category?.name ?? 'No category'}{p.createdAt && <span className="ml-1 text-gray-300 dark:text-gray-600">· {timeAgo(p.createdAt)}</span>}</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{p.category?.name ?? (p.payeeType === 'COMBO' ? 'Multiple categories' : 'No category')}{p.createdAt && <span className="ml-1 text-gray-300 dark:text-gray-600">· {timeAgo(p.createdAt)}</span>}</p>
               {p.notes && <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5 italic">{p.notes}</p>}
             </div>
             <div className="flex items-center gap-2 shrink-0">
@@ -864,7 +866,7 @@ function MyQueuePanel({
                       : <span className="shrink-0 text-[9px] px-1 py-0.5 rounded bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 font-medium">💵 Cash</span>
                     }
                   </div>
-                  <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{p.category?.name ?? 'No category'}{p.createdAt && <span className="ml-1 text-gray-300 dark:text-gray-600">· {timeAgo(p.createdAt)}</span>}</p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{p.category?.name ?? (p.payeeType === 'COMBO' ? 'Multiple categories' : 'No category')}{p.createdAt && <span className="ml-1 text-gray-300 dark:text-gray-600">· {timeAgo(p.createdAt)}</span>}</p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <span className="text-xs font-semibold text-red-600 dark:text-red-400">−{fmt(p.amount)}</span>
@@ -937,7 +939,7 @@ function MyQueuePanel({
                             : <span className="shrink-0 text-[9px] px-1 py-0.5 rounded bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 font-medium">💵 Cash</span>
                           }
                         </div>
-                        <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{p.category?.name ?? 'No category'}{p.createdAt && <span className="ml-1 text-gray-300 dark:text-gray-600">· {timeAgo(p.createdAt)}</span>}</p>
+                        <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{p.category?.name ?? (p.payeeType === 'COMBO' ? 'Multiple categories' : 'No category')}{p.createdAt && <span className="ml-1 text-gray-300 dark:text-gray-600">· {timeAgo(p.createdAt)}</span>}</p>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         <span className="text-xs font-semibold text-red-600 dark:text-red-400">−{fmt(p.amount)}</span>

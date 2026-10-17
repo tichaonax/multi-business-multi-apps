@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { emitNotification } from '@/lib/notifications/notification-emitter'
+import { comboRequestApproverIds } from '@/lib/expense-account/combo-request-approvers'
 
 export async function POST(
   request: NextRequest,
@@ -43,11 +44,7 @@ export async function POST(
 
     // Notify cashiers/managers (non-blocking)
     try {
-      const grants = await prisma.expenseAccountGrants.findMany({
-        where: { expenseAccountId: accountId, permissionLevel: 'FULL' },
-        select: { userId: true },
-      })
-      const cashierIds = grants.map(g => g.userId).filter(id => id !== user.id)
+      const cashierIds = await comboRequestApproverIds(accountId, user.id) // MBM-326: admin fallback
       if (cashierIds.length > 0) {
         await emitNotification({
           userIds: cashierIds,

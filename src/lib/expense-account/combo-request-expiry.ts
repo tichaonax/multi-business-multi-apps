@@ -1,5 +1,6 @@
 import { updateExpenseAccountBalanceTx } from '@/lib/expense-account-utils'
 import { releaseExpenseLinesTx } from '@/lib/restaurant-expense-combo'
+import { settleComboRequestForPaymentTx } from './combo-request-settle'
 
 export const COMBO_REQUEST_EXPIRY_DAYS = 30
 
@@ -39,12 +40,21 @@ type ExpirableRequest = {
 // payments/[paymentId]/reverse endpoint uses — already excluded from
 // updateExpenseAccountBalanceTx's sum, so calling that afterward correctly
 // restores the balance that approval had deducted.
+//
+// MBM-324: if the linked payment was already marked PAID from the expense
+// account (before that settled the request), the money has gone out — the
+// request is settled instead of expired, so recorded restaurant purchases
+// it paid are never put back to unpaid. Callers check the returned status.
 export async function expireComboRequestTx(tx: any, request: ExpirableRequest, now: Date = new Date()) {
   if (request.linkedPaymentId) {
     const payment = await tx.expenseAccountPayments.findUnique({
       where: { id: request.linkedPaymentId },
-      select: { id: true, status: true },
+      select: { id: true, status: true, paidAt: true },
     })
+    if (payment && payment.status === 'PAID') {
+      await settleComboRequestForPaymentTx(tx, payment.id, payment.paidAt ?? now)
+      return tx.comboPaymentRequests.findUnique({ where: { id: request.id } })
+    }
     if (payment && payment.status === 'APPROVED') {
       await tx.expenseAccountPayments.update({
         where: { id: payment.id },

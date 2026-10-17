@@ -12,6 +12,7 @@ import Link from 'next/link'
 import { formatDateTimeZim } from '@/lib/date-utils'
 import { ExpensePaymentVoucherModal, PaymentSummary } from '@/components/expense-account/expense-payment-voucher-modal'
 import { matchesAmountSearch } from '@/lib/amount-search'
+import type { PendingActionsData } from '@/hooks/use-pending-actions-count'
 
 // Approved standalone payment returned by direct-approve API — used to drive per-payment voucher panel
 interface ApprovedStandalonePayment {
@@ -212,6 +213,7 @@ export default function PendingActionsPage() {
   const [pendingReturnConfirmations, setPendingReturnConfirmations] = useState<PendingReturnConfirmation[]>([])
   const [pendingPettyCashReturns, setPendingPettyCashReturns] = useState<PendingPettyCashReturn[]>([])
   const [pendingEcocashConversions, setPendingEcocashConversions] = useState<PendingEcocashConversion[]>([])
+  const [pendingComboRequests, setPendingComboRequests] = useState<NonNullable<PendingActionsData['pendingComboRequests']>>([]) // MBM-326
   const [withdrawalRequests, setWithdrawalRequests] = useState<any[]>([])
   const [withdrawalActionState, setWithdrawalActionState] = useState<Record<string, boolean>>({})
   const [withdrawalDenyModal, setWithdrawalDenyModal] = useState<{ requestId: string; loanId: string; amount: number; deniedByRole: 'ADMIN' | 'CASHIER' } | null>(null)
@@ -231,7 +233,7 @@ export default function PendingActionsPage() {
   const total = loanLockRequests.length + pendingSupplierPayments.length + pendingPettyCash.length +
     pendingCashAllocations.length + pendingPaymentBatches.length + pendingPaymentRequests.length +
     pendingMealPrograms.length + personalPaymentRequests.length + pendingEcocashConversions.length +
-    pendingReturnConfirmations.length + pendingPettyCashReturns.length
+    pendingReturnConfirmations.length + pendingPettyCashReturns.length + pendingComboRequests.length
   const [approvingId, setApprovingId] = useState<string | null>(null)
   const [batchingId, setBatchingId] = useState<string | null>(null)
   const [approvingMealId, setApprovingMealId] = useState<string | null>(null)
@@ -280,6 +282,7 @@ export default function PendingActionsPage() {
         setPendingMealPrograms(json.pendingMealPrograms || [])
         setPersonalPaymentRequests(json.personalPaymentRequests || [])
         setPendingEcocashConversions(json.pendingEcocashConversions || [])
+        setPendingComboRequests(json.pendingComboRequests || [])
         setPendingReturnConfirmations(json.pendingReturnConfirmations || [])
         setPendingPettyCashReturns(json.pendingPettyCashReturns || [])
       }
@@ -1207,6 +1210,46 @@ export default function PendingActionsPage() {
                       </button>
                     </div>
                   ))}
+                </div>
+              </div>
+            )})()}
+
+            {/* MBM-326: combo payment requests awaiting cashier approval */}
+            {(() => { const _ps = pageSearch.toLowerCase().trim(); const items = _ps ? pendingComboRequests.filter(i => matchesAmountSearch(i.amount, _ps) || [i.title, i.requesterName, i.accountName, i.businessName ?? undefined].some(v => v?.toLowerCase().includes(_ps))) : pendingComboRequests; return items.length > 0 && (
+              <div>
+                <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                  <span>🧺</span> Combo Requests Awaiting Approval
+                  <span className="bg-orange-500 text-white text-xs font-bold rounded-full px-1.5 py-0.5">
+                    {items.length}
+                  </span>
+                </h2>
+                <div className="space-y-3">
+                  {items.map(item => {
+                    const daysLeft = item.submittedAt ? Math.max(0, Math.ceil((new Date(item.submittedAt).getTime() + 30 * 86400000 - Date.now()) / 86400000)) : null
+                    return (
+                    <div key={item.id} className="bg-white dark:bg-gray-800 border border-orange-300 dark:border-orange-700 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center gap-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-semibold text-gray-900 dark:text-white">{item.title}</span>
+                          <span className="bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300 text-xs font-medium px-2 py-0.5 rounded">Submitted</span>
+                          {item.isMine && <span className="bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 text-xs font-medium px-2 py-0.5 rounded">Your request</span>}
+                        </div>
+                        <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+                          <span>Amount: <span className="font-medium text-gray-700 dark:text-gray-300">${item.amount.toFixed(2)}</span></span>
+                          <span>Account: <span className="font-medium text-gray-700 dark:text-gray-300">{item.accountName}{item.businessName ? ` (${item.businessName})` : ''}</span></span>
+                          <span>Requested by: <span className="font-medium text-gray-700 dark:text-gray-300">{item.requesterName}</span></span>
+                          {item.submittedAt && <span>Submitted: <span className="font-medium text-gray-700 dark:text-gray-300">{new Date(item.submittedAt).toLocaleDateString()}</span></span>}
+                          {daysLeft !== null && <span className={daysLeft <= 7 ? 'text-red-600 dark:text-red-400 font-medium' : ''}>{daysLeft} day{daysLeft === 1 ? '' : 's'} left</span>}
+                        </div>
+                      </div>
+                      <Link
+                        href={`/expense-accounts/${item.accountId}/combo-requests/${item.id}`}
+                        className="px-3 py-1.5 bg-orange-600 hover:bg-orange-700 text-white text-sm font-medium rounded transition-colors shrink-0"
+                      >
+                        Review &amp; approve →
+                      </Link>
+                    </div>
+                  )})}
                 </div>
               </div>
             )})()}

@@ -10430,7 +10430,13 @@ The item is marked as **Paid** and the total paid amount updates. Once all funde
 
 > **Not Funded items** (approved for $0) cannot be marked as paid.
 
+**Paying the whole request at once:** the approved combo request also appears on the expense account page as one payment (**Multiple payees**). Clicking **✓ Mark as Paid** on it (or the cashier's **📱 Mark as Sent** for EcoCash) settles the whole request. Every funded item still unpaid is marked paid at its approved amount, recorded restaurant purchases in it show as **Paid**, and the request moves to **PAID**. To record a different amount for an item, use **Mark Paid** on that item inside the request first.
+
+> A request whose payment has been marked paid is never auto-expired.
+
 **🧾 Add Receipt (per item)** — once the request has been approved and paid out, a separate **🧾 Add Receipt** button also appears next to each funded item, independent of Mark Paid. This opens the full receipt form (payee/supplier, expense type, amount, etc. — see [Attaching Receipts to Expense Payments](#attaching-receipts-to-expense-payments) in Section 17) pre-tagged to that specific item, rather than the whole disbursement. Use this when different items in the same combo request end up bought from different suppliers — each item can collect its own receipts, from its own supplier, whether or not it's been flagged Mark Paid, and an item isn't limited to a single receipt if you spent across more than one purchase.
+
+**🚫 No Receipt (per item)** — if there is genuinely no receipt for an item (an informal vendor, a market stall, an exempt purchase), click **🚫 No Receipt** next to it and say why. The item then counts as accounted for without a receipt, and shows *🚫 No receipt — your reason*. Reasons you've used before on this business's combo requests appear as buttons above the text box, most-used first. Tap one to fill it in, or type a new reason, which will be offered next time. **🚫 Edit No-Receipt** changes the reason, and **Clear mark** removes it.
 
 ---
 
@@ -10438,7 +10444,7 @@ The item is marked as **Paid** and the total paid amount updates. Once all funde
 
 The moment your request reaches **PAID**, you're expected to show receipts proving how the money was spent. You'll get a bell notification right away, and another reminder once a day for as long as receipts remain outstanding.
 
-1. Find the disbursement in the account's **Transaction History** — it's the payment row tagged **COMBO PAY** — and click the colour-coded receipt badge (see [Attaching Receipts to Expense Payments](#attaching-receipts-to-expense-payments) in Section 17 for what each colour means).
+1. Find the disbursement in the account's **Transaction History** — it's the payment row tagged **COMBO PAY** (in the account's pending payments list it shows as **Multiple payees**, with the note *Combo Request: title*) — and click the colour-coded receipt badge (see [Attaching Receipts to Expense Payments](#attaching-receipts-to-expense-payments) in Section 17 for what each colour means).
 2. Add one or more receipts covering the full **approved amount** — each with a date, amount, and optionally a receipt number, description, and photo/scan attachment.
 3. Once the total looks right, click **Submit to Cashier**. If your receipts don't quite add up to the approved amount, you can still submit — a warning is shown, but the cashier does the actual checking, not the form.
 4. A cashier reviews your receipts, may correct amounts or details if something was entered wrong, and clicks **✅ Approve**. The badge turns green and the reminders stop.
@@ -14665,7 +14671,7 @@ Salesperson records purchase (POS)  →  UNPAID  ──🚨 reminder to requeste
 
 1. On the **Restaurant POS**, click **🧾 Record Expense** next to the *Point of Sale* heading.
 2. **Date** — today by default. You can pick an earlier date if you forgot to record it on the day; future dates aren't allowed.
-3. **Payee** (optional) — who you bought from. The list shows this restaurant's previous payees, most-used first; type to filter, or choose **🔍 Search all payees…** for someone new. If you don't know, leave it as **Not specified** — it will be asked for when the purchase is paid.
+3. **Payee** (optional) — who you bought from. The list shows this restaurant's previous payees, most-used first, with their **📞 phone number** where one is on file; type to filter, or choose **🔍 Search all payees…** for someone new. Once chosen, the payee's phone shows under the field (tap it to call on a phone). If you don't know, leave it as **Not specified** — it will be asked for when the purchase is paid.
 4. **Items** — for each thing bought, pick the **item** and enter the **amount**:
    - The item list is searchable and shows the most frequently bought items first (it was pre-filled from the restaurant's past expense history — beef, rice, greens, vegetables…).
    - If the item isn't there, type its name and click **+ Add "…" as a new item**.
@@ -14677,6 +14683,39 @@ The purchase gets a reference like **REX-20261017-003**. Items carry their usual
 > **Recording never touches the expense account balance** and never sends anything to the cashier. It's a record of what is owed.
 
 **Mistakes:** a purchase can be **voided** (with a reason) by the person who recorded it or an admin — but only while none of its items has been put into a payment request.
+
+> The item and payee lists open over the form (upwards if there's more room above), so they're never cut off on small screens.
+
+---
+
+### Salesperson — Checking Your Purchases (Has the Vendor Been Paid?)
+
+**At a glance — the button colour.** The **🧾 Record Expense** button on the POS shows the state of the purchases *you* recorded, without opening it:
+
+| Button | Meaning |
+|---|---|
+| 🔴 Red — *e.g. "2 unpaid · $17.00"* | That many of your items aren't fully paid yet, and that much is still owed |
+| 🟢 Green — *"✓ All paid"* | Everything you recorded has been paid |
+| 🔵 Blue | You haven't recorded anything yet |
+
+It updates when you open the POS, after you save or close the box, when you come back to the window, and every 5 minutes.
+
+When a vendor asks about their money, open **🧾 Record Expense** and switch to the **📋 My purchases** tab (the form itself is on **➕ New purchase**).
+
+- **Pending** (default) — everything not yet fully paid, with a **Still owed** total at the top. **Paid** — paid purchases. **All** — both.
+- **Recorded by me only** (on by default) — untick to see every recorded purchase for the restaurant, with *Recorded by …* on each.
+- Each purchase shows the **payee** with their **📞 phone** (tap to call), the date and **REX-…** reference, its items and amounts, and any notes.
+
+Each item says, in plain words, where it is:
+
+| Status shown | Meaning |
+|---|---|
+| **Not yet requested** | Recorded, nobody has asked for payment yet (the requester is being reminded) |
+| **Part-paid — $X not yet requested** | Some was paid; the rest is waiting for a new request |
+| **Payment request being prepared by …** | Added to a draft payment request |
+| **Payment requested by … on (date)** | In a submitted request, waiting for the cashier |
+| **Approved — awaiting payment** | Cashier approved it; waiting to be marked paid |
+| **Paid on (date)** | Done |
 
 ---
 
@@ -14747,5 +14786,5 @@ For restaurants, the **Sales Analytics** chart and the **Daily Detail** drill-do
 
 ### Backup & Restore
 
-The new restaurant expense data is included in every backup and restored automatically — see [Schema Version](#schema-version) in Section 52 (schema 6.47.0).
+The new restaurant expense data is included in every backup and restored automatically — see [Schema Version](#schema-version) in Section 52 (schema 6.47.0). The *My purchases* view and payee phones add no new data — they read existing records (phones come from the payee's person, employee, supplier or business record).
 

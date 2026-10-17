@@ -48,6 +48,7 @@ import { MealProgramPanel } from '@/components/restaurant/meal-program/MealProgr
 import { MealProgramDetailsModal } from '@/components/restaurant/meal-program/MealProgramDetailsModal'
 import { CustomerLookup } from '@/components/pos/customer-lookup'
 import { RecordExpenseModal } from '@/components/restaurant/expenses/record-expense-modal'
+import { RecordExpenseButton } from '@/components/restaurant/expenses/record-expense-button'
 import { SalespersonSelector, type SelectedSalesperson } from '@/components/pos/salesperson-selector'
 import { TargetProgressWidget } from '@/components/business-targets/target-progress-widget'
 import { CustomerQuickRegister } from '@/components/pos/customer-quick-register'
@@ -462,6 +463,7 @@ export default function RestaurantPOS() {
   const { openDisplay } = useOpenCustomerDisplay(currentBusinessId || '', terminalId)
   // MBM-319 — record a purchase as an unpaid expense (paid later via combo request)
   const [showRecordExpense, setShowRecordExpense] = useState(false)
+  const [recordExpenseRefresh, setRecordExpenseRefresh] = useState(0) // MBM-325: reload button status
 
   // Track if cart has been loaded from localStorage to prevent overwriting on mount
   const [cartLoaded, setCartLoaded] = useState(false)
@@ -3319,7 +3321,7 @@ export default function RestaurantPOS() {
         <RecordExpenseModal
           businessId={currentBusinessId}
           isOpen={showRecordExpense}
-          onClose={() => setShowRecordExpense(false)}
+          onClose={() => { setShowRecordExpense(false); setRecordExpenseRefresh(n => n + 1) }}
         />
       )}
 
@@ -3330,13 +3332,11 @@ export default function RestaurantPOS() {
               <div className="flex items-center justify-between gap-2">
                 <h1 className="text-lg sm:text-2xl font-bold text-primary">Point of Sale</h1>
                 {currentBusinessId && (
-                  <button
+                  <RecordExpenseButton
+                    businessId={currentBusinessId}
+                    refreshKey={recordExpenseRefresh}
                     onClick={() => setShowRecordExpense(true)}
-                    title="Record a purchase as an unpaid expense — paid later through a payment request"
-                    className="px-3 py-1.5 sm:py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs sm:text-sm font-medium"
-                  >
-                    🧾 Record Expense
-                  </button>
+                  />
                 )}
               </div>
               {/* MBM-299 — collapsed by default (mobile + desktop), matching
