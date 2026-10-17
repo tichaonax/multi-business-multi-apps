@@ -10374,7 +10374,11 @@ If you need to make changes after submitting but before the cashier acts:
 
 ### Cashier — Approving a Request
 
-When a user submits a combo request, you receive a notification and it appears on the **Submitted** tab of the Combo Requests list.
+When a user submits a combo request, you receive a notification (💬 Notifications → **📋 Combo Requests**), and it appears on the **Submitted** tab of the Combo Requests list.
+
+It also waits for you in **Pending Actions** (🔔 bell → **🧺 Combo Requests to Approve**, and the Pending Actions page → **Combo Requests Awaiting Approval**) until it is approved or returned. Each entry shows the requester, account, amount and days left before it expires, and **Review & approve →** opens it. Your own submitted requests are listed too, marked **Your request**, if you're allowed to approve them.
+
+> **Who is notified:** cashiers with full access to that expense account, never the person who submitted. If nobody else has full access, the system's admins are notified instead, so a request is never submitted to no one.
 
 1. Open the request to review all sections and items.
 2. Check the account balance shown at the top — it must cover the requested amount.
