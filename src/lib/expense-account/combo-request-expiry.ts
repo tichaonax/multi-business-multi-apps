@@ -1,5 +1,5 @@
 import { updateExpenseAccountBalanceTx } from '@/lib/expense-account-utils'
-import { releaseExpenseLinesTx } from '@/lib/restaurant-expenses'
+import { releaseExpenseLinesTx } from '@/lib/restaurant-expense-combo'
 
 export const COMBO_REQUEST_EXPIRY_DAYS = 30
 

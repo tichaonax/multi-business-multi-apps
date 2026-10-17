@@ -5,7 +5,7 @@ import { getEffectivePermissions } from '@/lib/permission-utils'
 import { updateExpenseAccountBalanceTx } from '@/lib/expense-account-utils'
 import { emitNotification } from '@/lib/notifications/notification-emitter'
 import { isComboRequestExpired, expireComboRequestTx } from '@/lib/expense-account/combo-request-expiry'
-import { releaseExpenseLinesTx, approveExpenseLinesTx } from '@/lib/restaurant-expenses'
+import { releaseExpenseLinesTx, approveExpenseLinesTx } from '@/lib/restaurant-expense-combo'
 
 export async function POST(
   request: NextRequest,

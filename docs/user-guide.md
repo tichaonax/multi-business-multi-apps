@@ -246,6 +246,7 @@
 68. [Clothing POS — Return & Exchange](#68-clothing-pos--return--exchange)
 69. [POS Sales Comparison Report — Today vs Yesterday vs 2 Days Ago](#69-pos-sales-comparison-report--today-vs-yesterday-vs-2-days-ago)
 70. [Linked Profile — Name & Photo Shared Between Your Login and Employee Record](#70-linked-profile--name--photo-shared-between-your-login-and-employee-record)
+71. [Restaurant Daily Expenses — Record Now, Pay Later](#71-restaurant-daily-expenses--record-now-pay-later)
 
 ---
 
@@ -365,13 +366,13 @@ Click the **🔔 bell** to open your notifications panel.
 
 #### Grouped by Category
 
-Notifications are grouped into labelled sections — e.g. **Vehicle & Licensing**, **Payments**, **Petty Cash**, **Combo Requests**, **Receipts**, **Jobs**, **Inventory**, **Chat**, **Other** — so a busy day doesn't turn into one long unsorted list. Each section:
+Notifications are grouped into labelled sections — e.g. **Vehicle & Licensing**, **Payments**, **Petty Cash**, **Combo Requests**, **Receipts**, **🍽️ Restaurant Expenses**, **Jobs**, **Inventory**, **Chat**, **Other** — so a busy day doesn't turn into one long unsorted list. Each section:
 
 - Starts **collapsed**, showing just its icon, name, an unread count, and a total count in parentheses.
 - Expands when you click its header, revealing the individual notifications underneath.
 - Searching (see below) automatically expands every matching section so results aren't hidden behind a collapsed header.
 
-Some notification types are also pre-grouped at the source — for example, vehicle/driver licence alerts collapse into a single summary notification (*"3 Licenses Overdue, 2 Expiring Soon"*) that refreshes in place as the underlying list changes, instead of adding a new row per vehicle every time the check runs. See [Vehicle & Driver License Compliance Alerts](#43a-vehicle--driver-license-compliance-alerts).
+Some notification types are also pre-grouped at the source — for example, the **🍽️ Restaurant Expenses** reminder (*"🚨 3 recorded items totalling $24.00 have not been put into a payment request"*) is one red-flagged row per restaurant that keeps coming back until every recorded purchase is in a payment request — see [Section 71](#71-restaurant-daily-expenses--record-now-pay-later). Likewise, vehicle/driver licence alerts collapse into a single summary notification (*"3 Licenses Overdue, 2 Expiring Soon"*) that refreshes in place as the underlying list changes, instead of adding a new row per vehicle every time the check runs. See [Vehicle & Driver License Compliance Alerts](#43a-vehicle--driver-license-compliance-alerts).
 
 #### Searching Notifications
 
@@ -1818,6 +1819,19 @@ The dashboard shows:
 - **Summary cards** — total sales, expenses, average order value
 - **Top performers** — best products by units and revenue, top categories, top sales reps
 - **Sales trend chart** — a line graph of sales and expenses over the selected period, with a margin indicator in the tooltip
+- **Period totals** above the chart — **Sales** always shows, and **Expenses** and **Margin** show whenever the business has expense data, even when expenses are **$0.00** (e.g. *Today* before anything is paid). Margin shows **—** when there were no sales to divide by.
+
+**Restaurants — expenses count on the day they were incurred:**
+
+For restaurant businesses that record daily purchases on the POS (see [Section 71](#71-restaurant-daily-expenses--record-now-pay-later)), **Expenses** means expenses **incurred**, so each day's margin compares that day's sales with that day's purchases:
+
+| Shown | Meaning |
+|---|---|
+| **Expenses (incurred)** | Recorded purchases on their **purchase date** (paid or not), plus other paid expenses on their payment date |
+| **Paid** | Money actually paid out from the expense account in the period |
+| **Unpaid** | What is still owed for purchases made in the period |
+
+A purchase recorded on the 17th and paid on the 20th counts as an expense on the **17th only** — the payment on the 20th is not counted a second time. Other business types are unchanged: expenses are paid expenses, on their payment date.
 
 **Daily vs Monthly grouping:**
 
@@ -1837,7 +1851,9 @@ The Daily Detail report includes:
 - **Sales orders** — each order shows time, payment method, server name, and order amount; click a row to expand and see the individual items sold with quantities and unit prices
 - **Expense payments** — each payment shows time, category, payment channel, payee, description, and who recorded the payment; the recorder's name is colour-coded so you can quickly distinguish entries made by different staff members
 
-> **Tip:** The Daily Detail expenses only include payments in **PAID** status, matching exactly what is counted in the Sales Analytics chart. If an expense shows as Pending Approval or Queued it will not appear here until it is marked as paid.
+- **Restaurants — recorded purchases** — each purchase recorded on the POS for that day appears as a **🧾 Recorded: item (REX-…)** row with its status (UNPAID, IN REQUEST, APPROVED, PAID). A combo payment that paid recorded purchases shows only the remainder, with a note *"excl. $X for recorded expenses — counted on their purchase dates"*, so nothing is counted twice.
+
+> **Tip:** The Daily Detail lists every expense payment that actually happened (anything not Cancelled, Rejected or Reversed), so it can include payments the chart doesn't count yet — the chart counts only **PAID** payments (plus, for restaurants, recorded purchases). A day with approved-but-not-yet-paid payments can therefore show a higher expense total here than on the chart.
 
 #### Cash Reports
 
@@ -6471,6 +6487,7 @@ Customers     → Customers → Reports
 Cash Bucket   → Cash Bucket → Report
 Petty Cash    → Petty Cash → Reports
 Chicken Run   → Chicken Run → Reports
+Unpaid Rest.  → Restaurant → Reports → 🧾 Unpaid Expenses
 Employees     → Employees → Clock-In → Reports
 ─────────────────────────────────────────────
 
@@ -7139,7 +7156,7 @@ Some automated alerts are delivered as chat messages instead of (or in addition 
 
 1. Click **+** at the top-right of the chat header (works from the conversations list or from any open conversation).
 2. Search for people and click to select them — a checkmark shows who's picked.
-3. **One person selected:** click **Start Chat** — this opens your existing Direct Message with them if you already have one, or starts a new one.
+3. **One person selected:** click **Start Chat** — this opens your existing Direct Message with them if you already have one, or starts a new one. There is only ever **one** Direct Message between the same two people — even if you both start a chat with each other at the same moment, you end up in the same conversation.
 4. **Two or more people selected:** a **Group name** field appears — name the group and click **Create Group**.
 
 > Only **active staff members** appear in the people list — terminated or deactivated employees are automatically excluded.
@@ -7238,7 +7255,9 @@ Every message you send in a **Direct Message or Group** gets a small checkmark n
 A few things worth knowing:
 
 - **Groups only show the green double-check once *everyone* in the group has read it** — not just one person. If you want to know exactly who's seen something in a larger group, there's no per-person breakdown; the tick is all-or-nothing.
-- **Updates live** — you don't need to reopen or refresh the conversation. The moment the other person opens it, your tick turns green right in front of you.
+- **Updates live** — you don't need to reopen or refresh the conversation. The moment the other person reads it, your tick turns green right in front of you.
+- **"Read" means actually seen by a person at the screen** — a message only counts as read once it has scrolled into view in an open window **and** the reader is present: the browser tab is visible and they've moved the mouse, typed, touched, or scrolled within the last minute. A chat left open on an unattended screen, or behind another tab, does **not** turn your ticks green; the read is recorded as soon as they come back and the message is on screen.
+- **Ticks follow how far they've read** — if they open a long conversation and only scroll part of the way, only the messages they've actually seen are marked read, not the whole conversation.
 - **Team Chat doesn't show read receipts** — it's a large, company-wide broadcast channel where a per-message read state isn't meaningful; the typing indicator and unread badge still work there as normal.
 - The **System Alerts** channel doesn't show ticks either — it's a read-only automated channel with no sender to show a receipt for.
 
@@ -7246,7 +7265,8 @@ A few things worth knowing:
 
 ### Real-Time Updates & Notifications
 
-- Messages, replies, and group membership changes are delivered using **WebSockets** — they appear instantly without refreshing, even if you're on a different page (that's when a Direct Message or Group auto-opens the chat panel for you).
+- Messages, replies, and group membership changes are delivered using **WebSockets** — they appear instantly without refreshing, even if you're on a different page.
+- **A new message while the chat is minimised** pops the chat panel open for about **5 seconds**, showing the conversations list with the unread badge, then tucks itself away again. It never opens the conversation window by itself, and never marks anything as read — click the conversation to read it (which also keeps the panel open).
 - A **chime** plays for a new message from someone else, unless you've turned it off in Chat Settings.
 - When the chat panel is closed, unread badges build up — Team Chat and your Direct Messages/Groups are counted separately — and you also get a **🔔 bell notification** (private/group ones are marked so you can spot them at a glance).
 
@@ -7254,8 +7274,8 @@ A few things worth knowing:
 
 ### Message History & Deletion
 
-- **Team Chat** automatically prunes anything older than **7 days** — it's for day-to-day coordination, not a permanent record.
-- **Direct Messages and Groups are not auto-pruned** — their full history stays available for as long as you're a participant.
+- **Team Chat keeps its full history** — messages are no longer deleted after 7 days. Scroll up to read anything older.
+- **Direct Messages and Groups are not auto-pruned** either — their full history stays available for as long as you're a participant.
 - **System Alerts** automatically prunes anything older than **30 days** — see [System Alerts (Read-Only)](#system-alerts-read-only) for its own per-user delete button, which works differently from the rule below.
 - You can delete your **own most recent** message (replaced with *🚫 This message was deleted* for everyone who saw it) — you can't delete anyone else's. (System Alerts messages are the one exception — see above: deleting one only hides it for you.)
 
@@ -7268,9 +7288,16 @@ Team Chat and System Alerts are shared, company-wide channels, so admins get ext
 - **Delete any message** — hover over any message (or, in System Alerts, any alert) and click **Delete**. Unlike a normal self-delete, this is a genuine removal — the message is gone immediately for everyone, with no *"this message was deleted"* placeholder left behind, since the point is keeping the channel clean, not leaving a visible trail.
 - **Clear the whole channel** — click the 🗑️ icon in the Team Chat or System Alerts window header to permanently delete **every** message in that channel for everyone. You'll be asked to confirm — this cannot be undone.
 
-#### Older Messages
+#### Where a Conversation Opens & Loading Older Messages
 
-Opening a conversation only loads the **last 30 days** of messages right away, so long-running Direct Messages and Groups stay fast to open. Anything older sits behind a collapsed placeholder above the loaded messages, showing the month and how many messages it has (e.g. *"September 2026 (14) — click to load"*) — click it to load that month in place. This is per-session: closing and reopening the conversation collapses older months again, so you're not stuck scrolling past old history every time. (Team Chat never shows this, since it already prunes everything past 7 days.)
+Conversations load about **30 messages at a time**, so even a room with years of history opens instantly:
+
+- **Opens where you left off** — if there are messages you haven't seen yet, the conversation opens at the **first unseen message** (with a few earlier messages above it for context) and a **"New messages"** divider marks where they start. If you're all caught up, it opens at the newest messages.
+- **Scroll up for older messages** — as you get near the top, the next page of older messages loads automatically, and the view stays exactly where you were reading (it doesn't jump).
+- **Scroll down for newer messages** — if you opened part-way through, newer messages load as you approach the bottom.
+- **"↓ N new" / "Latest" button** — while you're reading older messages, anything new that arrives is counted on a button at the bottom instead of yanking you down; click it to jump to the latest messages.
+- **Day dividers** separate each day (e.g. *"Thu, 15 Oct"*); dates from a previous year show the year too.
+- **Team Chat remembers where you got to on every device** — your "last seen" position is saved on the server, so the "New messages" divider and the Team Chat unread badge are the same on your phone, the office PC, and any other browser you sign in from.
 
 #### Searching Within a Conversation
 
@@ -7278,16 +7305,16 @@ Every open conversation window has its own search:
 
 1. Click the 🔍 search icon in the window's header (not shown for the read-only System Alerts channel).
 2. Type at least 2 characters — every matching message in that conversation appears below, newest first, with a timestamp and a short snippet.
-3. Click a result to jump straight to it — the view automatically scrolls there, loading that older month's history or expanding a reply thread first if needed, and briefly highlights the message with a blue ring so it's easy to spot.
+3. Click a result to jump straight to it — the conversation loads the messages around that result (or expands its reply thread first if needed), scrolls there, and briefly highlights the message with a blue ring so it's easy to spot. Scroll up or down from there to read around it; click **Latest** to return to the newest messages.
 
-This searches the **whole conversation**, not just what's currently loaded on screen — including messages behind a collapsed older-month placeholder.
+This searches the **whole conversation**, not just what's currently loaded on screen.
 
 #### Searching Across All Conversations
 
 To find a message without knowing which conversation it's in:
 
 - Open the chat panel's **conversations list** (the ⌄ back arrow) and type in the **Search** box at the top — this matches conversation names instantly and, after a brief pause, message content too, showing a snippet under a **Messages (N)** heading.
-- Click a message result to open that conversation and jump straight to the matching message (expanding older history or a reply thread first, same as the in-conversation search above) — you don't need to scroll around looking for it afterward.
+- Click a message result to open that conversation and jump straight to the matching message (loading the messages around it, or expanding a reply thread first, same as the in-conversation search above) — you don't need to scroll around looking for it afterward.
 - **From inside a conversation's own search panel**, if your search doesn't turn up what you need there, click **🔎 Search all conversations for "…"** at the bottom of the results to widen the same search to everywhere at once, without retyping it.
 
 #### Editing a Message
@@ -7344,7 +7371,9 @@ You can attach documents, images, audio, and short videos to a message in any Di
 | Attachments — PDF, image, audio, and short video | ✅ Yes — video excluded from backups |
 | Read receipts | ✅ Yes — Direct Messages & Groups (see [Read Receipts](#read-receipts) below) |
 | Message editing | ✅ Yes — own most recent message only, within 15 minutes, shows an edit count |
-| Collapsed older-than-30-days history (per-month, loaded on demand) | ✅ Yes — Direct Messages & Groups |
+| Opens at your first unseen message, older/newer messages load as you scroll | ✅ Yes — all conversations, including Team Chat |
+| Team Chat full history (no 7-day pruning) | ✅ Yes |
+| Team Chat "last seen" position shared across your devices | ✅ Yes |
 | System Alerts — read-only automated channel, visible only to the relevant people | ✅ Yes |
 | Per-user "delete for me" (System Alerts only) | ✅ Yes |
 
@@ -10297,6 +10326,18 @@ If only some items are funded, the status will be **PARTIALLY APPROVED** and you
 
 > **Tip:** You can re-open a saved draft any time from the Combo Requests list and continue editing before submitting.
 
+#### Restaurant Accounts — Adding Recorded Expenses
+
+On a **restaurant's** expense account, the form shows an extra **🧾 Add recorded expenses** panel above the sections, listing the purchases salespeople recorded on the POS that haven't been put into a payment request yet (with a count and total, e.g. *"3 unpaid · $25.00"*).
+
+1. Click the panel header to expand it. Purchases are listed with their payee, reference (**REX-…**) and date.
+2. Tick a whole purchase, or individual items within it. Anything you don't tick stays unpaid for a later request.
+3. **Purchase with no payee** — a *"Who is being paid?"* picker appears; choose the payee (saved to the purchase).
+4. **Unclassified item** — a category picker appears under it; choose the category (saved to the item, so you're only asked once per item).
+5. Click **Add N selected ($X)**. The items are added **locked** (rose-coloured cards showing description, reference, date and amount) — one section per payee — and the title is filled in for you if it was empty.
+
+Locked items can't be edited (the amount is what was recorded), only removed with **✕** — which returns them to the unpaid list. The rest of the request works as normal; see [Section 71](#71-restaurant-daily-expenses--record-now-pay-later) for what happens to recorded purchases at each step.
+
 ---
 
 ### Requester — Submitting a Request
@@ -12042,7 +12083,31 @@ Compare these numbers to what was shown in the validation report.
 
 Each backup file records the schema version at the time it was created (e.g. `6.31.0`). When restoring to a different installation, the schema versions should match. If they differ, run `prisma migrate deploy` on the target installation first to bring the schema up to date, then restore.
 
-The current schema version is **6.35.0** (adds `display_product_configs` and `display_global_settings` for the smart customer display advertising engine — MBM-232).
+The current schema version is **6.47.0** (adds the restaurant daily-expense tables — MBM-319; see below).
+
+#### Tables and columns added in schema 6.47.0 — Restaurant Daily Expenses & Chat History
+
+| Table / column | Contents | Scoped by |
+|-------|----------|-----------|
+| `restaurant_expense_items` | Each restaurant's catalogue of things bought (name, category, how often used) | `businessId` (unique per name) |
+| `restaurant_expense_transactions` | One recorded purchase (reference `REX-…`, purchase date, payee, total, void details) | `businessId` (unique `reference`) |
+| `restaurant_expense_lines` | The items in a purchase (amount, paid so far, status, link to the combo item paying it) | via its transaction |
+| `combo_payment_request_items.restaurantExpenseLineId` | Which recorded purchase item a combo item was raised for (used by the sales report to avoid double counting) | column on an existing table |
+| `users.teamChatLastReadAt` | Your Team Chat "last seen" position (MBM-315) | column on an existing table |
+
+New columns travel with their tables automatically — nothing extra to do. The restaurant tables restore after combo payment requests (their links point at combo items), and the item catalogue / purchase references are matched by name / reference on a cross-server restore, so restoring twice never creates duplicates.
+
+Restore the backup only to an installation that has run all migrations up to `20261017140000_mbm319_combo_item_expense_line` (`prisma migrate deploy`).
+
+**Verification after restore:**
+
+```sql
+SELECT COUNT(*) FROM restaurant_expense_items;
+SELECT COUNT(*) FROM restaurant_expense_transactions;
+SELECT COUNT(*) FROM restaurant_expense_lines;
+```
+
+All three counts should match the source system.
 
 #### Tables added in schema 6.34.0 — As-You-Like-It Combos
 
@@ -14571,3 +14636,116 @@ If someone already has both a login and an employee record, but they were never 
 3. The employee's name and photo immediately become the shared values for both records (the employee record is treated as the source of truth if the two had different names/photos beforehand).
 
 The same linking can also be started from the employee's own page (**System Account** card → **Link Existing User**).
+
+---
+
+## 71. Restaurant Daily Expenses — Record Now, Pay Later
+
+> **Who reads this:** Restaurant salespeople (recording purchases), whoever raises payment requests for the restaurant (e.g. the owner/manager), and cashiers. Restaurants only — other business types are unaffected.
+
+Restaurants buy things every day — tomatoes, onions, gas — often on credit, or before there's money in the expense account. This feature separates **recording** a purchase from **paying** for it:
+
+1. **Record** the purchase on the POS the day it happens — no funds needed, the cashier isn't involved.
+2. The purchase counts against **that day's sales** in the reports straight away.
+3. **Pay later** — the person who raises payment requests picks recorded purchases into a normal combo payment request; the cashier approves it and the requester marks items paid, as usual.
+
+```
+Salesperson records purchase (POS)  →  UNPAID  ──🚨 reminder to requester until requested
+                                           ↓  added to a combo payment request
+                                      IN REQUEST
+                                           ↓  cashier approves
+                                       APPROVED
+                                           ↓  requester marks the item paid
+                                         PAID
+```
+
+---
+
+### Salesperson — Recording a Purchase
+
+1. On the **Restaurant POS**, click **🧾 Record Expense** next to the *Point of Sale* heading.
+2. **Date** — today by default. You can pick an earlier date if you forgot to record it on the day; future dates aren't allowed.
+3. **Payee** (optional) — who you bought from. The list shows this restaurant's previous payees, most-used first; type to filter, or choose **🔍 Search all payees…** for someone new. If you don't know, leave it as **Not specified** — it will be asked for when the purchase is paid.
+4. **Items** — for each thing bought, pick the **item** and enter the **amount**:
+   - The item list is searchable and shows the most frequently bought items first (it was pre-filled from the restaurant's past expense history — beef, rice, greens, vegetables…).
+   - If the item isn't there, type its name and click **+ Add "…" as a new item**.
+   - Click **+ Add another item** for more lines — one purchase can have as many items as you need.
+5. Add **notes** if useful, check the **total**, and click **Save as unpaid**.
+
+The purchase gets a reference like **REX-20261017-003**. Items carry their usual expense category automatically; a brand-new item shows as *Unclassified* until someone classifies it when paying (asked once per item).
+
+> **Recording never touches the expense account balance** and never sends anything to the cashier. It's a record of what is owed.
+
+**Mistakes:** a purchase can be **voided** (with a reason) by the person who recorded it or an admin — but only while none of its items has been put into a payment request.
+
+---
+
+### Reminder Notifications — Until Every Purchase Is Requested
+
+Whoever is expected to raise payment requests for the restaurant gets a **red-flagged 🚨 notification** in its own **🍽️ Restaurant Expenses** section of the bell, e.g.:
+
+> 🚨 3 recorded items totalling $24.00 have not been put into a payment request (oldest 2 days ago). Open a combo request and use "Add recorded expenses".
+
+- **Who gets it:** the restaurant's active **business owners and business managers**, plus anyone with a grant or request access on the restaurant's expense accounts.
+- **When:** immediately when a purchase is recorded; it comes back as **unread** whenever the pending amount changes, and every **4 hours** while anything is still waiting.
+- **Until resolved:** it disappears for everyone once every recorded purchase has been put into a payment request (or voided). If items come back to the unpaid list later (request cancelled or expired, item left unfunded, part-paid), the reminder returns.
+- Clicking it opens a **new combo payment request** on the restaurant's account, ready for the next step.
+
+---
+
+### Requester — Paying Recorded Purchases
+
+Open the restaurant's expense account → **New Combo Request** and use the **🧾 Add recorded expenses** panel — see [Restaurant Accounts — Adding Recorded Expenses](#restaurant-accounts--adding-recorded-expenses) in Section 39 for the step-by-step. Then submit the request as usual.
+
+What happens to a recorded item at each step:
+
+| Event | Recorded item |
+|---|---|
+| Added to a request (saved as draft or submitted) | **IN REQUEST** — it can't be added to any other request |
+| Request edited, or returned for edits | Stays in the request |
+| Cashier approves | **APPROVED** — awaiting payment |
+| Partial approval leaves the item unfunded | Back to **UNPAID** — pick it up in a later request |
+| Requester marks the item paid in full | **PAID** |
+| Requester marks it paid for **less** than its amount | The paid part is recorded; the rest goes back to **UNPAID** for a later request |
+| Request cancelled, or expires after 30 days | Back to **UNPAID** |
+| Request duplicated | The copy does **not** include the recorded items |
+
+> Only the requester marking an item paid makes it PAID — cashier approval alone doesn't.
+
+---
+
+### Unpaid Expenses Report
+
+**Restaurant → Reports → 🧾 Unpaid Expenses** lists every recorded purchase not yet paid (unpaid, in a request, or approved but not yet marked paid).
+
+- The **date range** (presets or custom, default **All time**) selects purchases by **when they were bought**; amounts show what is **still owed today**.
+- Totals at the top: **Total outstanding**, number of **payees**, number of **unpaid items**.
+- Grouped by **payee** (with a subtotal; *Not specified* if no payee yet) → **date** → purchase. Each line shows the item and its category, amount, paid so far, outstanding, status, and a link to the payment request it's in.
+
+---
+
+### Expense Account — Obligations Card
+
+On the restaurant's expense account page, an **🧾 Obligations — recorded restaurant expenses** card appears under the balance whenever anything is owed:
+
+| Figure | Meaning |
+|---|---|
+| **Available funds** | The account balance (red if it's less than what's owed) |
+| **Unpaid (not requested)** | Recorded, not yet in a payment request |
+| **In payment requests** | In a draft or submitted request |
+| **Approved, awaiting payment** | Approved, not yet marked paid |
+
+**Request payment →** opens a new combo request.
+
+---
+
+### Sales Reports — Expenses on the Day They Happened
+
+For restaurants, the **Sales Analytics** chart and the **Daily Detail** drill-down count recorded purchases on their **purchase date**, paid or not, and show **Paid** and **Unpaid** alongside — see [Sales Analytics Dashboard](#sales-analytics-dashboard). A purchase made on the 17th and paid on the 20th counts once, on the 17th.
+
+---
+
+### Backup & Restore
+
+The new restaurant expense data is included in every backup and restored automatically — see [Schema Version](#schema-version) in Section 52 (schema 6.47.0).
+

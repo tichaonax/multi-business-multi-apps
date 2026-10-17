@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { getEffectivePermissions } from '@/lib/permission-utils'
 import { canUserViewAccount } from '@/lib/expense-account-access'
-import { validateExpenseLinks, linkExpenseLineTx, releaseExpenseLinesTx, ExpenseLinkError } from '@/lib/restaurant-expenses'
+import { validateExpenseLinks, linkExpenseLineTx, releaseExpenseLinesTx, ExpenseLinkError } from '@/lib/restaurant-expense-combo'
 import { refreshRestaurantExpenseNoticeForAccount } from '@/lib/restaurant-expense-notify'
 import { comboItemReceiptedAmount, comboItemTargetAmount, isComboItemAccountedFor } from '@/lib/expense-account/combo-item-reconciliation'
 

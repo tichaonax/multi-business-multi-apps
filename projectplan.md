@@ -10,6 +10,7 @@ All detailed project plans live in `ai-contexts/project-plans/`.
 
 | ID | Title | File | Status |
 |----|-------|------|--------|
+| MBM-320 | Service won't start after MBM-319 (AsyncLocalStorage invariant — next/server pulled into server.ts startup) + R710 WLAN XML parse error on unescaped & | [view](ai-contexts/project-plans/review/projectplan-MBM-320-service-startup-crash-r710-xml-2026-10-17.md) | 🟢 BUILT — rebuild + restart production |
 | MBM-319 | Restaurant: record daily expenses at purchase (even with no funds), pay later via combo requests; unpaid queue + Unpaid Expenses report; incurred-basis daily expenses | [view](ai-contexts/project-plans/review/projectplan-MBM-319-restaurant-deferred-expenses-2026-10-17.md) | 🟢 Built (record, unpaid report, pay via combo, incurred reporting, pending notifications) — awaiting user testing |
 | MBM-318 | Team Chat history deleted after 7 days (auto-prune on every load) — stop pruning so users can scroll back | [view](ai-contexts/project-plans/review/projectplan-MBM-318-team-chat-keep-history-2026-10-17.md) | 🟢 BUILT — not yet verified |
 | MBM-317 | Customer display crashes after deployment — Electron kiosk window keeps stale bundle; cache-clear reload must also reload it | [view](ai-contexts/project-plans/review/projectplan-MBM-317-customer-display-stale-bundle-2026-10-17.md) | 🟢 BUILT — not yet verified |

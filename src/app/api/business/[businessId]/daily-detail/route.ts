@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { calculateCashPosition } from '@/lib/cash-position/calculate-cash-position'
-import { payeeRef, payeeKey, resolvePayeeNames, linkedComboItemAmount, COMBO_ITEM_AMOUNTS_SELECT } from '@/lib/restaurant-expenses'
+import { payeeRef, payeeKey, resolvePayeeNames } from '@/lib/restaurant-expenses'
+import { linkedComboItemAmount, COMBO_ITEM_AMOUNTS_SELECT } from '@/lib/restaurant-expense-combo'
 
 const PAYEE_SELECT = { payeeType: true, payeePersonId: true, payeeUserId: true, payeeEmployeeId: true, payeeBusinessId: true, payeeSupplierId: true } as const
 

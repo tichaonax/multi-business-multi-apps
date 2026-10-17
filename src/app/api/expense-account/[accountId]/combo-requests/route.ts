@@ -4,7 +4,7 @@ import { getServerUser } from '@/lib/get-server-user'
 import { getEffectivePermissions } from '@/lib/permission-utils'
 import { canUserViewAccount, canUserWriteAccount, getUserGrantLevel } from '@/lib/expense-account-access'
 import { emitNotification } from '@/lib/notifications/notification-emitter'
-import { validateExpenseLinks, linkExpenseLineTx, ExpenseLinkError } from '@/lib/restaurant-expenses'
+import { validateExpenseLinks, linkExpenseLineTx, ExpenseLinkError } from '@/lib/restaurant-expense-combo'
 import { refreshRestaurantExpenseNoticeForAccount } from '@/lib/restaurant-expense-notify'
 
 export async function GET(

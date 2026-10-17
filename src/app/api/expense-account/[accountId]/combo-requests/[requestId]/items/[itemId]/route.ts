@@ -4,7 +4,7 @@ import { getServerUser } from '@/lib/get-server-user'
 import { updateExpenseAccountBalanceTx } from '@/lib/expense-account-utils'
 import { emitNotification } from '@/lib/notifications/notification-emitter'
 import { isComboRequestExpired, expireComboRequestTx } from '@/lib/expense-account/combo-request-expiry'
-import { applyComboItemPaymentTx } from '@/lib/restaurant-expenses'
+import { applyComboItemPaymentTx } from '@/lib/restaurant-expense-combo'
 
 export async function PATCH(
   request: NextRequest,

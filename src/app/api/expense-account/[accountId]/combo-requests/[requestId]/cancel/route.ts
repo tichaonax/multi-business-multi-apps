@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { getEffectivePermissions } from '@/lib/permission-utils'
 import { emitNotification } from '@/lib/notifications/notification-emitter'
-import { releaseExpenseLinesTx } from '@/lib/restaurant-expenses'
+import { releaseExpenseLinesTx } from '@/lib/restaurant-expense-combo'
 
 export async function POST(
   _request: NextRequest,

@@ -2073,23 +2073,15 @@ By accepting this agreement and accessing the wireless network, you acknowledge 
    * those issues before parsing.
    */
   private sanitizeXmlResponse(xml: string): string {
-    // Fix unescaped & in attribute values
-    // Match attribute="value" and escape any unescaped & characters
-    // Only fix & that is not already part of an entity (& followed by word chars and ;)
-    return xml.replace(
-      /(\w+)=['"]([^'"]*)['"]/g,
-      (match, attrName, attrValue) => {
-        // Escape unescaped & characters in the attribute value
-        // Don't double-escape already escaped entities like &amp; &lt; &gt; &quot; &apos;
-        const sanitizedValue = attrValue.replace(
-          /&(?!(amp|lt|gt|quot|apos|#\d+|#x[0-9a-fA-F]+);)/g,
-          '&amp;'
-        );
-        // Preserve original quote type
-        const quote = match.includes("'") ? "'" : '"';
-        return `${attrName}=${quote}${sanitizedValue}${quote}`;
-      }
-    );
+    // The R710 returns user-entered text (WLAN names, guest-pass titles, …)
+    // without escaping "&". A bare "&" is never valid anywhere in XML, so
+    // escape every "&" that doesn't already start a valid XML entity —
+    // across the whole document. (The previous attribute-only regex missed
+    // an "&" after a quote inside a value, e.g. name="Joe's & Co", and any
+    // "&" in element text, which crashed parsing: "Invalid character in
+    // entity name".)
+    if (typeof xml !== 'string') return xml;
+    return xml.replace(/&(?!(?:amp|lt|gt|quot|apos|#\d+|#x[0-9a-fA-F]+);)/g, '&amp;');
   }
 
   /**

@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { prisma } from '@/lib/prisma';
 import { getServerUser } from '@/lib/get-server-user'
-import { linkedComboItemAmount, COMBO_ITEM_AMOUNTS_SELECT } from '@/lib/restaurant-expenses'
+import { linkedComboItemAmount, COMBO_ITEM_AMOUNTS_SELECT } from '@/lib/restaurant-expense-combo'
 
 /**
  * GET /api/business/[businessId]/sales-analytics
