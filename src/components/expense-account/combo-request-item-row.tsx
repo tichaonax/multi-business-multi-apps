@@ -20,6 +20,9 @@ export interface ComboItem {
   subcategoryId: string
   payee: { type: string; id: string; name: string } | null
   notes: string
+  // MBM-319: a recorded restaurant expense this item pays — shown locked
+  expenseLineId?: string
+  lockedInfo?: string
 }
 
 interface ComboRequestItemRowProps {
@@ -111,7 +114,7 @@ function SearchSelect({
 }
 
 // Domain → Category → Sub-Category cascade + on-demand suggest
-function ItemCategorySelector({
+export function ItemCategorySelector({
   domains,
   defaultDomainId,
   categoryId,
@@ -338,6 +341,25 @@ export function ComboRequestItemRow({
       e.preventDefault()
       onAddBelow()
     }
+  }
+
+  // MBM-319: recorded expense — amount and classification come from the
+  // recording and can't be re-entered here; it can only be removed.
+  if (item.expenseLineId) {
+    return (
+      <div className="border border-rose-200 dark:border-rose-800 rounded-lg p-3 bg-rose-50 dark:bg-rose-900/20 flex items-center gap-2">
+        <div className="flex-1 min-w-0">
+          <div className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">🧾 {item.description}</div>
+          <div className="text-xs text-gray-500 dark:text-gray-400 truncate">Recorded expense{item.lockedInfo ? ` · ${item.lockedInfo}` : ''}</div>
+        </div>
+        <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">${Number(item.estimatedAmount || 0).toFixed(2)}</div>
+        <button type="button" onClick={onRemove} className="shrink-0 text-gray-400 hover:text-red-500 transition-colors p-1.5" title="Remove — it goes back to the unpaid list">
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+    )
   }
 
   const qty = parseFloat(item.quantity)

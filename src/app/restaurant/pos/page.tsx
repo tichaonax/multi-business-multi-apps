@@ -47,6 +47,7 @@ import { BulkStockPanel } from '@/components/inventory/bulk-stock-panel'
 import { MealProgramPanel } from '@/components/restaurant/meal-program/MealProgramPanel'
 import { MealProgramDetailsModal } from '@/components/restaurant/meal-program/MealProgramDetailsModal'
 import { CustomerLookup } from '@/components/pos/customer-lookup'
+import { RecordExpenseModal } from '@/components/restaurant/expenses/record-expense-modal'
 import { SalespersonSelector, type SelectedSalesperson } from '@/components/pos/salesperson-selector'
 import { TargetProgressWidget } from '@/components/business-targets/target-progress-widget'
 import { CustomerQuickRegister } from '@/components/pos/customer-quick-register'
@@ -459,6 +460,8 @@ export default function RestaurantPOS() {
 
   // Open Customer Display utility
   const { openDisplay } = useOpenCustomerDisplay(currentBusinessId || '', terminalId)
+  // MBM-319 — record a purchase as an unpaid expense (paid later via combo request)
+  const [showRecordExpense, setShowRecordExpense] = useState(false)
 
   // Track if cart has been loaded from localStorage to prevent overwriting on mount
   const [cartLoaded, setCartLoaded] = useState(false)
@@ -3312,11 +3315,30 @@ export default function RestaurantPOS() {
         </div>
       )}
 
+      {currentBusinessId && (
+        <RecordExpenseModal
+          businessId={currentBusinessId}
+          isOpen={showRecordExpense}
+          onClose={() => setShowRecordExpense(false)}
+        />
+      )}
+
       <div className="min-h-screen page-background bg-white dark:bg-gray-900">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6 p-2 lg:p-4 lg:items-start">
           <div className="lg:col-span-2 space-y-4">
             <div className="space-y-2">
-              <h1 className="text-lg sm:text-2xl font-bold text-primary">Point of Sale</h1>
+              <div className="flex items-center justify-between gap-2">
+                <h1 className="text-lg sm:text-2xl font-bold text-primary">Point of Sale</h1>
+                {currentBusinessId && (
+                  <button
+                    onClick={() => setShowRecordExpense(true)}
+                    title="Record a purchase as an unpaid expense — paid later through a payment request"
+                    className="px-3 py-1.5 sm:py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs sm:text-sm font-medium"
+                  >
+                    🧾 Record Expense
+                  </button>
+                )}
+              </div>
               {/* MBM-299 — collapsed by default (mobile + desktop), matching
                   the same treatment applied to grocery POS. */}
               <CollapsibleSection title="Quick Actions" icon="🔗">

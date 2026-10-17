@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { calculateCashPosition } from '@/lib/cash-position/calculate-cash-position'
+import { payeeRef, payeeKey, resolvePayeeNames, linkedComboItemAmount, COMBO_ITEM_AMOUNTS_SELECT } from '@/lib/restaurant-expenses'
+
+const PAYEE_SELECT = { payeeType: true, payeePersonId: true, payeeUserId: true, payeeEmployeeId: true, payeeBusinessId: true, payeeSupplierId: true } as const
 
 /**
  * GET /api/business/[businessId]/daily-detail?date=YYYY-MM-DD
@@ -124,6 +127,8 @@ export async function GET(
             payeeSupplier: { select: { name: true } },
             payeeBusiness: { select: { name: true } },
             creator: { select: { name: true } },
+            // MBM-319: what a combo payment paid towards recorded restaurant expenses
+            combo_request: { select: { items: { where: { restaurantExpenseLineId: { not: null } }, select: COMBO_ITEM_AMOUNTS_SELECT } } },
           },
           orderBy: { paymentDate: 'asc' },
         })
@@ -135,6 +140,11 @@ export async function GET(
     )
 
     const expenses = filteredExpenses.map(e => {
+      // MBM-319: the part of a combo payment that settled recorded restaurant
+      // expenses already counts on their purchase date (rows added below)
+      const paidToRecorded = Math.min(Number(e.amount),
+        // (this view also counts APPROVED payments, so not-yet-paid linked items count too)
+        (e.combo_request?.items ?? []).reduce((sum, i) => sum + linkedComboItemAmount(i, true), 0))
       const payeeName =
         e.payeeEmployee?.fullName ??
         e.payeeUser?.name ??
@@ -147,10 +157,11 @@ export async function GET(
         id: e.id,
         expenseAccountId: e.expenseAccountId,
         time: e.paymentDate.toISOString(),
-        amount: Number(e.amount),
+        amount: Number(e.amount) - paidToRecorded,
         payee: payeeName,
-        description: e.notes || e.receiptReason || null,
-        paymentChannel: e.paymentChannel ?? null,
+        description: (e.notes || e.receiptReason || '') +
+          (paidToRecorded > 0 ? ` (excl. $${paidToRecorded.toFixed(2)} for recorded expenses — counted on their purchase dates)` : '') || null,
+        paymentChannel: (e.paymentChannel ?? null) as string | null,
         category: e.category ? `${e.category.emoji} ${e.category.name}`.trim() : null,
         subcategory: e.subcategory ? `${e.subcategory.emoji} ${e.subcategory.name}`.trim() : null,
         status: e.status ?? null,
@@ -158,6 +169,43 @@ export async function GET(
         businessName: businessIds.length > 1 ? (accountToBusinessName.get(e.expenseAccountId) ?? null) : null,
       }
     })
+
+    // MBM-319: restaurant purchases recorded for this day count here, paid or not
+    // (same incurred basis as the sales-analytics chart)
+    const recordedLines = await prisma.restaurantExpenseLines.findMany({
+      where: {
+        status: { not: 'VOID' },
+        transaction: { businessId: { in: businessIds }, voidedAt: null, purchasedAt: { gte: fetchStart, lte: fetchEnd }, business: { type: 'restaurant' } },
+      },
+      include: {
+        category: { select: { name: true, emoji: true } },
+        subcategory: { select: { name: true, emoji: true } },
+        transaction: { select: { reference: true, purchasedAt: true, expenseAccountId: true, creator: { select: { name: true } }, business: { select: { name: true } }, ...PAYEE_SELECT } },
+      },
+      orderBy: { sortOrder: 'asc' },
+    })
+    const dayLines = recordedLines.filter(l =>
+      new Date(l.transaction.purchasedAt).toLocaleDateString('en-CA', { timeZone: timezone }) === date
+    )
+    const payeeNames = await resolvePayeeNames(dayLines.map(l => payeeRef(l.transaction)).filter(Boolean) as { type: string; id: string }[])
+    for (const l of dayLines) {
+      const ref = payeeRef(l.transaction)
+      expenses.push({
+        id: l.id,
+        expenseAccountId: l.transaction.expenseAccountId,
+        time: l.transaction.purchasedAt.toISOString(),
+        amount: Number(l.amount),
+        payee: ref ? payeeNames.get(payeeKey(ref)) ?? null : null,
+        description: `🧾 Recorded: ${l.description} (${l.transaction.reference})`,
+        paymentChannel: null,
+        category: l.category ? `${l.category.emoji} ${l.category.name}`.trim() : null,
+        subcategory: l.subcategory ? `${l.subcategory.emoji} ${l.subcategory.name}`.trim() : null,
+        status: l.status,
+        createdBy: l.transaction.creator?.name ?? null,
+        businessName: businessIds.length > 1 ? l.transaction.business?.name ?? null : null,
+      })
+    }
+    expenses.sort((a, b) => a.time.localeCompare(b.time))
 
     // ── Set Aside (cash box allocations) ─────────────────────────────────────
     // Same CASH_ALLOCATION/PAYROLL_FUNDING definition calculateCashPosition

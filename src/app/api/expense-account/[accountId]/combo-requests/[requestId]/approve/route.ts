@@ -5,6 +5,7 @@ import { getEffectivePermissions } from '@/lib/permission-utils'
 import { updateExpenseAccountBalanceTx } from '@/lib/expense-account-utils'
 import { emitNotification } from '@/lib/notifications/notification-emitter'
 import { isComboRequestExpired, expireComboRequestTx } from '@/lib/expense-account/combo-request-expiry'
+import { releaseExpenseLinesTx, approveExpenseLinesTx } from '@/lib/restaurant-expenses'
 
 export async function POST(
   request: NextRequest,
@@ -136,6 +137,11 @@ export async function POST(
           data: { approvedAmount: 0 },
         })
       }
+
+      // MBM-319: unfunded recorded expenses go back to the unpaid queue; the
+      // rest are approved, awaiting the requester's payment confirmation
+      await releaseExpenseLinesTx(tx, { comboItemIds: Array.from(notFundedItemIds) })
+      await approveExpenseLinesTx(tx, requestId)
 
       // Update the combo request
       const req = await tx.comboPaymentRequests.update({

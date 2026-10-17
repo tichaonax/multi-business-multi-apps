@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { getEffectivePermissions } from '@/lib/permission-utils'
 import { emitNotification } from '@/lib/notifications/notification-emitter'
+import { releaseExpenseLinesTx } from '@/lib/restaurant-expenses'
 
 export async function POST(
   _request: NextRequest,
@@ -32,9 +33,13 @@ export async function POST(
       return NextResponse.json({ error: 'You do not have permission to cancel this request' }, { status: 403 })
     }
 
-    const updated = await prisma.comboPaymentRequests.update({
-      where: { id: requestId },
-      data: { status: 'CANCELLED', cancelledAt: new Date() },
+    const updated = await prisma.$transaction(async (tx) => {
+      // MBM-319: recorded restaurant expenses go back to the unpaid queue
+      await releaseExpenseLinesTx(tx, { requestId })
+      return tx.comboPaymentRequests.update({
+        where: { id: requestId },
+        data: { status: 'CANCELLED', cancelledAt: new Date() },
+      })
     })
 
     // Notify relevant parties (non-blocking)

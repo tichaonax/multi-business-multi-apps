@@ -25,6 +25,10 @@ interface SalesAnalyticsData {
     totalOrders: number
     totalExpenses: number
     grossMargin: number
+    // MBM-319: incurred-basis expenses for restaurants
+    incurredBasis?: boolean
+    totalPaymentsMade?: number
+    unpaidOutstanding?: number
   }
   topProducts: {
     byUnits: Array<{ productName: string; emoji: string; unitsSold: number }>
@@ -297,6 +301,9 @@ export default function RestaurantSalesAnalytics() {
                       )}
                       groupBy={chartGroupBy}
                       onGroupByChange={handleGroupByChange}
+                      paidUnpaid={data.summary.incurredBasis
+                        ? { paid: data.summary.totalPaymentsMade ?? 0, unpaid: data.summary.unpaidOutstanding ?? 0 }
+                        : undefined}
                     />
                   )}
                 </div>

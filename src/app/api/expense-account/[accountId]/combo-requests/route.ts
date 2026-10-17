@@ -4,6 +4,8 @@ import { getServerUser } from '@/lib/get-server-user'
 import { getEffectivePermissions } from '@/lib/permission-utils'
 import { canUserViewAccount, canUserWriteAccount, getUserGrantLevel } from '@/lib/expense-account-access'
 import { emitNotification } from '@/lib/notifications/notification-emitter'
+import { validateExpenseLinks, linkExpenseLineTx, ExpenseLinkError } from '@/lib/restaurant-expenses'
+import { refreshRestaurantExpenseNoticeForAccount } from '@/lib/restaurant-expense-notify'
 
 export async function GET(
   request: NextRequest,
@@ -101,6 +103,10 @@ export async function POST(
       }
     }
 
+    // MBM-319: items may carry a recorded restaurant expense line to pay
+    const linkError = await validateExpenseLinks(accountId, sections)
+    if (linkError) return NextResponse.json({ error: linkError }, { status: 400 })
+
     const isSubmitting = status === 'SUBMITTED'
     const now = new Date()
 
@@ -135,7 +141,7 @@ export async function POST(
         })
 
         for (const [iIdx, item] of (section.items || []).entries()) {
-          await tx.comboPaymentRequestItems.create({
+          const created = await tx.comboPaymentRequestItems.create({
             data: {
               requestId: req.id,
               sectionId: sec.id,
@@ -155,6 +161,7 @@ export async function POST(
               sortOrder: item.sortOrder ?? iIdx,
             },
           })
+          if (item.expenseLineId) await linkExpenseLineTx(tx, item.expenseLineId, created.id)
         }
       }
 
@@ -192,8 +199,13 @@ export async function POST(
       }
     }
 
+    // MBM-319: linked recorded expenses are no longer pending — update the notice
+    if ((sections || []).some((s: any) => (s.items || []).some((i: any) => i.expenseLineId))) {
+      refreshRestaurantExpenseNoticeForAccount(accountId).catch(() => {})
+    }
     return NextResponse.json({ success: true, data: comboRequest }, { status: 201 })
   } catch (error) {
+    if (error instanceof ExpenseLinkError) return NextResponse.json({ error: error.message }, { status: 409 })
     console.error('Error creating combo request:', error)
     return NextResponse.json({ error: 'Failed to create combo request' }, { status: 500 })
   }

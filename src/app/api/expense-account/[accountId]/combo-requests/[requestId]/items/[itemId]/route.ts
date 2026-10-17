@@ -4,6 +4,7 @@ import { getServerUser } from '@/lib/get-server-user'
 import { updateExpenseAccountBalanceTx } from '@/lib/expense-account-utils'
 import { emitNotification } from '@/lib/notifications/notification-emitter'
 import { isComboRequestExpired, expireComboRequestTx } from '@/lib/expense-account/combo-request-expiry'
+import { applyComboItemPaymentTx } from '@/lib/restaurant-expenses'
 
 export async function PATCH(
   request: NextRequest,
@@ -66,6 +67,11 @@ export async function PATCH(
           notes: notes?.trim() || null,
         },
       })
+
+      // MBM-319: apply the payment to the recorded restaurant expense it pays
+      // (no amount entered = the item's approved, else estimated, amount)
+      const fallbackAmount = item.approvedAmount !== null && Number(item.approvedAmount) > 0 ? item.approvedAmount : item.estimatedAmount
+      await applyComboItemPaymentTx(tx, itemId, Number(paidAmount !== undefined ? paidAmount : fallbackAmount ?? 0), now)
 
       // Check if all items are now paid (re-fetch fresh state)
       const allItems = await tx.comboPaymentRequestItems.findMany({

@@ -200,6 +200,9 @@ export const RESTORE_ORDER = [
   'comboPaymentRequests',       // depends on expenseAccounts + users + expenseAccountPayments (MBM-197)
   'comboPaymentRequestSections', // depends on comboPaymentRequests + persons + users + employees + businesses + businessSuppliers
   'comboPaymentRequestItems',   // depends on comboPaymentRequests + comboPaymentRequestSections + expenseCategories + expenseSubcategories
+  'restaurantExpenseItems',     // MBM-319: depends on businesses + expenseCategories + expenseSubcategories + users (@@unique businessId+nameKey)
+  'restaurantExpenseTransactions', // MBM-319: depends on businesses + expenseAccounts + users (@unique reference)
+  'restaurantExpenseLines',     // MBM-319: depends on restaurantExpenseTransactions + restaurantExpenseItems + comboPaymentRequestItems
   'supplierPaymentRequests',    // Depends on businesses, businessSuppliers, expenseAccounts, users
   'supplierPaymentRequestItems', // Depends on supplierPaymentRequests, expenseCategories, expenseSubcategories
   'supplierPaymentRequestPartials', // Depends on supplierPaymentRequests, expenseAccountPayments, users
@@ -622,6 +625,8 @@ const UNIQUE_CONSTRAINT_FIELDS: Record<string, string | { fields: string[] }> = 
 
   // EOD Allocation Skips: unique on (businessId, allocationType, configKey, eodDate)
   'eodAllocationSkips': { fields: ['businessId', 'allocationType', 'configKey', 'eodDate'] },
+  'restaurantExpenseItems': { fields: ['businessId', 'nameKey'] },
+  'restaurantExpenseTransactions': 'reference',
 
   // MBM-294: Tags (unique per business+name), ImageTags (unique per image+tag)
   'tags': { fields: ['businessId', 'name'] },

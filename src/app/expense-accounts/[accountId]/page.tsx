@@ -8,6 +8,7 @@ import { useSession } from 'next-auth/react'
 import { useRouter, useParams, useSearchParams } from 'next/navigation'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { AccountBalanceCard } from '@/components/expense-account/account-balance-card'
+import { ExpenseObligationsCard } from '@/components/restaurant/expenses/expense-obligations-card'
 import { DepositForm } from '@/components/expense-account/deposit-form'
 import { PaymentForm } from '@/components/expense-account/payment-form'
 import { TransactionHistory } from '@/components/expense-account/transaction-history'
@@ -1808,6 +1809,8 @@ const canCreatePayees = canChangeCategory // Only owners, managers, and admins c
           isAdmin={isSystemAdmin}
         />
 
+        {/* MBM-319: restaurant accounts — recorded expenses still owed */}
+        {!isRestrictedUser && <ExpenseObligationsCard accountId={accountId} balance={Number(account.balance)} />}
 
         {/* Pending supplier payment requests notice */}
         {canViewSupplierPaymentQueue && pendingRequestsCount > 0 && (

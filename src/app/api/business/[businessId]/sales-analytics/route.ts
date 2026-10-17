@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { prisma } from '@/lib/prisma';
 import { getServerUser } from '@/lib/get-server-user'
+import { linkedComboItemAmount, COMBO_ITEM_AMOUNTS_SELECT } from '@/lib/restaurant-expenses'
 
 /**
  * GET /api/business/[businessId]/sales-analytics
@@ -478,9 +479,22 @@ export async function GET(
       }));
 
     // ── Daily expenses: fetch from expense accounts belonging to this business ──
+    // MBM-319: restaurants report expenses on an INCURRED basis — recorded
+    // purchases count on their purchase date (paid or not), and payments
+    // count on their payment date only for the part that did NOT settle a
+    // recorded purchase (otherwise the same expense would count twice).
+    // Other business types are unchanged: PAID payments on paymentDate.
     let dailyExpensesMap: Record<string, number> = {}
+    const dailyPaymentsMap: Record<string, number> = {}
     let totalExpenses = 0
+    let totalPaymentsMade = 0
+    let unpaidOutstanding = 0
+    let incurredBasis = false
+    const toLocalDate = (d: Date) => new Date(d).toLocaleDateString('en-CA', { timeZone: timezone }) // YYYY-MM-DD
     try {
+      const business = await prisma.businesses.findUnique({ where: { id: businessId }, select: { type: true } })
+      incurredBasis = business?.type === 'restaurant'
+
       const expenseAccounts = await prisma.expenseAccounts.findMany({
         where: { businessId: businessId },
         select: { id: true },
@@ -494,16 +508,46 @@ export async function GET(
             ...(startDate && endDate ? { paymentDate: { gte: startDate, lte: endDate } } : {}),
             status: 'PAID',
           },
-          select: { paymentDate: true, amount: true },
+          select: {
+            paymentDate: true,
+            amount: true,
+            // MBM-319: what this (combo) payment paid towards recorded restaurant expenses
+            ...(incurredBasis ? {
+              combo_request: { select: { items: { where: { restaurantExpenseLineId: { not: null } }, select: COMBO_ITEM_AMOUNTS_SELECT } } },
+            } : {}),
+          },
         })
 
-        expensePayments.forEach((payment) => {
+        expensePayments.forEach((payment: any) => {
           // Convert UTC paymentDate to local date string using the request timezone
-          const localDateStr = new Date(payment.paymentDate)
-            .toLocaleDateString('en-CA', { timeZone: timezone }) // YYYY-MM-DD
-          dailyExpensesMap[localDateStr] =
-            (dailyExpensesMap[localDateStr] || 0) + Number(payment.amount)
-          totalExpenses += Number(payment.amount)
+          const localDateStr = toLocalDate(payment.paymentDate)
+          const amount = Number(payment.amount)
+          const paidToRecorded = Math.min(amount,
+            (payment.combo_request?.items ?? []).reduce((sum: number, i: any) => sum + linkedComboItemAmount(i), 0))
+          dailyPaymentsMap[localDateStr] = (dailyPaymentsMap[localDateStr] || 0) + amount
+          totalPaymentsMade += amount
+          dailyExpensesMap[localDateStr] = (dailyExpensesMap[localDateStr] || 0) + amount - paidToRecorded
+          totalExpenses += amount - paidToRecorded
+        })
+      }
+
+      if (incurredBasis) {
+        const lines = await prisma.restaurantExpenseLines.findMany({
+          where: {
+            status: { not: 'VOID' },
+            transaction: {
+              businessId,
+              voidedAt: null,
+              ...(startDate && endDate ? { purchasedAt: { gte: startDate, lte: endDate } } : {}),
+            },
+          },
+          select: { amount: true, paidAmount: true, status: true, transaction: { select: { purchasedAt: true } } },
+        })
+        lines.forEach((l) => {
+          const localDateStr = toLocalDate(l.transaction.purchasedAt)
+          dailyExpensesMap[localDateStr] = (dailyExpensesMap[localDateStr] || 0) + Number(l.amount)
+          totalExpenses += Number(l.amount)
+          if (l.status !== 'PAID') unpaidOutstanding += Math.max(0, Number(l.amount) - Number(l.paidAmount))
         })
       }
     } catch (expErr) {
@@ -515,6 +559,7 @@ export async function GET(
     const allDates = new Set([
       ...Object.keys(dailySalesMap),
       ...Object.keys(dailyExpensesMap),
+      ...Object.keys(dailyPaymentsMap),
     ])
 
     const dailySales = Array.from(allDates)
@@ -528,6 +573,8 @@ export async function GET(
           sales,
           orderCount: salesEntry?.orderCount || 0,
           expenses,
+          // MBM-319: restaurants — cash actually paid out that day (expenses is incurred)
+          ...(incurredBasis ? { paymentsMade: Number((dailyPaymentsMap[date] || 0).toFixed(2)) } : {}),
         }
       })
 
@@ -590,6 +637,13 @@ export async function GET(
         totalOrders,
         totalExpenses: totalExpensesRounded,
         grossMargin,
+        // MBM-319: restaurants — expenses are incurred-basis; payments and
+        // what's still owed (for purchases in this period) shown alongside
+        ...(incurredBasis ? {
+          incurredBasis: true,
+          totalPaymentsMade: Number(totalPaymentsMade.toFixed(2)),
+          unpaidOutstanding: Number(unpaidOutstanding.toFixed(2)),
+        } : {}),
       },
       paymentMethodBreakdown: pmBreakdownMap,
       topProducts: {

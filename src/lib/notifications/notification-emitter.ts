@@ -60,6 +60,7 @@ export type NotificationType =
   | 'LOAN_REPAYMENT_APPROVED'
   | 'LOAN_REPAYMENT_REJECTED'
   | 'LOAN_OVERDUE'
+  | 'RESTAURANT_EXPENSES_PENDING'
 
 export interface NotificationPayload {
   userIds: string[]

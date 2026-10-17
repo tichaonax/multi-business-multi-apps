@@ -684,6 +684,8 @@ model Businesses {
   product_exception_reviews                                                ProductExceptionReviews[]
   pricing_exception_settings                                               PricingExceptionSettings?
   product_price_history                                                    ProductPriceHistory[]
+  restaurant_expense_items                                                 RestaurantExpenseItems[]
+  restaurant_expense_transactions                                          RestaurantExpenseTransactions[]
 
   @@map("businesses")
 }
@@ -1586,6 +1588,8 @@ model ExpenseCategories {
   supplier_payment_items   SupplierPaymentRequestItems[] @relation("SupplierPaymentItemCategory")
   petty_cash_transactions  PettyCashTransaction[]        @relation("PettyCashTransactionCategory")
   combo_payment_items      ComboPaymentRequestItems[]    @relation("ComboItemCategory")
+  restaurant_expense_items RestaurantExpenseItems[]      @relation("RestaurantExpenseItemCategory")
+  restaurant_expense_lines RestaurantExpenseLines[]      @relation("RestaurantExpenseLineCategory")
   expense_payment_receipts ExpensePaymentReceipts[]      @relation("ReceiptCategory")
 
   @@unique([domainId, name])
@@ -1610,6 +1614,8 @@ model ExpenseSubcategories {
   supplier_payment_items    SupplierPaymentRequestItems[] @relation("SupplierPaymentItemSubcategory")
   expense_sub_subcategories ExpenseSubSubcategories[]
   combo_payment_items       ComboPaymentRequestItems[]    @relation("ComboItemSubcategory")
+  restaurant_expense_items  RestaurantExpenseItems[]      @relation("RestaurantExpenseItemSubcategory")
+  restaurant_expense_lines  RestaurantExpenseLines[]      @relation("RestaurantExpenseLineSubcategory")
   expense_payment_receipts  ExpensePaymentReceipts[]      @relation("ReceiptSubcategory")
 
   @@unique([categoryId, name])
@@ -1679,6 +1685,7 @@ model ExpenseAccounts {
   petty_cash_transactions    PettyCashTransaction[]      @relation("PettyCashTransactionExpense")
   businessLoan               BusinessLoan?               @relation("LoanExpenseAccount")
   combo_requests             ComboPaymentRequests[]      @relation("ExpenseAccountComboRequests")
+  restaurant_expense_transactions RestaurantExpenseTransactions[]
   user_accesses              ExpenseAccountUserAccess[]  @relation("ExpenseAccountUserAccesses")
 
   @@index([isActive], map: "idx_expense_accounts_active")
@@ -3942,6 +3949,9 @@ model Users {
   attribute_options_created                                       AttributeOptions[]                @relation("AttributeOptionCreatedBy")
   product_exception_reviews_acted                                 ProductExceptionReviews[]         @relation("ProductExceptionReviewActedBy")
   product_price_history_changed                                   ProductPriceHistory[]             @relation("ProductPriceHistoryChangedBy")
+  restaurant_expense_items_created                                RestaurantExpenseItems[]          @relation("RestaurantExpenseItemCreator")
+  restaurant_expense_transactions_created                         RestaurantExpenseTransactions[]   @relation("RestaurantExpenseTxnCreator")
+  restaurant_expense_transactions_voided                          RestaurantExpenseTransactions[]   @relation("RestaurantExpenseTxnVoider")
 
   @@map("users")
 }
@@ -8236,6 +8246,11 @@ model ComboPaymentRequestItems {
   // No separate boolean/markedBy/markedAt — who/when is already captured by
   // the audit log entry the PATCH route that sets this writes.
   noReceiptReason String?
+  // MBM-319: the recorded restaurant expense line this item was raised for.
+  // Plain id, kept even after the live link (line.comboItemId) is released
+  // on a partial payment — the sales report uses it to avoid counting the
+  // same expense twice (on purchase date and again when paid).
+  restaurantExpenseLineId String?
   sortOrder       Int       @default(0)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @default(now()) @updatedAt
@@ -8250,6 +8265,8 @@ model ComboPaymentRequestItems {
   payeeBusiness Businesses?                  @relation("ComboItemPayeeBusiness", fields: [payeeBusinessId], references: [id])
   payeeSupplier BusinessSuppliers?           @relation("ComboItemPayeeSupplier", fields: [payeeSupplierId], references: [id])
   receipts      ExpensePaymentReceipts[]     @relation("ReceiptComboItem")
+  // MBM-319: the recorded restaurant expense line this item pays, if any
+  restaurant_expense_line RestaurantExpenseLines? @relation("RestaurantExpenseLineComboItem")
 
   @@index([requestId])
   @@index([sectionId])
@@ -8932,4 +8949,99 @@ model VehicleServiceJobParts {
 
   @@index([jobId])
   @@map("vehicle_service_job_parts")
+}
+
+// MBM-319 — restaurant expenses recorded at purchase time (even with no
+// funds), paid later through combo payment requests.
+
+// Per-restaurant catalogue of things bought, with the classification to
+// apply automatically. Ranked by useCount in the POS dropdown.
+model RestaurantExpenseItems {
+  id            String    @id @default(uuid())
+  businessId    String
+  name          String
+  // lower(trim(name)) — one catalogue entry per name per restaurant
+  nameKey       String
+  categoryId    String?
+  subcategoryId String?
+  useCount      Int       @default(0)
+  lastUsedAt    DateTime?
+  createdBy     String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @default(now()) @updatedAt
+
+  business    Businesses               @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  category    ExpenseCategories?       @relation("RestaurantExpenseItemCategory", fields: [categoryId], references: [id])
+  subcategory ExpenseSubcategories?    @relation("RestaurantExpenseItemSubcategory", fields: [subcategoryId], references: [id])
+  creator     Users?                   @relation("RestaurantExpenseItemCreator", fields: [createdBy], references: [id])
+  lines       RestaurantExpenseLines[]
+
+  @@unique([businessId, nameKey])
+  @@index([businessId, useCount(sort: Desc)])
+  @@map("restaurant_expense_items")
+}
+
+// One purchase (one payee, one or more items). purchasedAt decides which
+// day's sales the expense counts against — not when it is paid.
+model RestaurantExpenseTransactions {
+  id               String    @id @default(uuid())
+  businessId       String
+  expenseAccountId String
+  reference        String    @unique
+  purchasedAt      DateTime
+  // Payee is optional at entry; must be set before the lines can be paid.
+  payeeType        String?
+  payeePersonId    String?
+  payeeUserId      String?
+  payeeEmployeeId  String?
+  payeeBusinessId  String?
+  payeeSupplierId  String?
+  totalAmount      Decimal   @db.Decimal(12, 2)
+  notes            String?
+  createdBy        String
+  voidedAt         DateTime?
+  voidedBy         String?
+  voidReason       String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @default(now()) @updatedAt
+
+  business       Businesses               @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  expenseAccount ExpenseAccounts          @relation(fields: [expenseAccountId], references: [id], onDelete: Cascade)
+  creator        Users                    @relation("RestaurantExpenseTxnCreator", fields: [createdBy], references: [id])
+  voider         Users?                   @relation("RestaurantExpenseTxnVoider", fields: [voidedBy], references: [id])
+  lines          RestaurantExpenseLines[]
+
+  @@index([businessId, purchasedAt])
+  @@index([expenseAccountId])
+  @@map("restaurant_expense_transactions")
+}
+
+// One item within a purchase. status: UNPAID | IN_REQUEST | APPROVED | PAID | VOID.
+// comboItemId links the line to the combo request item currently paying
+// it — unique, so a line can never sit in two requests at once.
+model RestaurantExpenseLines {
+  id            String    @id @default(uuid())
+  transactionId String
+  itemId        String
+  description   String
+  amount        Decimal   @db.Decimal(12, 2)
+  categoryId    String?
+  subcategoryId String?
+  paidAmount    Decimal   @default(0) @db.Decimal(12, 2)
+  status        String    @default("UNPAID")
+  comboItemId   String?   @unique
+  paidAt        DateTime?
+  sortOrder     Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @default(now()) @updatedAt
+
+  transaction RestaurantExpenseTransactions @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  item        RestaurantExpenseItems        @relation(fields: [itemId], references: [id])
+  category    ExpenseCategories?            @relation("RestaurantExpenseLineCategory", fields: [categoryId], references: [id])
+  subcategory ExpenseSubcategories?         @relation("RestaurantExpenseLineSubcategory", fields: [subcategoryId], references: [id])
+  comboItem   ComboPaymentRequestItems?     @relation("RestaurantExpenseLineComboItem", fields: [comboItemId], references: [id], onDelete: SetNull)
+
+  @@index([transactionId])
+  @@index([status])
+  @@map("restaurant_expense_lines")
 }

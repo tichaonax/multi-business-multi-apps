@@ -1677,6 +1677,18 @@ export async function createCleanBackup(
     ? await prisma.comboPaymentRequestItems.findMany({ where: { requestId: { in: comboRequestIds } } })
     : []
 
+  // 57b. Restaurant deferred expenses (MBM-319) — recorded at purchase,
+  // paid later via combo requests (lines link to comboPaymentRequestItems).
+  businessData.restaurantExpenseItems = await prisma.restaurantExpenseItems.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+  businessData.restaurantExpenseTransactions = await prisma.restaurantExpenseTransactions.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+  businessData.restaurantExpenseLines = await prisma.restaurantExpenseLines.findMany({
+    where: { transaction: { businessId: { in: businessIds } } }
+  })
+
   // Warehouse batches and items (global — no businessId scoping)
   businessData.warehouseBatches = await (prisma as any).warehouseBatches.findMany()
   const warehouseBatchIds = businessData.warehouseBatches.map((b: any) => b.id)
@@ -1928,7 +1940,7 @@ export async function createCleanBackup(
     // 6.46.0 (2026-10-11): MBM-307 chat attachments — added chatAttachments
     // (PDF/JPEG/PNG bytea, like `images`; messageId FK nullable for an
     // upload not yet attached to a sent message).
-    schemaVersion: '6.46.0',
+    schemaVersion: '6.47.0',
     checksums: {
       businessData: businessDataChecksum,
       deviceData: deviceDataChecksum

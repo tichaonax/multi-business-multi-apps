@@ -1782,6 +1782,7 @@ const NOTIF_SEGMENTS: { key: string; label: string; icon: string; types: string[
   { key: 'pettycash', label: 'Petty Cash', icon: '💸', types: ['PETTY_CASH_SUBMITTED', 'PETTY_CASH_APPROVED', 'PETTY_CASH_REJECTED', 'PETTY_CASH_SETTLE_REQUESTED', 'CASH_ALLOC_RECONCILED'] },
   { key: 'combo', label: 'Combo Requests', icon: '📋', types: ['COMBO_REQUEST_SUBMITTED', 'COMBO_REQUEST_APPROVED', 'COMBO_REQUEST_PARTIALLY_APPROVED', 'COMBO_REQUEST_CANCELLED', 'COMBO_REQUEST_PAID', 'COMBO_REQUEST_RETURNED', 'COMBO_REQUEST_SETTLE_REQUESTED', 'COMBO_REQUEST_SETTLED', 'COMBO_REQUEST_EXPIRING', 'COMBO_REQUEST_EXPIRED'] },
   { key: 'receipts', label: 'Receipts', icon: '🧾', types: ['RECEIPT_REMINDER', 'RECEIPT_ESCALATION'] },
+  { key: 'restaurant-expenses', label: 'Restaurant Expenses', icon: '🍽️', types: ['RESTAURANT_EXPENSES_PENDING'] },
   { key: 'jobs', label: 'Jobs', icon: '🛠️', types: ['JOB_BILLED_AWAITING_PAYMENT', 'JOB_START_ESCALATION'] },
   { key: 'loan-requests', label: 'Loan Requests', icon: '🤝', types: ['LOAN_REQUEST_SUBMITTED', 'LOAN_REQUEST_APPROVED', 'LOAN_REQUEST_REJECTED'] },
   { key: 'loan-repayments', label: 'Loan Repayments', icon: '💵', types: ['LOAN_REPAYMENT_SUBMITTED', 'LOAN_REPAYMENT_APPROVED', 'LOAN_REPAYMENT_REJECTED', 'LOAN_OVERDUE'] },

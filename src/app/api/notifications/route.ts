@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { sweepOutstandingReceiptRemindersThrottled } from '@/lib/expense-account/receipt-review-notify'
 import { sweepVehicleLicenseRemindersThrottled } from '@/lib/vehicles/license-reminder-notify'
+import { sweepRestaurantExpenseNoticesThrottled } from '@/lib/restaurant-expense-notify'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,6 +36,10 @@ export async function GET() {
     // MBM-304: overdue/expiring vehicle & driver license reminders — same
     // lazy throttled pattern.
     sweepVehicleLicenseRemindersThrottled().catch(() => {})
+
+    // MBM-319: recorded restaurant expenses not yet in a payment request —
+    // same lazy throttled pattern (also clears the notice once resolved).
+    sweepRestaurantExpenseNoticesThrottled().catch(() => {})
 
     const [notifications, unreadCount] = await Promise.all([
       prisma.appNotification.findMany({

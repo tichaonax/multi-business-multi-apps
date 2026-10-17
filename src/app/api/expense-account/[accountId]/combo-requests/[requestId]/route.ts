@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { getEffectivePermissions } from '@/lib/permission-utils'
 import { canUserViewAccount } from '@/lib/expense-account-access'
+import { validateExpenseLinks, linkExpenseLineTx, releaseExpenseLinesTx, ExpenseLinkError } from '@/lib/restaurant-expenses'
+import { refreshRestaurantExpenseNoticeForAccount } from '@/lib/restaurant-expense-notify'
 import { comboItemReceiptedAmount, comboItemTargetAmount, isComboItemAccountedFor } from '@/lib/expense-account/combo-item-reconciliation'
 
 async function getComboRequest(requestId: string, accountId: string) {
@@ -35,6 +37,8 @@ async function getComboRequest(requestId: string, accountId: string) {
               // "Add Receipt" / comboItemId), mapped down to receiptedAmount
               // below rather than exposing raw receipt rows here.
               receipts:      { select: { amount: true } },
+              // MBM-319: recorded restaurant expense this item pays (locked in the edit form)
+              restaurant_expense_line: { select: { id: true, transaction: { select: { reference: true, purchasedAt: true } } } },
             },
           },
         },
@@ -164,9 +168,16 @@ export async function PATCH(
       }
     }
 
+    if (sections !== undefined) {
+      const linkError = await validateExpenseLinks(accountId, sections, requestId)
+      if (linkError) return NextResponse.json({ error: linkError }, { status: 400 })
+    }
+
     const updated = await prisma.$transaction(async (tx) => {
       // Replace sections + items if provided
       if (sections !== undefined) {
+        // MBM-319: free linked recorded expenses first; the payload re-links them
+        await releaseExpenseLinesTx(tx, { requestId })
         await tx.comboPaymentRequestItems.deleteMany({ where: { requestId } })
         await tx.comboPaymentRequestSections.deleteMany({ where: { requestId } })
 
@@ -188,7 +199,7 @@ export async function PATCH(
           })
 
           for (const [iIdx, item] of (section.items || []).entries()) {
-            await tx.comboPaymentRequestItems.create({
+            const created = await tx.comboPaymentRequestItems.create({
               data: {
                 requestId,
                 sectionId: sec.id,
@@ -208,6 +219,7 @@ export async function PATCH(
                 sortOrder: item.sortOrder ?? iIdx,
               },
             })
+            if (item.expenseLineId) await linkExpenseLineTx(tx, item.expenseLineId, created.id)
           }
         }
       }
@@ -229,8 +241,13 @@ export async function PATCH(
       })
     })
 
+    // MBM-319: linked recorded expenses are no longer pending — update the notice
+    if ((sections || []).some((s: any) => (s.items || []).some((i: any) => i.expenseLineId))) {
+      refreshRestaurantExpenseNoticeForAccount(accountId).catch(() => {})
+    }
     return NextResponse.json({ success: true, data: updated })
   } catch (error) {
+    if (error instanceof ExpenseLinkError) return NextResponse.json({ error: error.message }, { status: 409 })
     console.error('Error updating combo request:', error)
     return NextResponse.json({ error: 'Failed to update combo request' }, { status: 500 })
   }

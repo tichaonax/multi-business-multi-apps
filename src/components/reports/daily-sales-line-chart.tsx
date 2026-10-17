@@ -17,6 +17,9 @@ interface DailySalesLineChartProps {
   onDotClick?: (date: string) => void
   groupBy?: 'daily' | 'monthly'
   onGroupByChange?: (g: 'daily' | 'monthly') => void
+  // MBM-319: restaurants — expenses are incurred-basis; show the period's
+  // payments made and what's still owed next to them
+  paidUnpaid?: { paid: number; unpaid: number }
 }
 
 // Format 'YYYY-MM' → "Jan '26"
@@ -83,7 +86,7 @@ function CustomTooltip({ active, payload, label, isMonthly }: any) {
 
 const GROUPBY_KEY = 'sales-chart-groupby'
 
-export function DailySalesLineChart({ data, onDotClick, groupBy: controlledGroupBy, onGroupByChange }: DailySalesLineChartProps) {
+export function DailySalesLineChart({ data, onDotClick, groupBy: controlledGroupBy, onGroupByChange, paidUnpaid }: DailySalesLineChartProps) {
   const dateFormat = useDateFormat()
   const isControlled = onGroupByChange !== undefined
 
@@ -190,13 +193,23 @@ export function DailySalesLineChart({ data, onDotClick, groupBy: controlledGroup
         {/* Period totals — the sales total always shows; expenses and margin
             whenever expense data is supplied (even $0.00). Margin is "—" when
             there were no sales to divide by. */}
-        <div className="flex gap-4 text-sm">
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
           <span className="text-purple-600 dark:text-purple-400 font-medium">
             Sales: ${totalSales.toFixed(2)}
           </span>
           {hasExpenses && (
             <span className="text-red-500 dark:text-red-400 font-medium">
-              Expenses: ${totalExpenses.toFixed(2)}
+              Expenses{paidUnpaid ? ' (incurred)' : ''}: ${totalExpenses.toFixed(2)}
+            </span>
+          )}
+          {paidUnpaid && (
+            <span className="text-emerald-600 dark:text-emerald-400 font-medium" title="Paid out in this period">
+              Paid: ${paidUnpaid.paid.toFixed(2)}
+            </span>
+          )}
+          {paidUnpaid && (
+            <span className="text-amber-600 dark:text-amber-400 font-medium" title="Still owed for purchases in this period">
+              Unpaid: ${paidUnpaid.unpaid.toFixed(2)}
             </span>
           )}
           {hasExpenses && (

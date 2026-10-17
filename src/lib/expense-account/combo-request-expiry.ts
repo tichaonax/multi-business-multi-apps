@@ -1,4 +1,5 @@
 import { updateExpenseAccountBalanceTx } from '@/lib/expense-account-utils'
+import { releaseExpenseLinesTx } from '@/lib/restaurant-expenses'
 
 export const COMBO_REQUEST_EXPIRY_DAYS = 30
 
@@ -58,6 +59,9 @@ export async function expireComboRequestTx(tx: any, request: ExpirableRequest, n
       await updateExpenseAccountBalanceTx(tx, request.accountId)
     }
   }
+
+  // MBM-319: recorded restaurant expenses go back to the unpaid queue
+  await releaseExpenseLinesTx(tx, { requestId: request.id })
 
   return tx.comboPaymentRequests.update({
     where: { id: request.id },

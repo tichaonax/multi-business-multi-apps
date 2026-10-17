@@ -20,6 +20,7 @@ import { startComboRequestExpiryScheduler } from './src/lib/expense-account/comb
 import { startReceiptReminderScheduler } from './src/lib/expense-account/receipt-reminder-scheduler'
 import { startVehicleLicenseReminderScheduler } from './src/lib/vehicles/license-reminder-scheduler'
 import { startOverdueLoanScheduler } from './src/lib/loans/overdue-loan-scheduler'
+import { startRestaurantExpenseReminderScheduler } from './src/lib/restaurant-expense-reminder-scheduler'
 import { startBackgroundJobs } from './src/lib/background-jobs'
 import { join as joinPath } from 'path'
 
@@ -110,6 +111,9 @@ app.prepare().then(() => {
 
   // MBM-312: overdue inter-business/expense-account loan repayments.
   startOverdueLoanScheduler()
+
+  // MBM-319: flagged reminder until recorded restaurant expenses are requested.
+  startRestaurantExpenseReminderScheduler()
 
   // Print-worker health check, WiFi token sanitization, R710/ESP32 client
   // sync — relocated from the removed legacy sync engine (all opt-in, off

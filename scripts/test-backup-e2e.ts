@@ -68,6 +68,8 @@ const NEW_TABLE_KEYS = [
   'leavePolicies',
   // Restaurant Credit Payments (MBM-204/205)
   'restaurantCreditPayments',
+  // Restaurant deferred expenses (MBM-319)
+  'restaurantExpenseItems', 'restaurantExpenseTransactions', 'restaurantExpenseLines',
   // Expense Payment Receipts (MBM-194)
   'expensePaymentReceipts',
   // Chat Targeted Replies (MBM-210)

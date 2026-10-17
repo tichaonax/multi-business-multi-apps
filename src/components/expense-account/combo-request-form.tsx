@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useToastContext } from '@/components/ui/toast'
 import { ComboRequestSection, ComboSection, SectionType } from './combo-request-section'
 import { ComboItem, Domain } from './combo-request-item-row'
+import { RecordedExpensesPanel } from '@/components/restaurant/expenses/recorded-expenses-panel'
 
 interface ComboRequestFormProps {
   accountId: string
@@ -103,6 +104,7 @@ function serializeSections(sections: ComboSection[]) {
         payeeSupplierId: item.payee?.type === 'SUPPLIER' ? item.payee.id : null,
         notes: item.notes.trim() || null,
         sortOrder: iIdx,
+        expenseLineId: item.expenseLineId || null,
       })),
   }))
 }
@@ -190,6 +192,10 @@ export function ComboRequestForm({ accountId, requestId }: ComboRequestFormProps
                   ? { type: i.payeeType, id: iPayeeId, name: iPayeeName }
                   : null,
                 notes: i.notes || '',
+                expenseLineId: i.restaurant_expense_line?.id,
+                lockedInfo: i.restaurant_expense_line
+                  ? `${i.restaurant_expense_line.transaction.reference} · ${new Date(i.restaurant_expense_line.transaction.purchasedAt).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' })}`
+                  : undefined,
               }
             }),
           }
@@ -349,6 +355,37 @@ export function ComboRequestForm({ accountId, requestId }: ComboRequestFormProps
     setSections(prev => [...prev, newSection()])
   }
 
+  // MBM-319: recorded restaurant expenses already on the form
+  const usedLineIds = new Set(sections.flatMap(s => s.items.map(i => i.expenseLineId).filter(Boolean) as string[]))
+
+  // MBM-319: add picked recorded expenses as locked items — appended to the
+  // section for that payee, else a new section per payee. Blank starter
+  // sections are dropped.
+  function addRecordedExpenses(groups: Parameters<React.ComponentProps<typeof RecordedExpensesPanel>['onAdd']>[0]) {
+    setSections(prev => {
+      const next = prev.filter(s => s.payee || s.items.some(i => i.description.trim()))
+      for (const g of groups) {
+        const items: ComboItem[] = g.lines.map(l => ({
+          ...newItem(),
+          description: l.description,
+          estimatedAmount: l.amount.toFixed(2),
+          categoryId: l.categoryId,
+          subcategoryId: l.subcategoryId ?? '',
+          expenseLineId: l.lineId,
+          lockedInfo: l.lockedInfo,
+        }))
+        const idx = next.findIndex(s => s.payee?.type === g.payee.type && s.payee?.id === g.payee.id)
+        if (idx >= 0) {
+          next[idx] = { ...next[idx], items: [...next[idx].items.filter(i => i.description.trim()), ...items] }
+        } else {
+          next.push({ ...newSection(), payee: g.payee, items })
+        }
+      }
+      return next.length > 0 ? next : [newSection()]
+    })
+    if (!title.trim()) setTitle(`Restaurant expenses — ${new Date().toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' })}`)
+  }
+
   if (loadingDraft) {
     return (
       <div className="flex items-center justify-center py-16">
@@ -387,6 +424,8 @@ export function ComboRequestForm({ accountId, requestId }: ComboRequestFormProps
             <span className="text-xs text-gray-400">Loading categories...</span>
           )}
         </div>
+
+        <RecordedExpensesPanel accountId={accountId} domains={domains} usedLineIds={usedLineIds} onAdd={addRecordedExpenses} />
 
         {sections.map((section, idx) => (
           <ComboRequestSection

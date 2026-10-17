@@ -68,6 +68,9 @@ export function StatusBadge({ status }: { status: string | null }) {
     PENDING_APPROVAL: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300',
     QUEUED: 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300',
     CANCELLED: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300',
+    // MBM-319: recorded restaurant expense lines
+    UNPAID: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300',
+    IN_REQUEST: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300',
   }
   const cls = map[status] ?? 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
   const label = status.replace('_', ' ')

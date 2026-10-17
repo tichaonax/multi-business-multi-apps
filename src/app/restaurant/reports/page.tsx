@@ -49,6 +49,13 @@ export default function RestaurantReportsPage() {
       color: 'bg-blue-600 hover:bg-blue-700'
     },
     {
+      title: '🧾 Unpaid Expenses',
+      description: 'Recorded purchases not yet paid — by payee and purchase date, with outstanding totals',
+      href: `/${businessType}/reports/unpaid-expenses`,
+      icon: '🧾',
+      color: 'bg-rose-600 hover:bg-rose-700'
+    },
+    {
       title: '🍱 Meal Program Report',
       description: 'Expense tracking, salesperson summaries, and participant meal history',
       href: `/${businessType}/reports/meal-program`,
