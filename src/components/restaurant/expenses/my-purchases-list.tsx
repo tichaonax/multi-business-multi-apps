@@ -27,7 +27,7 @@ interface Txn {
   purchasedAt: string
   payee: { name: string; phone: string | null } | null
   notes: string | null
-  createdBy: { id: string; name: string } | null
+  createdBy: { id: string; name: string; profilePhotoUrl: string | null } | null
   lines: Line[]
 }
 
@@ -98,7 +98,19 @@ function PurchaseCard({ t }: { t: Txn }) {
 }
 
 interface DayGroup { key: string; label: string; txns: Txn[]; owed: number; total: number }
-interface PersonGroup { key: string; label: string; days: DayGroup[]; count: number; owed: number; total: number }
+interface PersonGroup { key: string; label: string; photoUrl: string | null; days: DayGroup[]; count: number; owed: number; total: number }
+
+// Person headers take colours in turn so neighbours never match. No red —
+// red already means "owed" here.
+const PERSON_COLORS = [
+  { avatar: 'bg-emerald-500', name: 'text-emerald-700 dark:text-emerald-400', border: 'border-l-emerald-500' },
+  { avatar: 'bg-sky-500',     name: 'text-sky-700 dark:text-sky-400',         border: 'border-l-sky-500' },
+  { avatar: 'bg-violet-500',  name: 'text-violet-700 dark:text-violet-400',   border: 'border-l-violet-500' },
+  { avatar: 'bg-amber-500',   name: 'text-amber-700 dark:text-amber-400',     border: 'border-l-amber-500' },
+  { avatar: 'bg-pink-500',    name: 'text-pink-700 dark:text-pink-400',       border: 'border-l-pink-500' },
+  { avatar: 'bg-teal-600',    name: 'text-teal-700 dark:text-teal-400',       border: 'border-l-teal-500' },
+]
+const initials = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('') || '?'
 
 /** One group per purchase day, newest first (txns arrive newest first). */
 function groupByDay(txns: Txn[], prefix: string): DayGroup[] {
@@ -124,7 +136,7 @@ function groupByPerson(txns: Txn[]): PersonGroup[] {
     const key = `p:${id}:`
     const days = groupByDay(list, key)
     return {
-      key, label: list[0].createdBy?.name ?? 'Unknown', days, count: list.length,
+      key, label: list[0].createdBy?.name ?? 'Unknown', photoUrl: list[0].createdBy?.profilePhotoUrl ?? null, days, count: list.length,
       owed: days.reduce((s, d) => s + d.owed, 0), total: days.reduce((s, d) => s + d.total, 0),
     }
   }).sort((a, b) => a.label.localeCompare(b.label))
@@ -269,15 +281,25 @@ export function MyPurchasesList({ businessId }: { businessId: string }) {
                   <button type="button" onClick={() => setOpenKeys(new Set())} className="text-blue-600 dark:text-blue-400 hover:underline">Collapse all</button>
                 </div>
               </div>
-              {mineOnly ? days.map(renderDay) : people.map(p => {
+              {mineOnly ? days.map(renderDay) : people.map((p, i) => {
                 const isOpen = openKeys.has(p.key)
+                const c = PERSON_COLORS[i % PERSON_COLORS.length]
                 return (
-                  <div key={p.key} className="border border-gray-300 dark:border-gray-600 rounded-lg">
+                  <div key={p.key} className={`border border-gray-300 dark:border-gray-600 border-l-4 ${c.border} rounded-lg`}>
                     <button type="button" onClick={() => toggle(p.key)}
-                      className="w-full px-3 py-2 flex items-center justify-between gap-2 text-left bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg">
-                      <span className="text-sm font-semibold text-gray-900 dark:text-white">
-                        {isOpen ? '▾' : '▸'} 👤 {p.label}
-                        <span className="ml-2 font-normal text-gray-500 dark:text-gray-400">{p.count} purchase{p.count === 1 ? '' : 's'}</span>
+                      className="w-full px-3 py-2 flex items-center justify-between gap-2 text-left bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-r-lg">
+                      <span className="flex items-center gap-2 text-sm font-semibold min-w-0">
+                        <span className="text-gray-500 dark:text-gray-400">{isOpen ? '▾' : '▸'}</span>
+                        <span className={`w-8 h-8 rounded-full shrink-0 relative flex items-center justify-center text-xs font-bold text-white ${c.avatar}`}>
+                          {initials(p.label)}
+                          {p.photoUrl && (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={p.photoUrl} alt={p.label} className="absolute inset-0 w-full h-full object-cover rounded-full"
+                              onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
+                          )}
+                        </span>
+                        <span className={c.name}>{p.label}</span>
+                        <span className="font-normal text-gray-500 dark:text-gray-400">{p.count} purchase{p.count === 1 ? '' : 's'}</span>
                       </span>
                       <span className="text-sm">{amountBadge(p)}</span>
                     </button>

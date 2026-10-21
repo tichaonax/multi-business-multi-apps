@@ -177,7 +177,7 @@ export async function GET(request: NextRequest) {
       orderBy: [{ purchasedAt: 'desc' }, { createdAt: 'desc' }],
       take: 1000,
       include: {
-        creator: { select: { id: true, name: true } },
+        creator: { select: { id: true, name: true, profilePhotoUrl: true } },
         lines: {
           where: lineWhere,
           orderBy: { sortOrder: 'asc' },
