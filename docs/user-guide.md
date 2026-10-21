@@ -14707,7 +14707,9 @@ It updates when you open the POS, after you save or close the box, when you come
 When a vendor asks about their money, open **🧾 Record Expense** and switch to the **📋 My purchases** tab (the form itself is on **➕ New purchase**).
 
 - **Pending** (default) — everything not yet fully paid, with a **Still owed** total at the top. **Paid** — paid purchases. **All** — both.
-- **Recorded by me only** (on by default) — untick to see every recorded purchase for the restaurant, with *Recorded by …* on each.
+- **Recorded by me only** — on by default for salespeople. **Administrators start with it off**, so they see every salesperson's purchases. Untick it to see everyone's.
+- **Grouped and collapsed.** Purchases sit under a **📅 date header** for each day, and every header starts collapsed. Each header shows how many purchases that day has and how much is still owed (or paid). When you are viewing everyone's purchases, there is one **👤 header per person** who recorded them, with that person's days inside it. Click a header to open it. **Expand all** and **Collapse all** open or close everything.
+- **Only this month is loaded.** **Paid** and **All** load the current month. To go further back, click **⬇ Load (previous month) too** at the bottom, or **📅 Pick a date range**. **Pending** always shows everything still owed, however old, so it matches the red count on the button.
 - Each purchase shows the **payee** with their **📞 phone** (tap to call), the date and **REX-…** reference, its items and amounts, and any notes.
 
 Each item says, in plain words, where it is:

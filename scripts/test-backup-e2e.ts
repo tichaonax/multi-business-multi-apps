@@ -113,6 +113,8 @@ const NEW_TABLE_KEYS = [
   'eodAllocationSkips',
   // Product Promotions (MBM-289)
   'productPromotions',
+  // Pricing exceptions & price history (MBM-296, backed up since MBM-327)
+  'productPriceHistory', 'productExceptionReviews', 'pricingExceptionSettings',
   // Category Reference Images, Tags & Image Tags (MBM-294)
   'categoryReferenceImages', 'tags', 'imageTags',
   // Product Tags (MBM-295)

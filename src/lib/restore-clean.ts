@@ -336,6 +336,11 @@ export const RESTORE_ORDER = [
   // Product Promotions (MBM-289)
   'productPromotions',       // Depends on businesses only (itemId is a polymorphic reference, no FK)
 
+  // Pricing exceptions & price history (MBM-296, backed up since MBM-327)
+  'productPriceHistory',       // Depends on businesses + users (productRefId is polymorphic, no FK)
+  'productExceptionReviews',   // Depends on businesses + users (@@unique businessId+catalogSource+productRefId+exceptionType)
+  'pricingExceptionSettings',  // Depends on businesses (@unique businessId)
+
   'orders',
   'orderItems',
 
@@ -627,6 +632,8 @@ const UNIQUE_CONSTRAINT_FIELDS: Record<string, string | { fields: string[] }> = 
   'eodAllocationSkips': { fields: ['businessId', 'allocationType', 'configKey', 'eodDate'] },
   'restaurantExpenseItems': { fields: ['businessId', 'nameKey'] },
   'restaurantExpenseTransactions': 'reference',
+  'productExceptionReviews': { fields: ['businessId', 'catalogSource', 'productRefId', 'exceptionType'] },
+  'pricingExceptionSettings': { fields: ['businessId'] },
 
   // MBM-294: Tags (unique per business+name), ImageTags (unique per image+tag)
   'tags': { fields: ['businessId', 'name'] },

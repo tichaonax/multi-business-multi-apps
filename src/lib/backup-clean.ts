@@ -1785,6 +1785,17 @@ export async function createCleanBackup(
     where: { businessId: { in: businessIds } }
   })
 
+  // 64b. Pricing exceptions & price history (MBM-296) — added MBM-327
+  businessData.productPriceHistory = await prisma.productPriceHistory.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+  businessData.productExceptionReviews = await prisma.productExceptionReviews.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+  businessData.pricingExceptionSettings = await prisma.pricingExceptionSettings.findMany({
+    where: { businessId: { in: businessIds } }
+  })
+
   // 65. Category Reference Images, Tags & Image Tags (MBM-294) - NEW
   // categoryReferenceImages is shared/global reference data (scoped by
   // businessType, not businessId — mirrors inventoryDomains/inventorySubcategories
@@ -1940,7 +1951,9 @@ export async function createCleanBackup(
     // 6.46.0 (2026-10-11): MBM-307 chat attachments — added chatAttachments
     // (PDF/JPEG/PNG bytea, like `images`; messageId FK nullable for an
     // upload not yet attached to a sent message).
-    schemaVersion: '6.47.0',
+    // 6.48.0 (2026-10-21): MBM-327 audit — added the MBM-296 pricing tables
+    // productPriceHistory, productExceptionReviews, pricingExceptionSettings.
+    schemaVersion: '6.48.0',
     checksums: {
       businessData: businessDataChecksum,
       deviceData: deviceDataChecksum
