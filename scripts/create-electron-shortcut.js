@@ -20,23 +20,16 @@ if (!fs.existsSync(electronExe)) {
   process.exit(1);
 }
 
-// Create batch file to launch Electron
+// The launcher batch file is checked into the repo and finds electron.exe
+// relative to its own folder (%~dp0), so it works for any Windows user.
+// Never regenerate it with absolute paths — a committed copy carrying one
+// machine's user folder breaks every other install that pulls it.
 const batchPath = path.join(PROJECT_ROOT, 'start-electron-app.bat');
-const batchContent = `@echo off
-REM Wait for service to be ready
-timeout /t 5 /nobreak > nul
-
-REM Set environment variables
-set PORT=8080
-set NODE_ENV=production
-
-REM Launch Electron
-cd /d "${electronPath}"
-start "" "${electronExe}" .
-`;
-
-fs.writeFileSync(batchPath, batchContent);
-console.log('✅ Created batch file:', batchPath);
+if (!fs.existsSync(batchPath)) {
+  console.error('❌ start-electron-app.bat not found at', batchPath);
+  process.exit(1);
+}
+console.log('✅ Using batch file:', batchPath);
 
 // Get user's Startup folder and Desktop paths
 const startupFolder = path.join(
