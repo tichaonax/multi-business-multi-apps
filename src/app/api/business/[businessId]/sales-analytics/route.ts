@@ -176,6 +176,22 @@ export async function GET(
       orderCount: number;
     }> = {};
 
+    // An order may carry only the cashier's user id (e.g. sold before their
+    // login was linked to their employee record). Count a linked login as
+    // that employee so one person never shows up as two sales reps.
+    const unlinkedCreatorIds = [...new Set(filteredOrders
+      .filter(o => !o.employeeId && o.createdBy)
+      .map(o => o.createdBy as string))];
+    const employeeByUserId = new Map(
+      (unlinkedCreatorIds.length > 0
+        ? await prisma.employees.findMany({
+            where: { userId: { in: unlinkedCreatorIds } },
+            select: { id: true, userId: true, fullName: true },
+          })
+        : []
+      ).map(e => [e.userId as string, e])
+    );
+
     // Aggregate by date
     const dailySalesMap: Record<string, {
       date: string;
@@ -200,8 +216,9 @@ export async function GET(
       dailySalesMap[orderDate].orderCount += 1;
 
       // Sales rep - prefer employee, fall back to creator (user who made the sale)
-      const repId = order.employeeId || order.createdBy || 'unknown';
-      const employeeName = order.employees?.fullName || order.creator?.name || (order.attributes as any)?.employeeName || 'Other';
+      const linkedEmployee = !order.employeeId && order.createdBy ? employeeByUserId.get(order.createdBy) : undefined;
+      const repId = order.employeeId || linkedEmployee?.id || order.createdBy || 'unknown';
+      const employeeName = order.employees?.fullName || linkedEmployee?.fullName || order.creator?.name || (order.attributes as any)?.employeeName || 'Other';
       if (!salesRepStats[repId]) {
         salesRepStats[repId] = {
           employeeId: repId,

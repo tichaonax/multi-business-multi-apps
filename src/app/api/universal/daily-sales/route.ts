@@ -194,11 +194,24 @@ export async function GET(request: NextRequest) {
 
     // Group by employee/salesperson (regular orders only)
     // Prefer employeeId, fall back to createdBy (userId) for non-employee salespeople
+    // A login linked to an employee counts as that employee, so orders made
+    // before the link (user id only) don't split one person into two rows.
+    const unlinkedCreatorIds = [...new Set(regularOrders.filter(o => !o.employeeId && o.createdBy).map(o => o.createdBy as string))]
+    const employeeByUserId = new Map(
+      (unlinkedCreatorIds.length > 0
+        ? await prisma.employees.findMany({
+            where: { userId: { in: unlinkedCreatorIds } },
+            select: { id: true, userId: true, fullName: true, employeeNumber: true },
+          })
+        : []
+      ).map(e => [e.userId as string, e])
+    )
     const employeeSales: Record<string, { name: string; employeeNumber: string; orders: number; sales: number }> = {}
     regularOrders.forEach(order => {
-      const repId = order.employeeId || order.createdBy || 'unknown'
-      const employeeName = order.employees?.fullName || order.creator?.name || (order.attributes as any)?.employeeName || 'Walk-in/Unknown'
-      const employeeNumber = order.employees?.employeeNumber || ''
+      const linkedEmployee = !order.employeeId && order.createdBy ? employeeByUserId.get(order.createdBy) : undefined
+      const repId = order.employeeId || linkedEmployee?.id || order.createdBy || 'unknown'
+      const employeeName = order.employees?.fullName || linkedEmployee?.fullName || order.creator?.name || (order.attributes as any)?.employeeName || 'Walk-in/Unknown'
+      const employeeNumber = order.employees?.employeeNumber || linkedEmployee?.employeeNumber || ''
 
       if (!employeeSales[repId]) {
         employeeSales[repId] = {
