@@ -18,6 +18,7 @@ import {
   loadChatSettings,
   saveChatSettings,
 } from '@/lib/chat-settings'
+import { EmojiPickerButton, MessageReactions, applyReactions, insertAtCursor, type Reaction } from '@/components/chat/chat-emojis'
 import { AttachButton, PendingAttachmentsRow, ChatAttachmentsGroup, uploadChatAttachment, useChatFileDrop, DropOverlay, MAX_ATTACHMENTS_PER_MESSAGE, isOversizedVideo, type ChatAttachmentMeta } from '@/components/chat/chat-attachments'
 import { VideoTrimModal } from '@/components/chat/video-trim-modal'
 import { useConfirm } from '@/components/ui/confirm-modal'
@@ -48,6 +49,7 @@ interface Message {
   replyCount: number
   recipients: Recipient[]
   attachments?: ChatAttachmentMeta[]
+  reactions?: Reaction[]
 }
 
 interface UserOption { id: string; name: string; online?: boolean; photoUrl?: string | null }
@@ -688,6 +690,8 @@ export function FloatingChat() {
       }
     })
 
+    socket.on('chat:message:reactions', ({ id, reactions }: { id: string; reactions: Reaction[] }) => updateReactions(id, reactions))
+
     socket.on('chat:message:edited', (msg: { id: string; message: string; editedAt: string | null; editCount: number }) => {
       setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, message: msg.message, editedAt: msg.editedAt, editCount: msg.editCount } : m))
     })
@@ -1122,6 +1126,17 @@ export function FloatingChat() {
   const firstNewMessageId = team.firstUnreadId
 
   /** Render a single message bubble (used for both top-level and thread replies) */
+  // MBM-328 — a message's reactions changed (own click or a live update);
+  // it may be a top-level message or a reply inside an expanded thread.
+  function updateReactions(id: string, reactions: Reaction[]) {
+    setMessages(prev => applyReactions(prev, id, reactions))
+    setExpandedThreads(prev => {
+      const next: typeof prev = {}
+      for (const [parentId, replies] of Object.entries(prev)) next[parentId] = applyReactions(replies, id, reactions)
+      return next
+    })
+  }
+
   const renderMessage = (msg: Message, isReply = false) => {
     if (msg.isSystem) {
       // MBM-304: a richer broadcast (e.g. a license-compliance digest) gets
@@ -1248,6 +1263,10 @@ export function FloatingChat() {
               )}
               {!msg.deletedAt && <ChatAttachmentsGroup attachments={msg.attachments ?? []} />}
             </>
+          )}
+          {!isEditing && !msg.deletedAt && (
+            <MessageReactions messageId={msg.id} reactions={msg.reactions} currentUserId={currentUserId}
+              showAdd={isHovered} alignRight={isOwn} onUpdated={updateReactions} />
           )}
           {!isEditing && (
           <div className="flex items-center gap-2 mt-1 mx-1">
@@ -1795,6 +1814,7 @@ export function FloatingChat() {
         <PendingAttachmentsRow attachments={pendingAttachments} uploadingNames={uploadingNames} onRemove={id => setPendingAttachments(prev => prev.filter(a => a.id !== id))} />
         <div className="flex items-end gap-2">
           <AttachButton onFilesSelected={handleFilesSelected} disabled={sending} />
+          <EmojiPickerButton disabled={sending} onPick={e => insertAtCursor(inputRef.current, newMessage, e, v => { setNewMessage(v); notifyTeamTyping() })} />
           <textarea
             ref={inputRef}
             rows={1}

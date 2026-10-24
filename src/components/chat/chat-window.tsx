@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import type { Socket } from 'socket.io-client'
 import { useTypingEmitter, useTypingTracker, formatTypingLabel } from '@/hooks/use-typing-indicator'
 import { getUserColor, parseComplianceDigest, ComplianceDigestSections, formatAlertTimestamp } from '@/components/vehicles/license-compliance-digest'
+import { EmojiPickerButton, MessageReactions, applyReactions, insertAtCursor, type Reaction } from '@/components/chat/chat-emojis'
 import { AttachButton, PendingAttachmentsRow, ChatAttachmentsGroup, uploadChatAttachment, useChatFileDrop, DropOverlay, MAX_ATTACHMENTS_PER_MESSAGE, isOversizedVideo, type ChatAttachmentMeta } from '@/components/chat/chat-attachments'
 import { VideoTrimModal } from '@/components/chat/video-trim-modal'
 import { useConfirm } from '@/components/ui/confirm-modal'
@@ -39,6 +40,7 @@ interface Message {
   replyCount: number
   recipients: Recipient[]
   attachments?: ChatAttachmentMeta[]
+  reactions?: Reaction[]
 }
 
 const WINDOW_W = 300
@@ -374,6 +376,7 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
         return next
       })
     }
+    const onReactions = ({ id, reactions }: { id: string; reactions: Reaction[] }) => updateReactions(id, reactions)
     const onRoomCleared = ({ roomId: clearedRoomId }: { roomId: string }) => {
       if (clearedRoomId === roomId) {
         setMessages([])
@@ -384,12 +387,14 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
     socket.on('chat:message:deleted', onDeleted)
     socket.on('chat:message:edited', onEdited)
     socket.on('chat:message:removed', onRemoved)
+    socket.on('chat:message:reactions', onReactions)
     socket.on('chat:room:cleared', onRoomCleared)
     return () => {
       socket.off('chat:message', onMessage)
       socket.off('chat:message:deleted', onDeleted)
       socket.off('chat:message:edited', onEdited)
       socket.off('chat:message:removed', onRemoved)
+      socket.off('chat:message:reactions', onReactions)
       socket.off('chat:room:cleared', onRoomCleared)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -707,6 +712,17 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
   const visibleSenderIds = recentSenderIds.slice(0, VISIBLE_PARTICIPANT_ICONS)
   const overflowSenderCount = recentSenderIds.length - visibleSenderIds.length
 
+  // MBM-328 — a message's reactions changed (own click or a live update);
+  // it may be a top-level message or a reply inside an expanded thread.
+  function updateReactions(id: string, reactions: Reaction[]) {
+    setMessages(prev => applyReactions(prev, id, reactions))
+    setExpandedThreads(prev => {
+      const next: typeof prev = {}
+      for (const [parentId, replies] of Object.entries(prev)) next[parentId] = applyReactions(replies, id, reactions)
+      return next
+    })
+  }
+
   const renderMessage = (msg: Message, isReply = false) => {
     if (msg.isSystem) {
       // Multi-line alerts (e.g. the vehicle license compliance digest) get a
@@ -874,6 +890,10 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
               )}
               {!msg.deletedAt && <ChatAttachmentsGroup attachments={msg.attachments ?? []} />}
             </>
+          )}
+          {!isEditing && !msg.deletedAt && (
+            <MessageReactions messageId={msg.id} reactions={msg.reactions} currentUserId={currentUserId}
+              showAdd={isHovered} alignRight={isOwn} onUpdated={updateReactions} />
           )}
           {!isEditing && (
           <div className="flex items-center gap-2 mt-0.5 mx-1">
@@ -1181,6 +1201,7 @@ export function ChatWindow({ roomId, roomName, roomType, roomPhotoUrl, currentUs
         <PendingAttachmentsRow attachments={pendingAttachments} uploadingNames={uploadingNames} onRemove={id => setPendingAttachments(prev => prev.filter(a => a.id !== id))} />
         <div className="flex items-end gap-1.5">
           <AttachButton onFilesSelected={handleFilesSelected} disabled={sending} />
+          <EmojiPickerButton disabled={sending} onPick={e => insertAtCursor(inputRef.current, newMessage, e, handleComposerChange)} />
           <textarea
             ref={inputRef}
             rows={1}

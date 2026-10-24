@@ -779,6 +779,7 @@ model ChatMessages {
   replies                 ChatMessages[]          @relation("ChatReplies")
   chat_message_recipients ChatMessageRecipients[]
   chat_message_dismissals ChatMessageDismissals[]
+  chat_message_reactions  ChatMessageReactions[]
   chat_attachments        ChatAttachments[]
 
   @@index([parentId])
@@ -843,6 +844,22 @@ model ChatMessageDismissals {
   @@unique([messageId, userId])
   @@index([userId])
   @@map("chat_message_dismissals")
+}
+
+// MBM-328 — emoji reactions on a chat message (👍 3). One row per user per
+// emoji per message; toggled on/off by POST /api/chat/messages/[id]/reactions.
+model ChatMessageReactions {
+  id            String       @id @default(uuid())
+  messageId     String
+  userId        String
+  emoji         String       @db.VarChar(16)
+  createdAt     DateTime     @default(now())
+  chat_messages ChatMessages @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  users         Users        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId, emoji])
+  @@index([messageId])
+  @@map("chat_message_reactions")
 }
 
 model ChatParticipants {
@@ -3764,6 +3781,7 @@ model Users {
   chat_messages                                                   ChatMessages[]
   chat_message_recipients                                         ChatMessageRecipients[]
   chat_message_dismissals                                         ChatMessageDismissals[]
+  chat_message_reactions                                          ChatMessageReactions[]
   chat_participants                                               ChatParticipants[]
   chat_rooms                                                      ChatRooms[]
   chat_attachments                                                ChatAttachments[]

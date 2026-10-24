@@ -1344,6 +1344,8 @@ export async function createCleanBackup(
   businessData.chatParticipants = await prisma.chatParticipants.findMany()
   businessData.chatMessageRecipients = await prisma.chatMessageRecipients.findMany()
   businessData.chatMessageDismissals = await prisma.chatMessageDismissals.findMany()
+  // MBM-328 — emoji reactions on chat messages
+  businessData.chatMessageReactions = await prisma.chatMessageReactions.findMany()
   // MBM-307/MBM-308+: chat message attachments (PDF/JPEG/PNG/audio/video) —
   // bytea like `images`, but capped per-type and comparatively low-volume,
   // so a plain findMany is fine here rather than the images table's own
@@ -1953,7 +1955,8 @@ export async function createCleanBackup(
     // upload not yet attached to a sent message).
     // 6.48.0 (2026-10-21): MBM-327 audit — added the MBM-296 pricing tables
     // productPriceHistory, productExceptionReviews, pricingExceptionSettings.
-    schemaVersion: '6.48.0',
+    // 6.49.0 (2026-10-24): MBM-328 chatMessageReactions.
+    schemaVersion: '6.49.0',
     checksums: {
       businessData: businessDataChecksum,
       deviceData: deviceDataChecksum

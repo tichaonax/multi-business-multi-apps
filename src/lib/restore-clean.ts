@@ -384,6 +384,7 @@ export const RESTORE_ORDER = [
   'chatParticipants',        // Depends on chatRooms, users
   'chatMessageRecipients',   // Depends on chatMessages, users (MBM-210 targeted replies)
   'chatMessageDismissals',   // Depends on chatMessages, users — per-user "delete for me" on a system alert
+  'chatMessageReactions',    // MBM-328: depends on chatMessages, users (@@unique messageId+userId+emoji)
   'chatAttachments',         // Depends on chatMessages (nullable — unsent at backup time), users (MBM-307)
 
   // Notifications
@@ -569,6 +570,7 @@ const UNIQUE_CONSTRAINT_FIELDS: Record<string, string | { fields: string[] }> = 
   // Chat Message Dismissals: composite unique on (messageId, userId) — a
   // per-user "delete for me" on a system alert (MBM-304 follow-up)
   'chatMessageDismissals': { fields: ['messageId', 'userId'] },
+  'chatMessageReactions': { fields: ['messageId', 'userId', 'emoji'] },
 
   // Chat Participants: composite unique on (roomId, userId), added
   // 2026-10-08 after duplicate rows were found flooding the chat list

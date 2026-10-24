@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { emitToRoom, emitToUsers } from '@/lib/customer-display/socket-server'
 import { emitNotification } from '@/lib/notifications/notification-emitter'
-import { getGeneralRoom, shapeMessage } from '@/lib/chat/rooms'
+import { getGeneralRoom, shapeMessage, REACTION_SELECT } from '@/lib/chat/rooms'
 
 // MBM-315 — history is loaded ~one screen at a time (sliding window) instead
 // of "the whole last 30 days". Keyset paging on (createdAt, id): stable while
@@ -14,6 +14,7 @@ const MESSAGE_INCLUDE = {
   users: { select: { name: true, firstName: true, lastName: true, profilePhotoUrl: true } },
   chat_message_recipients: { include: { users: { select: { id: true, name: true } } } },
   chat_attachments: { select: { id: true, fileName: true, mimeType: true, size: true } },
+  chat_message_reactions: REACTION_SELECT,
 } as const
 
 type Cursor = { id: string; createdAt: Date }

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { emitToRoom, emitToUsers } from '@/lib/customer-display/socket-server'
-import { getGeneralRoom, shapeMessage, EDIT_WINDOW_MS } from '@/lib/chat/rooms'
+import { getGeneralRoom, shapeMessage, EDIT_WINDOW_MS, REACTION_SELECT } from '@/lib/chat/rooms'
 
 /** PATCH /api/chat/messages/[id] — edit own message. Only the sender's most
  * recent message in the room, and only within EDIT_WINDOW_MS of sending. */
@@ -46,6 +46,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
         // disappear client-side — shapeMessage reads m.chat_attachments, and
         // an unincluded relation comes back undefined, not "unchanged".
         chat_attachments: { select: { id: true, fileName: true, mimeType: true, size: true } },
+        chat_message_reactions: REACTION_SELECT,
       },
     })
 

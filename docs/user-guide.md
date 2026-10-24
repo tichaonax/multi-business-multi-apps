@@ -7329,6 +7329,27 @@ You can correct a typo or fix your most recent message without deleting and rese
 
 ---
 
+### Emojis and Reactions
+
+**Adding emojis to a message.** Click **😊** next to 📎 in the message box.
+- The first tab shows the emojis you used recently and the most common ones: 👍 👎 ❤️ 😂 😊 🙏 👏 🔥 ✅ ❌ and more.
+- The other tabs are **Smileys**, **Gestures**, **Hearts**, **Food & things** and **Symbols**.
+- Clicking an emoji puts it where your cursor is. The panel stays open so you can add several.
+- Click outside the panel, or press **Esc**, to close it.
+
+**Reacting to a message.** You can react to a message without typing a reply.
+1. Hover over the message (tap it on a touch screen) and click **☺+** underneath it.
+2. Pick one of 👍 👎 ❤️ 😂 😮 😢 🙏.
+
+Reactions show under the message as chips, for example **👍 3**.
+- Hover over a chip to see who reacted.
+- Chips you've added are highlighted. Click one of yours to take it back, or click someone else's chip to add the same reaction.
+- Everyone in the conversation sees reactions right away.
+- Reactions don't send notifications.
+- You can react in Team Chat, Direct Messages and Groups, including to thread replies. You can't react to a deleted message.
+
+---
+
 ### Attachments
 
 You can attach documents, images, audio, and short videos to a message in any Direct Message, Group, or Team Chat conversation:

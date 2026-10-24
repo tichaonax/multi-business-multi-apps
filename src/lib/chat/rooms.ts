@@ -164,6 +164,27 @@ export async function createGroupRoom(creatorId: string, name: string, memberIds
 /** Shape a raw DB message into the API payload — shared by the messages and
  * group-membership routes so a system message (e.g. "added X to the group")
  * comes back in exactly the same shape as a normal one. */
+/** MBM-328 — include for a message's emoji reactions (see shapeReactions). */
+export const REACTION_SELECT = {
+  select: { emoji: true, userId: true, createdAt: true, users: { select: { name: true } } },
+  orderBy: { createdAt: 'asc' as const },
+}
+
+export type ShapedReaction = { emoji: string; count: number; users: { id: string; name: string }[] }
+
+/** Reaction rows → one chip per emoji (in the order each emoji was first
+ * used), with who reacted. Empty when the relation wasn't included. */
+export function shapeReactions(rows: any[] | undefined): ShapedReaction[] {
+  const byEmoji = new Map<string, ShapedReaction>()
+  for (const r of rows ?? []) {
+    const chip: ShapedReaction = byEmoji.get(r.emoji) ?? { emoji: r.emoji, count: 0, users: [] }
+    chip.count += 1
+    chip.users.push({ id: r.userId, name: r.users?.name ?? 'Unknown' })
+    byEmoji.set(r.emoji, chip)
+  }
+  return [...byEmoji.values()]
+}
+
 export function shapeMessage(m: any, replyCount = 0) {
   // Users.firstName/lastName/profilePhotoUrl are kept in sync with a linked
   // Employee record (if any), so chat reads them straight off Users and
@@ -202,6 +223,7 @@ export function shapeMessage(m: any, replyCount = 0) {
     // fine — this just renders as "no attachments" for those (e.g. system
     // messages).
     attachments: (m.chat_attachments ?? []).map((a: any) => ({ id: a.id, fileName: a.fileName, mimeType: a.mimeType, size: a.size })),
+    reactions: shapeReactions(m.chat_message_reactions),
   }
 }
 

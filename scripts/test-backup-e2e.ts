@@ -76,6 +76,8 @@ const NEW_TABLE_KEYS = [
   'chatMessageRecipients',
   // Chat Message Dismissals — per-user "delete for me" on a system alert (MBM-304 follow-up)
   'chatMessageDismissals',
+  // Chat emoji reactions (MBM-328)
+  'chatMessageReactions',
   // Supplier / Contractor / Payee Category System (MBM-220)
   'supplierCategoryGroups', 'supplierCategories',
   'contractorCategoryGroups', 'contractorCategories',

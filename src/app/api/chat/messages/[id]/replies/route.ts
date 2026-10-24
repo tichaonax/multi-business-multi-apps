@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
-import { getGeneralRoom } from '@/lib/chat/rooms'
+import { getGeneralRoom, REACTION_SELECT, shapeReactions } from '@/lib/chat/rooms'
 
 /** GET /api/chat/messages/[id]/replies — fetch all replies to a message */
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
@@ -40,6 +40,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
         users: { select: { name: true, firstName: true, lastName: true, profilePhotoUrl: true } },
         chat_message_recipients: { include: { users: { select: { id: true, name: true } } } },
         chat_attachments: { select: { id: true, fileName: true, mimeType: true, size: true } },
+        chat_message_reactions: REACTION_SELECT,
       },
     })
 
@@ -67,6 +68,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
           name: r.users?.name ?? 'Unknown',
         })),
         attachments: ((m as any).chat_attachments ?? []).map((a: any) => ({ id: a.id, fileName: a.fileName, mimeType: a.mimeType, size: a.size })),
+        reactions: shapeReactions((m as any).chat_message_reactions),
       }
     })
 
