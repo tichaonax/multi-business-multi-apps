@@ -98,7 +98,32 @@ export async function GET(
         returnNote: true,
         returnConfirmedAt: true,
         returnConfirmedBy: true,
-        combo_request: { select: { createdBy: true } },
+        combo_request: {
+          select: {
+            createdBy: true,
+            // MBM-330: planned items for the receipt form's "Planned item" picker
+            items: {
+              orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+              select: {
+                id: true, description: true, quantity: true, estimatedAmount: true, approvedAmount: true,
+                categoryId: true, subcategoryId: true, payeeType: true,
+                category: { select: { name: true, emoji: true } },
+                subcategory: { select: { name: true } },
+                payeePerson: { select: { id: true, fullName: true } },
+                payeeBusiness: { select: { id: true, name: true } },
+                payeeSupplier: { select: { id: true, name: true } },
+                section: {
+                  select: {
+                    sectionName: true,
+                    payeePerson: { select: { id: true, fullName: true } },
+                    payeeBusiness: { select: { id: true, name: true } },
+                    payeeSupplier: { select: { id: true, name: true } },
+                  },
+                },
+              },
+            },
+          },
+        },
         payeePerson: { select: { id: true, fullName: true } },
         payeeBusiness: { select: { id: true, name: true } },
         payeeSupplier: { select: { id: true, name: true } },
@@ -182,6 +207,28 @@ export async function GET(
 
     const receiptTotal = receipts.reduce((sum, r) => sum + Number(r.amount), 0)
 
+    // MBM-330: planned items of a combo payment, with what's been receipted against each
+    const payeeOf = (x: { payeePerson?: { id: string; fullName: string } | null; payeeBusiness?: { id: string; name: string } | null; payeeSupplier?: { id: string; name: string } | null } | null | undefined) =>
+      x?.payeePerson ? { type: 'PERSON', id: x.payeePerson.id, name: x.payeePerson.fullName }
+      : x?.payeeBusiness ? { type: 'BUSINESS', id: x.payeeBusiness.id, name: x.payeeBusiness.name }
+      : x?.payeeSupplier ? { type: 'SUPPLIER', id: x.payeeSupplier.id, name: x.payeeSupplier.name }
+      : null
+    const comboItems = payment.combo_request
+      ? payment.combo_request.items.map(i => ({
+          id: i.id,
+          description: i.description,
+          quantity: i.quantity != null ? Number(i.quantity) : null,
+          plannedAmount: Number(i.approvedAmount ?? i.estimatedAmount ?? 0),
+          receiptedAmount: receipts.filter(r => r.comboItemId === i.id).reduce((s, r) => s + Number(r.amount), 0),
+          categoryId: i.categoryId,
+          categoryName: i.category ? `${i.category.emoji} ${i.category.name}` : null,
+          subcategoryId: i.subcategoryId,
+          subcategoryName: i.subcategory?.name ?? null,
+          itemPayee: payeeOf(i),
+          sectionPayee: payeeOf(i.section),
+        }))
+      : null
+
     const isAdmin = user.role === 'admin'
     const canSubmit =
       isAdmin || user.id === payment.createdBy || user.id === payment.payeeUserId || user.id === payment.combo_request?.createdBy
@@ -227,6 +274,7 @@ export async function GET(
       data: {
         receipts,
         currentPayee: resolvePaymentPayee(payment),
+        comboItems,
         review: payment.receipt_review ? {
           status: payment.receipt_review.status,
           expectedAmount: Number(payment.receipt_review.expectedAmount),
@@ -278,9 +326,12 @@ export async function POST(
 
     const payment = await prisma.expenseAccountPayments.findUnique({
       where: { id: paymentId },
-      select: { id: true, expenseAccountId: true, locked: true },
+      select: { id: true, expenseAccountId: true, locked: true, payeeType: true, combo_request: { select: { id: true } } },
     })
     if (!payment) return NextResponse.json({ error: 'Payment not found' }, { status: 404 })
+    // MBM-330: a combo payment pays several people — its payee stays "Multiple
+    // payees"; each receipt carries its own payee instead.
+    const isComboPayment = payment.payeeType === 'COMBO' || !!payment.combo_request
     if (payment.locked) {
       return NextResponse.json({ error: 'This expense is read-only — unused funds have already been returned and confirmed' }, { status: 400 })
     }
@@ -344,6 +395,17 @@ export async function POST(
       overrideApplied = true
     }
 
+    // MBM-330: the planned item must belong to this payment's combo request
+    const comboItem = comboItemId
+      ? await prisma.comboPaymentRequestItems.findFirst({
+          where: { id: comboItemId, requestId: payment.combo_request?.id ?? '__none__' },
+          select: { id: true, payeeType: true },
+        })
+      : null
+    if (comboItemId && !comboItem) {
+      return NextResponse.json({ error: 'The planned item does not belong to this combo payment' }, { status: 400 })
+    }
+
     const result = await prisma.$transaction(async (tx) => {
       const created = await tx.expensePaymentReceipts.create({
         data: {
@@ -388,7 +450,7 @@ export async function POST(
 
       // FREEFORM has no equivalent on ExpenseAccountPayments (a one-time receipt-level
       // payee, not a structured record) — never propagate it to the parent payment.
-      if (updatePaymentPayee && payeeType && payeeType !== 'FREEFORM') {
+      if (updatePaymentPayee && payeeType && payeeType !== 'FREEFORM' && !isComboPayment) {
         await tx.expenseAccountPayments.update({
           where: { id: paymentId },
           data: {
@@ -399,6 +461,20 @@ export async function POST(
             // USER and EMPLOYEE payees are not settable via receipt flow
             payeeUserId: null,
             payeeEmployeeId: null,
+          },
+        })
+      }
+
+      // MBM-330: a planned item with no payee yet takes this receipt's payee,
+      // so the request shows who was actually paid. Never overwrites one.
+      if (comboItem && !comboItem.payeeType && payeeType && payeeType !== 'FREEFORM') {
+        await tx.comboPaymentRequestItems.update({
+          where: { id: comboItem.id },
+          data: {
+            payeeType,
+            payeePersonId: payeeType === 'PERSON' ? (payeePersonId ?? null) : null,
+            payeeBusinessId: payeeType === 'BUSINESS' ? (payeeBusinessId ?? null) : null,
+            payeeSupplierId: payeeType === 'SUPPLIER' ? (payeeSupplierId ?? null) : null,
           },
         })
       }

@@ -44,7 +44,7 @@ export async function PUT(
       where: { id: receiptId },
       select: {
         id: true, createdBy: true, receiptDate: true, amount: true, description: true,
-        receiptNumber: true, imageId: true, notes: true, expensePaymentId: true, vehicleId: true,
+        receiptNumber: true, imageId: true, notes: true, expensePaymentId: true, vehicleId: true, comboItemId: true,
         payeeType: true, payeeName: true, payeePersonId: true, payeeBusinessId: true, payeeSupplierId: true,
         expensePayment: {
           select: {
@@ -53,6 +53,7 @@ export async function PUT(
             receipt_review: { select: { status: true } },
             payeeType: true, payeePersonId: true, payeeBusinessId: true, payeeSupplierId: true,
             payeeUserId: true, payeeEmployeeId: true,
+            combo_request: { select: { id: true } },
           },
         },
       },
@@ -108,7 +109,23 @@ export async function PUT(
     // Optionally also correct the parent payment's own payee — same "does this
     // also apply to the payment?" choice the Add Receipt flow offers, now
     // available from Edit too. Only meaningful for a real structured payee.
-    const updatePaymentPayee = body.updatePaymentPayee === true && data.payeeType && data.payeeType !== 'FREEFORM'
+    // MBM-330: never for a combo payment — it pays several people, so its payee
+    // stays "Multiple payees" and each receipt carries its own payee.
+    const isComboPayment = receipt.expensePayment.payeeType === 'COMBO' || !!receipt.expensePayment.combo_request
+    const updatePaymentPayee = body.updatePaymentPayee === true && data.payeeType && data.payeeType !== 'FREEFORM' && !isComboPayment
+
+    // MBM-330: a planned item being linked must belong to this payment's combo request
+    const effectiveComboItemId = ('comboItemId' in data ? (data.comboItemId as string | null) : receipt.comboItemId) || null
+    if ('comboItemId' in data) data.comboItemId = effectiveComboItemId
+    const comboItem = effectiveComboItemId
+      ? await prisma.comboPaymentRequestItems.findFirst({
+          where: { id: effectiveComboItemId, requestId: receipt.expensePayment.combo_request?.id ?? '__none__' },
+          select: { id: true, payeeType: true },
+        })
+      : null
+    if ('comboItemId' in data && effectiveComboItemId && !comboItem) {
+      return NextResponse.json({ error: 'The planned item does not belong to this combo payment' }, { status: 400 })
+    }
 
     if (Object.keys(data).length === 0 && !updatePaymentPayee) {
       return NextResponse.json({ error: 'No editable fields provided' }, { status: 400 })
@@ -149,6 +166,21 @@ export async function PUT(
       const r = Object.keys(data).length > 0
         ? await tx.expensePaymentReceipts.update({ where: { id: receiptId }, data })
         : receipt
+
+      // MBM-330: a planned item with no payee yet takes this receipt's payee (never overwrites one)
+      const finalPayeeType = ('payeeType' in data ? data.payeeType : receipt.payeeType) as string | null
+      if (comboItem && !comboItem.payeeType && finalPayeeType && finalPayeeType !== 'FREEFORM') {
+        const pick = (f: 'payeePersonId' | 'payeeBusinessId' | 'payeeSupplierId') => (f in data ? data[f] : (receipt as any)[f]) as string | null
+        await tx.comboPaymentRequestItems.update({
+          where: { id: comboItem.id },
+          data: {
+            payeeType: finalPayeeType,
+            payeePersonId: finalPayeeType === 'PERSON' ? pick('payeePersonId') : null,
+            payeeBusinessId: finalPayeeType === 'BUSINESS' ? pick('payeeBusinessId') : null,
+            payeeSupplierId: finalPayeeType === 'SUPPLIER' ? pick('payeeSupplierId') : null,
+          },
+        })
+      }
 
       if (updatePaymentPayee) {
         await tx.expenseAccountPayments.update({

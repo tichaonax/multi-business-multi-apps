@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { AddReceiptModal } from './add-receipt-modal'
+import { AddReceiptModal, type ComboItemOption } from './add-receipt-modal'
+import { receiptPayeeHistoryHref } from '@/lib/expense-account/payee-history-link'
 import { useSession } from 'next-auth/react'
 import { useConfirm } from '@/components/ui/confirm-modal'
 
@@ -99,6 +100,7 @@ export function ViewReceiptsModal({
   const confirmModal = useConfirm()
 
   const [receipts, setReceipts] = useState<Receipt[]>([])
+  const [comboItems, setComboItems] = useState<ComboItemOption[] | null>(null) // MBM-330: set for combo payments
   const [currentPayee, setCurrentPayee] = useState<PayeeRef | null>(paymentPayee ?? null)
   const [review, setReview] = useState<ReceiptReview | null>(null)
   const [returnInfo, setReturnInfo] = useState<ReturnInfo | null>(null)
@@ -130,6 +132,7 @@ export function ViewReceiptsModal({
       const json = await res.json()
       if (json.success) {
         setReceipts(json.data.receipts)
+        setComboItems(json.data.comboItems ?? null)
         if (json.data.currentPayee) setCurrentPayee(json.data.currentPayee)
         setReview(json.data.review ?? null)
         setReturnInfo(json.data.returnInfo ?? null)
@@ -456,8 +459,21 @@ export function ViewReceiptsModal({
                           {r.payeeName && (
                             <>
                               <span className="text-xs text-gray-400">·</span>
-                              <span className="text-xs text-teal-600 dark:text-teal-400">{r.payeeName}</span>
+                              {receiptPayeeHistoryHref(r) ? (
+                                <a
+                                  href={receiptPayeeHistoryHref(r)!}
+                                  className="text-xs text-teal-600 dark:text-teal-400 underline decoration-dotted hover:decoration-solid"
+                                  title={`Open ${r.payeeName}'s payee history`}
+                                >{r.payeeName}</a>
+                              ) : (
+                                <span className="text-xs text-teal-600 dark:text-teal-400">{r.payeeName}</span>
+                              )}
                             </>
+                          )}
+                          {r.comboItemId && comboItems?.find(i => i.id === r.comboItemId) && (
+                            <span className="text-xs px-1.5 py-0.5 rounded bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300" title="Planned item on the combo request">
+                              📋 {comboItems.find(i => i.id === r.comboItemId)!.description}
+                            </span>
                           )}
                           {r.categoryName && (
                             <span className="text-xs px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
@@ -629,6 +645,7 @@ export function ViewReceiptsModal({
           paymentId={paymentId}
           paymentPayee={presetComboItemId ? (presetPayee ?? currentPayee) : currentPayee}
           comboItemId={presetComboItemId}
+          comboItems={comboItems}
           review={review}
           paymentAmount={paymentAmount}
           receiptsTotalSoFar={receiptsTotalSoFar}
@@ -648,6 +665,7 @@ export function ViewReceiptsModal({
           paymentId={paymentId}
           paymentPayee={currentPayee}
           editReceipt={editingReceipt}
+          comboItems={comboItems}
           paymentAmount={paymentAmount}
           receiptsTotalSoFar={receiptsTotalSoFar}
           onClose={() => setEditingReceipt(null)}

@@ -6917,6 +6917,8 @@ Sometimes a payment is recorded with a placeholder name (the person who collecte
 - Click **Yes, update payment** to correct the payment record to point to the right payee. The transaction row updates immediately.
 - Click **No, keep original** to save the receipt linked to the new payee without changing the payment record itself.
 
+> **Combo payments never ask this.** A combo payment pays several people, so it always stays **COMBO PAY · Multiple payees**. The payee you choose belongs to that receipt only. See [Receipts for Combo Payments](#receipts-for-combo-payments--which-planned-item-and-who-was-paid) below.
+
 **Step 2 — Receipt details:**
 
 | Field | Required | Notes |
@@ -6941,10 +6943,33 @@ Sometimes a payment is recorded with a placeholder name (the person who collecte
 
 If the amount you enter would push the total **over** the requested amount, the panel turns red and, on save, an amber **"Reason for exception"** box appears instead of saving immediately — a cashier or admin can type a reason and click **Save Anyway (Exception)** to record it as a deliberate over-limit exception; anyone without that permission just sees a message asking them to have a cashier approve it.
 
+#### Receipts for Combo Payments — Which Planned Item, and Who Was Paid
+
+A combo request bundles many lines, and the money often goes to different people. For example, *Truck Daina Parts* includes "Mr Sunday Labour For Truck Daina — $25". When you add a receipt to a combo payment, the form starts with a **Planned item** picker:
+
+1. Pick the line this receipt pays for. Each line shows its planned amount and how much has been receipted so far (✅ once fully receipted). If the receipt covers several lines, or something that wasn't planned, leave it on **Not a planned item / covers several items**.
+2. Picking a line fills in the **description**, the **amount still to receipt** and the **expense type**. You can change any of them.
+3. The **payee** is suggested for you, with a 💡 note saying why:
+   - the payee planned for that line, if the request named one;
+   - otherwise a **known payee whose name appears in the line**. "**Mr Sunday** Labour For Truck Daina" picks *Mr Sunday (Individual)*;
+   - otherwise the section's payee on the request (e.g. *Flordon Motor Spares*).
+
+   Other possible matches appear as **Other suggestions** buttons. You can still search, create a new payee, or use a one-time name as usual.
+4. Save the receipt. If the planned line had no payee yet, it now takes this receipt's payee. A payee already set on the line is never changed.
+
+**Linking older receipts:** open the receipt with **✏️ Edit** and choose its **Planned item**. A receipt that already has a payee keeps it.
+
+On the combo request, each line now shows who was actually paid, e.g. **✅ Paid to Mr Sunday · receipt $25.00**.
+
+> **Clickable payees.** Wherever a receipt or a combo line shows a known payee (in the receipts panel, "Paid to …" on a request line, or "Payee: …" on the full request page), the name is a link. Click it to open that payee's **Payee History** (all time), with every receipt and payment for them. One-time payees aren't links.
+
+> **Earlier combo payments fixed.** Before this change, answering "Yes, update payment" while adding a receipt could relabel a whole combo payment as a payment to one person (e.g. "PAY Faneli Investments −$147"). Those payments have been put back to **COMBO PAY · Multiple payees**. Each receipt kept its own payee, so Payee History now credits each person only with what their receipts show.
+
 #### Viewing and Managing Existing Receipts
 
 Click the **🧾** badge on any payment row to open the receipts panel. This shows:
-- Each receipt with its date, amount, receipt number, payee name, description, and an **📎 Attachment** link if one was uploaded
+- Each receipt with its date, amount, receipt number, payee name (a link to their Payee History), description, and an **📎 Attachment** link if one was uploaded
+- For combo payments, a **📋 planned item** tag showing which request line the receipt pays for
 - Who added the receipt and when
 - A **✏️ Edit** button — visible to the receipt's creator for as long as it hasn't been approved by a cashier yet (no time limit), or to admins or a reviewing cashier at any time. Once approved, only an admin or cashier can still make corrections.
 - A **✕** delete button — visible to the receipt's creator within 7 days (and, same as edit, never after cashier approval), or to admins or a reviewing cashier at any time

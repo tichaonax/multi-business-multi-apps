@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { formatPhoneNumberForDisplay } from '@/lib/country-codes'
+import { ComboItemPaidTo, type ComboItemReceiptPayment } from './combo-item-paid-to'
 
 interface PayeeInfo {
   name: string
@@ -20,6 +21,7 @@ interface ComboItem {
   paidAmount: number | null
   notes: string | null
   sortOrder: number
+  receiptPayments?: ComboItemReceiptPayment[] // MBM-330
 }
 
 interface ComboSection {
@@ -262,6 +264,7 @@ export function ComboRequestDetailModal({
                               {item.notes && (
                                 <p className="text-xs text-gray-400 italic truncate">{item.notes}</p>
                               )}
+                              <ComboItemPaidTo payments={item.receiptPayments} />
                             </div>
                             <div className="text-right shrink-0">
                               {item.approvedAmount !== null ? (

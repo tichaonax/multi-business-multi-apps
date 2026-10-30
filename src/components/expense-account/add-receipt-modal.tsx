@@ -51,6 +51,21 @@ interface PayeeSearchResult {
   identifier?: string
 }
 
+// MBM-330: a planned line item of a combo payment (from GET .../receipts → comboItems)
+export interface ComboItemOption {
+  id: string
+  description: string
+  quantity: number | null
+  plannedAmount: number
+  receiptedAmount: number
+  categoryId: string | null
+  categoryName: string | null
+  subcategoryId: string | null
+  subcategoryName: string | null
+  itemPayee: PayeeRef | null
+  sectionPayee: PayeeRef | null
+}
+
 interface EditReceiptData {
   id: string
   receiptDate: string
@@ -70,6 +85,7 @@ interface EditReceiptData {
   subcategoryName?: string | null
   vehicleId?: string | null
   vehicleLabel?: string | null
+  comboItemId?: string | null
 }
 
 // Balance summary the parent (ViewReceiptsModal) already loads via
@@ -107,6 +123,9 @@ interface AddReceiptModalProps {
   // add a second expense type to the same physical receipt (same date and,
   // when present, same receipt number) without retyping either.
   lastReceipt?: { receiptDate: string; receiptNumber: string | null } | null
+  // MBM-330: set for combo payments — shows the "Planned item" picker, and the
+  // payment's own payee is never changed from here (it stays "Multiple payees")
+  comboItems?: ComboItemOption[] | null
 }
 
 function payeeRefFromReceipt(r: EditReceiptData): PayeeRef | null {
@@ -148,7 +167,7 @@ function saveLastPayee(p: PayeeRef) {
   } catch {}
 }
 
-export function AddReceiptModal({ paymentId, paymentPayee, onClose, onSuccess, editReceipt, review, comboItemId, paymentAmount, receiptsTotalSoFar, lastReceipt }: AddReceiptModalProps) {
+export function AddReceiptModal({ paymentId, paymentPayee, onClose, onSuccess, editReceipt, review, comboItemId, paymentAmount, receiptsTotalSoFar, lastReceipt, comboItems }: AddReceiptModalProps) {
   const router = useRouter()
   const today = new Date().toISOString().slice(0, 10)
   const isEditing = !!editReceipt
@@ -170,12 +189,21 @@ export function AddReceiptModal({ paymentId, paymentPayee, onClose, onSuccess, e
   // Mismatch detection — also fires when paymentPayee is null (no registered payee on payment).
   // FREEFORM is a one-time, receipt-only payee with no equivalent on the payment
   // record itself, so it never triggers the "update payment payee?" prompt.
-  const payeeMismatch = selectedPayee && selectedPayee.type !== 'FREEFORM' && (
+  // MBM-330: combo payments pay several people — the payee belongs to the receipt only
+  const isComboPayment = !!comboItems
+  const payeeMismatch = !isComboPayment && selectedPayee && selectedPayee.type !== 'FREEFORM' && (
     !paymentPayee ||
     selectedPayee.id !== paymentPayee.id ||
     selectedPayee.type !== paymentPayee.type
   )
   const [updatePaymentPayee, setUpdatePaymentPayee] = useState<boolean | null>(null)
+
+  // MBM-330: which planned combo item this receipt is for (optional), and the
+  // payee suggestion that came with picking it
+  const [selectedComboItemId, setSelectedComboItemId] = useState<string>(editReceipt ? (editReceipt.comboItemId ?? '') : (comboItemId ?? ''))
+  const [payeeHint, setPayeeHint] = useState<string | null>(null)
+  const [payeeSuggestions, setPayeeSuggestions] = useState<PayeeRef[]>([])
+  const prefilledItemRef = useRef<string | null>(editReceipt ? (editReceipt.comboItemId ?? null) : null)
 
   // Create-payee sub-modals
   const [createIndividualOpen, setCreateIndividualOpen] = useState(false)
@@ -446,6 +474,66 @@ export function AddReceiptModal({ paymentId, paymentPayee, onClose, onSuccess, e
     setUpdatePaymentPayee(null)
   }
 
+  // MBM-330: picking a planned item pre-fills the receipt (all still editable)
+  // and suggests the payee: the item's own payee → a known payee named in the
+  // item description (e.g. "Mr Sunday Labour…" → Mr Sunday) → the section payee.
+  async function applyComboItem(item: ComboItemOption) {
+    prefilledItemRef.current = item.id
+    if (!isEditing) {
+      const remaining = Math.max(0, item.plannedAmount - item.receiptedAmount)
+      setDescription(item.description)
+      if (remaining > 0) setAmount(remaining.toFixed(2))
+      if (item.categoryId) {
+        setCategory({ categoryId: item.categoryId, categoryName: item.categoryName ?? '', subcategoryId: item.subcategoryId, subcategoryName: item.subcategoryName })
+      }
+    }
+    // Editing a receipt that already has a payee: keep it, only link the item
+    if (isEditing && selectedPayee) { setPayeeSuggestions([]); setPayeeHint(null); return }
+
+    let matches: PayeeRef[] = []
+    try {
+      const res = await fetch(`/api/expense-account/payees/match?text=${encodeURIComponent(item.description)}`, { credentials: 'include' })
+      const json = await res.json()
+      if (json.success) matches = json.data
+    } catch { /* suggestion only */ }
+    if (prefilledItemRef.current !== item.id) return // picked another item meanwhile
+
+    const candidates: PayeeRef[] = []
+    for (const p of [item.itemPayee, ...matches, item.sectionPayee]) {
+      if (p && !candidates.some(c => c.type === p.type && c.id === p.id)) candidates.push(p)
+    }
+    setPayeeSuggestions(candidates)
+    const pick = item.itemPayee ? { p: item.itemPayee, hint: 'Planned payee for this item' }
+      : matches[0] ? { p: matches[0], hint: 'Suggested from the item name — change it if wrong' }
+      : item.sectionPayee ? { p: item.sectionPayee, hint: 'Section payee on the request — change it if someone else was paid' }
+      : null
+    if (pick) {
+      setSelectedPayee(pick.p)
+      setChanging(false)
+      setQuery('')
+      setSearchResults([])
+    }
+    setPayeeHint(pick?.hint ?? null)
+  }
+
+  function onComboItemChange(id: string) {
+    setSelectedComboItemId(id)
+    setPayeeHint(null)
+    setPayeeSuggestions([])
+    const item = comboItems?.find(i => i.id === id)
+    if (item) applyComboItem(item)
+    else prefilledItemRef.current = null
+  }
+
+  // Opened from an item's own "Add Receipt" button: the items arrive with the
+  // receipts list, so pre-fill once they're here
+  useEffect(() => {
+    if (!comboItems || !selectedComboItemId || prefilledItemRef.current === selectedComboItemId) return
+    const item = comboItems.find(i => i.id === selectedComboItemId)
+    if (item) applyComboItem(item)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [comboItems])
+
   function cancelChange() {
     setChanging(false)
     setQuery('')
@@ -508,7 +596,9 @@ export function AddReceiptModal({ paymentId, paymentPayee, onClose, onSuccess, e
         subcategoryId: category?.subcategoryId || undefined,
         updatePaymentPayee: payeeMismatch ? updatePaymentPayee : false,
         overrideReason: overrideReason.trim() || undefined,
-        ...(isEditing ? {} : { comboItemId: comboItemId || undefined }),
+        ...(isEditing
+          ? (isComboPayment ? { comboItemId: selectedComboItemId || null } : {})
+          : { comboItemId: selectedComboItemId || comboItemId || undefined }),
         ...(vehicleId
           ? {
               vehicleId,
@@ -648,9 +738,56 @@ export function AddReceiptModal({ paymentId, paymentPayee, onClose, onSuccess, e
                 </div>
               )}
 
+              {/* MBM-330: Planned item picker (combo payments only, optional) */}
+              {comboItems && comboItems.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium mb-1">Planned item <span className="font-normal text-gray-500 dark:text-gray-400">(optional)</span></label>
+                  <select
+                    value={selectedComboItemId}
+                    onChange={e => onComboItemChange(e.target.value)}
+                    className="input w-full px-3 py-2 text-sm"
+                    disabled={submitting}
+                  >
+                    <option value="">— Not a planned item / covers several items —</option>
+                    {comboItems.map(i => {
+                      const done = i.plannedAmount > 0 && i.receiptedAmount >= i.plannedAmount - 0.005
+                      return (
+                        <option key={i.id} value={i.id}>
+                          {done ? '✅ ' : ''}{i.description} — planned ${i.plannedAmount.toFixed(2)} · receipted ${i.receiptedAmount.toFixed(2)}
+                        </option>
+                      )
+                    })}
+                  </select>
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    Pick the line this receipt pays for. It fills in the description, amount and who was paid.
+                  </p>
+                </div>
+              )}
+
               {/* Payee section */}
               <div>
-                <label className="block text-sm font-medium mb-1">Payee</label>
+                <label className="block text-sm font-medium mb-1">Payee{isComboPayment && <span className="font-normal text-gray-500 dark:text-gray-400"> — who was paid on this receipt</span>}</label>
+                {payeeHint && selectedPayee && !changing && (
+                  <p className="mb-1 text-xs text-teal-700 dark:text-teal-400">💡 {payeeHint}</p>
+                )}
+                {payeeSuggestions.filter(s => !(selectedPayee && s.type === selectedPayee.type && s.id === selectedPayee.id)).length > 0 && (
+                  <div className="mb-2 flex flex-wrap items-center gap-1 text-xs">
+                    <span className="text-gray-500 dark:text-gray-400">Other suggestions:</span>
+                    {payeeSuggestions
+                      .filter(s => !(selectedPayee && s.type === selectedPayee.type && s.id === selectedPayee.id))
+                      .map(s => (
+                        <button
+                          key={`${s.type}:${s.id}`}
+                          type="button"
+                          onClick={() => { selectPayee({ id: s.id, type: s.type, name: s.name }); setPayeeHint(null) }}
+                          className="px-2 py-0.5 rounded border border-teal-300 dark:border-teal-700 text-teal-700 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-900/20"
+                          disabled={submitting}
+                        >
+                          {s.name} <span className="text-gray-400">({typeBadge(s.type)})</span>
+                        </button>
+                      ))}
+                  </div>
+                )}
 
                 {lastPayee && (!selectedPayee || selectedPayee.id !== lastPayee.id || selectedPayee.type !== lastPayee.type) && (
                   <button

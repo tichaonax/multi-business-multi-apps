@@ -9,6 +9,8 @@ import { ComboRequestApproveModal } from './combo-request-approve-modal'
 import { ComboMarkPaidModal } from './combo-request-mark-paid-modal'
 import { ComboVoucherModal } from './combo-voucher-modal'
 import { ViewReceiptsModal } from './view-receipts-modal'
+import { ComboItemPaidTo, type ComboItemReceiptPayment } from './combo-item-paid-to'
+import { payeeHistoryHref } from '@/lib/expense-account/payee-history-link'
 
 interface PayeeRef { type: string; id: string; name: string }
 
@@ -20,6 +22,7 @@ interface PayeeRef { type: string; id: string; name: string }
 // employee/user payee columns (a receipt's payee is who you actually paid
 // at the till, not an internal employee/user), so an item planned against
 // one of those opens the picker with no preset instead of a broken guess.
+
 function payeeRefFromItem(item: ComboItem): PayeeRef | null {
   if (item.payeeType === 'PERSON' && item.payeePerson) return { type: 'PERSON', id: item.payeePerson.id, name: item.payeePerson.fullName }
   if (item.payeeType === 'BUSINESS' && item.payeeBusiness) return { type: 'BUSINESS', id: item.payeeBusiness.id, name: item.payeeBusiness.name }
@@ -56,6 +59,7 @@ interface ComboItem {
   payeeEmployee?: { id: string; fullName: string } | null
   payeeBusiness?: { id: string; name: string } | null
   payeeSupplier?: { id: string; name: string } | null
+  receiptPayments?: ComboItemReceiptPayment[] // MBM-330
 }
 
 interface ComboSection {
@@ -908,7 +912,18 @@ export function ComboRequestDetail({ accountId, requestId }: ComboRequestDetailP
                         {(item.quantity !== null || item.unit) && (
                           <span>{[item.quantity, item.unit].filter(Boolean).join(' ')}</span>
                         )}
-                        {item.payeeType && <span>Payee: {item.payeeType}</span>}
+                        {item.payeeType && (() => {
+                          // MBM-330: show the payee's name, linked to their payee history
+                          const ref = payeeRefFromItem(item)
+                          const href = ref ? payeeHistoryHref(ref.type, ref.id, ref.name) : null
+                          return (
+                            <span>Payee:{' '}
+                              {ref && href
+                                ? <a href={href} className="text-teal-600 dark:text-teal-400 underline decoration-dotted hover:decoration-solid" title={`Open ${ref.name}'s payee history`}>{ref.name}</a>
+                                : (item.payeePerson?.fullName ?? item.payeeUser?.name ?? item.payeeEmployee?.fullName ?? item.payeeBusiness?.name ?? item.payeeSupplier?.name ?? item.payeeType)}
+                            </span>
+                          )
+                        })()}
                         {item.receiptNumber && <span>Receipt: {item.receiptNumber}</span>}
                         {item.paidAt && <span>Paid {fmtDate(item.paidAt)}</span>}
                         {item.notes && <span className="italic">{item.notes}</span>}
@@ -916,6 +931,7 @@ export function ComboRequestDetail({ accountId, requestId }: ComboRequestDetailP
                       {item.noReceiptReason && (
                         <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5 italic">🚫 No receipt — {item.noReceiptReason}</p>
                       )}
+                      <ComboItemPaidTo payments={item.receiptPayments} />
                     </div>
 
                     {/* Amounts */}

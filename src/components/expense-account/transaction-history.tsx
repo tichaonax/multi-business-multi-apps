@@ -788,7 +788,9 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
                 paymentAmount: Math.abs(transaction.amount),
                 paymentDescription: transaction.description,
                 paymentPayee,
-                mode: 'add',
+                // MBM-330: combo payments go through the receipts list, which loads the
+                // planned items for the receipt form's "Planned item" picker
+                mode: transaction.payeeType === 'COMBO' ? 'view' : 'add',
               })
             }}
             className="ml-1 text-sm px-1 py-0.5 rounded text-gray-300 dark:text-gray-600 hover:text-green-500 dark:hover:text-green-400 transition-colors"

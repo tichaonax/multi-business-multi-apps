@@ -36,7 +36,17 @@ async function getComboRequest(requestId: string, accountId: string) {
               // MBM-303: sum of receipts already tagged to this item (see
               // "Add Receipt" / comboItemId), mapped down to receiptedAmount
               // below rather than exposing raw receipt rows here.
-              receipts:      { select: { amount: true } },
+              // MBM-330: plus who each receipt paid — shown as "Paid to X · receipt $y"
+              receipts:      {
+                orderBy: { receiptDate: 'asc' },
+                select: {
+                  amount: true, payeeType: true, payeeName: true,
+                  payeePersonId: true, payeeBusinessId: true, payeeSupplierId: true,
+                  payeePerson: { select: { fullName: true } },
+                  payeeBusiness: { select: { name: true } },
+                  payeeSupplier: { select: { name: true } },
+                },
+              },
               // MBM-319: recorded restaurant expense this item pays (locked in the edit form)
               restaurant_expense_line: { select: { id: true, transaction: { select: { reference: true, purchasedAt: true } } } },
             },
@@ -112,6 +122,13 @@ export async function GET(
         const { receipts, ...itemWithoutReceipts } = item
         return {
           ...itemWithoutReceipts,
+          // MBM-330: one entry per receipt tagged to this item
+          receiptPayments: receipts.map(r => ({
+            amount: Number(r.amount),
+            payeeType: r.payeeType,
+            payeeId: r.payeeType === 'PERSON' ? r.payeePersonId : r.payeeType === 'BUSINESS' ? r.payeeBusinessId : r.payeeType === 'SUPPLIER' ? r.payeeSupplierId : null,
+            payeeName: r.payeePerson?.fullName ?? r.payeeBusiness?.name ?? r.payeeSupplier?.name ?? r.payeeName ?? null,
+          })),
           receiptedAmount: comboItemReceiptedAmount(itemForCalc),
           targetAmount: comboItemTargetAmount(itemForCalc),
           accountedFor: isComboItemAccountedFor(itemForCalc),
