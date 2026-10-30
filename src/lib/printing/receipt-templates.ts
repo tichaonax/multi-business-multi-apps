@@ -1950,6 +1950,8 @@ export interface SampleOfferReceiptData {
   customerNumber: string
   customerPhone: string
   sampledProductName: string
+  /** Current menu price of the sampled item (shown so the customer knows what it costs next visit) */
+  sampledProductPrice?: number
   promoItems: Array<{ name: string; quantity: number }>
   issuedAt: Date | string
   expiresAt: Date | string
@@ -1984,6 +1986,9 @@ export function generateSampleOfferReceipt(data: SampleOfferReceiptData): string
   r += line('-') + LF
 
   r += wrapText(`Enjoyed your sample? Bring this receipt on your next visit to purchase ${item}.`) + LF
+  if (data.sampledProductPrice != null && Number.isFinite(data.sampledProductPrice)) {
+    r += wrapText(`Current menu price: $${data.sampledProductPrice.toFixed(2)}`) + LF
+  }
   if (data.promoItems.length > 0) {
     r += LF
     r += 'Your return-purchase offer includes:' + LF
@@ -1998,6 +2003,8 @@ export function generateSampleOfferReceipt(data: SampleOfferReceiptData): string
   r += line('-') + LF
 
   r += wrapText('Present this receipt before payment and provide your registered phone number. This offer is valid once and only for the customer named above.') + LF
+  r += LF
+  r += wrapText(`DISCLAIMER: This coupon is valid only until ${formatDateTime(new Date(data.expiresAt))} and cannot be used after it expires. Prices may change; ${item} will be charged at the menu price on the day of your visit.`) + LF
 
   if (data.barcodeEscPos) {
     r += LF

@@ -29,6 +29,8 @@ export async function GET(req: NextRequest) {
     hasPhone: !!customer.phone?.trim(),
     validityDays: sampleSettings.validityDays,
     minPurchase: sampleSettings.minPurchase,
+    freeItemProductIds: sampleSettings.freeItemProductIds,
+    maxFreeItemPrice: sampleSettings.maxFreeItemPrice,
     alreadySampled: previous.map(p => ({ productId: p.sampledProductId, productName: p.sampledProductName, issuedAt: p.issuedAt })),
   })
 }

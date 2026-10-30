@@ -3953,6 +3953,8 @@ Give a customer a small free taste of a menu item with their meal. They get a **
 Go to **Restaurant → POS Settings** and find the **🎁 Free sample offers** card:
 - **Minimum purchase to give a sample**: the order total needed before the button is enabled. The default is $4.00.
 - **Sample receipt (coupon) expiry**: how many days the customer has to come back. The default is 7 days.
+- **Maximum free item price**: the most a promised free item can cost. The default is $2.00. Items on the free list that cost more than this are **not offered**, even if they're ticked. They show "above max — not offered" in the list.
+- **Free items for the next visit**: tick the menu items that may be promised free on a sample receipt. Search the list by name; each item shows its price. After you save, the chosen items appear at the top of the list, so you can see at a glance what's set up. Until you tick at least one item, no free items can be promised (samples still work).
 
 Click **Save**. A changed expiry applies to samples given from then on. Receipts already printed keep their own expiry.
 
@@ -3965,16 +3967,19 @@ Click **Save**. A changed expiry applies to samples given from then on. Receipts
    - Search by **name or phone** (or customer number), then pick the customer.
    - If they're not registered, click **Add New Customer**, enter their name and phone number, and click **Create & Select**.
    - To pick someone else, click **Change customer**.
-4. Pick the menu item for the sample. Items this customer has already sampled are greyed out, with the date they had it.
-5. *(Optional)* Tick **Include free items with their next purchase** and add the side dish or other items, with quantities. Leave this unticked if you're not promising anything extra.
+4. Pick the menu item for the sample. Each item shows its price. Items this customer has already sampled are greyed out, with the date they had it.
+5. *(Optional)* Tick **Include free items with their next purchase** and add items, with quantities. Only items from the preset free list, priced at or below the maximum free item price, are shown. Each shows its normal price crossed out and **FREE**. Leave this unticked if you're not promising anything extra.
 6. Click **Add sample**. The cart shows **🎁 FREE SAMPLE — [item]** at $0.00. The total doesn't change. Promised items are listed as "Promised for next visit". They are **not** given today.
 7. Take payment as normal.
 
 After the sales receipt, a **separate sample receipt** prints. It shows:
 - the customer's name, number and phone;
-- the sampled item and the promised free items;
+- the sampled item, its **current menu price**, and the promised free items;
+- a disclaimer that the coupon is valid only until its expiry and that **prices may change**, so the item is charged at the menu price on the day of the visit;
 - the issue and expiry date and time;
 - a barcode.
+
+> **Only need the sample receipt?** In the print window, choose the printer and click **Print sample receipt only**. The sales receipt is skipped and only the sample receipt prints. The button only appears when the order included a sample.
 
 Hand it to the customer and remind them to bring it back.
 
@@ -4009,7 +4014,7 @@ A teal **🎟 Sample offer** box in the cart shows the offer items. The quantiti
 1. In the **🎟 Sample offer** box, click **Substitute** next to the item that's unavailable. Items the system knows are unavailable are marked in red.
 2. Pick the replacement and tell the customer.
    - Replacing the **paid** item: the substitute is charged at **its own normal price**, shown before you apply it.
-   - Replacing a **free** promised item: the substitute stays **free**.
+   - Replacing a **free** promised item: the substitute stays **free**. You can only choose from the preset free items list, at or below the maximum free item price.
 3. Tick **The customer accepted this substitution** and click **Apply substitution**.
 
 If the customer doesn't accept, click **Cancel redemption**. The offer items leave the cart and nothing is used up. The receipt stays valid until its original expiry.

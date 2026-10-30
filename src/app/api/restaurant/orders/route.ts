@@ -14,7 +14,7 @@ import { getEcocashConfig, calcEcocashFee } from '@/lib/ecocash-utils'
 
 import { randomBytes } from 'crypto';
 import { getServerUser } from '@/lib/get-server-user'
-import { assertSampleIssuable, validateOfferForRedemption, assertRedemptionLinesMatch, getSampleOfferValidityDays, getSampleOfferSettings, generateSampleOfferCode, getSampleOfferReceiptData, SampleOfferError } from '@/lib/sample-offers'
+import { assertSampleIssuable, validateOfferForRedemption, assertRedemptionLinesMatch, getSampleOfferValidityDays, getSampleOfferSettings, isAllowedFreeItem, generateSampleOfferCode, getSampleOfferReceiptData, SampleOfferError } from '@/lib/sample-offers'
 
 // R710 session manager for on-the-fly token generation
 const r710SessionManager = new R710SessionManager()
@@ -473,7 +473,8 @@ export async function POST(req: NextRequest) {
       }
       if (sampleIssue) {
         if (!sampleIssue.productId) throw new SampleOfferError('Select the menu item to give as a sample.', 400)
-        const { minPurchase } = await getSampleOfferSettings(businessId)
+        const sampleSettings = await getSampleOfferSettings(businessId)
+        const { minPurchase } = sampleSettings
         if (Number(total) + 0.0001 < minPurchase) {
           throw new SampleOfferError(`Free samples are only given with purchases of $${minPurchase.toFixed(2)} or more.`, 400)
         }
@@ -482,11 +483,14 @@ export async function POST(req: NextRequest) {
         if (promo.length > 0) {
           const found = await prisma.businessProducts.findMany({
             where: { id: { in: promo.map((p: any) => p.productId) }, businessId },
-            select: { id: true, name: true },
+            select: { id: true, name: true, basePrice: true },
           })
           samplePromoProducts = promo.map((p: any) => {
             const prod = found.find(f => f.id === p.productId)
             if (!prod) throw new SampleOfferError('A promised free item was not found.', 400)
+            if (!isAllowedFreeItem(sampleSettings, prod)) {
+              throw new SampleOfferError(`${prod.name} can't be promised free — it is not on the free items list or costs more than $${sampleSettings.maxFreeItemPrice.toFixed(2)}.`, 400)
+            }
             return { id: prod.id, name: prod.name, quantity: Math.max(1, Math.floor(Number(p.quantity) || 1)), variantId: p.variantId || null }
           })
         }

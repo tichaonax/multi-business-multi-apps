@@ -89,6 +89,8 @@ interface UnifiedReceiptPreviewModalProps {
   extraEscPosJobs?: string[]
   /** When provided, shows a "Cancel Order" button that triggers the manager override flow */
   onCancelOrder?: () => void
+  /** When provided, shows a button that prints only this (e.g. the MBM-329 sample receipt) to the selected printer, skipping the main receipt */
+  printOnly?: { label: string; print: (printerId: string) => Promise<void> }
   /** Hide the customer copy option (e.g. for vendor payment vouchers) */
   hideCustomerCopy?: boolean
   /** Override the modal/button title. Defaults to "Print Receipt". Pass "Print Voucher" for vendor payment vouchers. */
@@ -103,6 +105,7 @@ export function UnifiedReceiptPreviewModal({
   extraEscPosJobs,
   onPrintConfirm,
   onCancelOrder,
+  printOnly,
   hideCustomerCopy,
   title = 'Print Receipt',
 }: UnifiedReceiptPreviewModalProps) {
@@ -526,6 +529,20 @@ export function UnifiedReceiptPreviewModal({
     }
   }
 
+  // Print only the extra slip (e.g. sample receipt) — no sales receipt
+  const handlePrintOnly = async () => {
+    if (!printOnly || !selectedPrinterId || isPrintingRef.current) return
+    isPrintingRef.current = true
+    setLoading(true)
+    try {
+      await printOnly.print(selectedPrinterId)
+      onClose()
+    } finally {
+      isPrintingRef.current = false
+      setLoading(false)
+    }
+  }
+
   const selectedPrinter = printers.find(p => p.id === selectedPrinterId)
   const isLocalSelected = selectedPrinterId === LOCAL_PRINTER_ID
   const isQzSelected = selectedPrinterId?.startsWith(QZ_PRINTER_PREFIX) ?? false
@@ -812,6 +829,17 @@ export function UnifiedReceiptPreviewModal({
               <X className="w-4 h-4 mr-2" />
               Cancel
             </Button>
+            {printOnly && (
+              <Button
+                variant="outline"
+                onClick={handlePrintOnly}
+                disabled={loading || !selectedPrinterId || (!isLocalSelected && !isQzSelected && !selectedPrinter?.isOnline)}
+                title={!selectedPrinterId ? 'Please select a printer first' : printOnly.label}
+              >
+                <Printer className="w-4 h-4 mr-2" />
+                {printOnly.label}
+              </Button>
+            )}
             <Button
               onClick={handlePrint}
               disabled={loading || !selectedPrinterId || (!isLocalSelected && !isQzSelected && !selectedPrinter?.isOnline)}

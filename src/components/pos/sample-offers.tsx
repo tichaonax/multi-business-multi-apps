@@ -18,6 +18,12 @@ export interface SampleProductOption {
   isAvailable?: boolean
 }
 
+/** Items that may be promised free: on the preset list (POS Settings) and priced at or below the cap */
+export function filterAllowedFreeItems(products: SampleProductOption[], freeItemProductIds: string[], maxFreeItemPrice: number) {
+  const ids = new Set(freeItemProductIds)
+  return products.filter(p => ids.has(p.id) && Number(p.price) <= maxFreeItemPrice + 0.0001)
+}
+
 export interface PendingSample {
   customerId: string
   productId: string
@@ -91,7 +97,12 @@ function ProductSearchList({ products, onPick, disabledIds, disabledLabel, showP
                 {p.isAvailable === false && <span className="ml-2 text-xs text-red-600">unavailable</span>}
               </span>
               {showPrice === 'price' && <span className="text-secondary">${Number(p.price).toFixed(2)}</span>}
-              {showPrice === 'free' && <span className="text-green-600 font-medium">FREE</span>}
+              {showPrice === 'free' && (
+                <span className="whitespace-nowrap">
+                  <span className="mr-2 text-xs text-secondary line-through">${Number(p.price).toFixed(2)}</span>
+                  <span className="text-green-600 font-medium">FREE</span>
+                </span>
+              )}
             </button>
           )
         })}
@@ -122,6 +133,10 @@ export function GiveSampleModal({ businessId, customer, products, onConfirm, onC
   const [sample, setSample] = useState<SampleProductOption | null>(null)
   const [includePromo, setIncludePromo] = useState(false)
   const [promo, setPromo] = useState<Array<{ productId: string; name: string; quantity: number }>>([])
+  const [freeItemProductIds, setFreeItemProductIds] = useState<string[]>([])
+  const [maxFreeItemPrice, setMaxFreeItemPrice] = useState(0)
+  const freeOptions = useMemo(() => filterAllowedFreeItems(products, freeItemProductIds, maxFreeItemPrice), [products, freeItemProductIds, maxFreeItemPrice])
+  const priceOf = (id: string) => products.find(p => p.id === id)?.price
 
   useEffect(() => {
     if (!customer) return
@@ -134,6 +149,8 @@ export function GiveSampleModal({ businessId, customer, products, onConfirm, onC
         if (!d.success) { setError(d.error || 'Could not load sample history'); return }
         if (!d.hasPhone) setError('This customer has no phone number. Add their phone number before giving a sample.')
         setValidityDays(d.validityDays || 7)
+        setFreeItemProductIds(d.freeItemProductIds || [])
+        setMaxFreeItemPrice(Number(d.maxFreeItemPrice) || 0)
         setAlready(new Map(d.alreadySampled.map((a: any) => [a.productId, new Date(a.issuedAt).toLocaleDateString()])))
       })
       .catch(() => !cancelled && setError('Could not load sample history'))
@@ -210,6 +227,7 @@ export function GiveSampleModal({ businessId, customer, products, onConfirm, onC
               products={products}
               selectedId={sample?.id}
               onPick={setSample}
+              showPrice="price"
               disabledIds={already}
               disabledLabel={id => `already sampled ${already.get(id)}`}
             />
@@ -222,7 +240,10 @@ export function GiveSampleModal({ businessId, customer, products, onConfirm, onC
             <div className="space-y-2 rounded-md border border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-900/10 p-2">
               {promo.map((p, idx) => (
                 <div key={p.productId} className="flex items-center gap-2 text-sm">
-                  <span className="flex-1 text-primary">FREE {p.name}</span>
+                  <span className="flex-1 text-primary">
+                    FREE {p.name}
+                    {priceOf(p.productId) != null && <span className="ml-2 text-xs text-secondary">(${Number(priceOf(p.productId)).toFixed(2)} each)</span>}
+                  </span>
                   <input
                     type="number" min={1} value={p.quantity}
                     onChange={e => setPromo(prev => prev.map((x, i) => i === idx ? { ...x, quantity: Math.max(1, parseInt(e.target.value) || 1) } : x))}
@@ -231,11 +252,20 @@ export function GiveSampleModal({ businessId, customer, products, onConfirm, onC
                   <button type="button" onClick={() => setPromo(prev => prev.filter((_, i) => i !== idx))} className="text-red-600 text-xs">Remove</button>
                 </div>
               ))}
-              <ProductSearchList
-                products={products.filter(p => !promo.some(x => x.productId === p.id))}
-                onPick={p => setPromo(prev => [...prev, { productId: p.id, name: p.name, quantity: 1 }])}
-                showPrice="free"
-              />
+              {freeOptions.length === 0 ? (
+                <p className="text-xs text-secondary">
+                  No free items are set up (or all are above the ${maxFreeItemPrice.toFixed(2)} maximum). A manager can choose them in Restaurant → POS Settings → Free sample offers.
+                </p>
+              ) : (
+                <>
+                  <p className="text-xs text-secondary">Free items from the preset list, up to ${maxFreeItemPrice.toFixed(2)} each.</p>
+                  <ProductSearchList
+                    products={freeOptions.filter(p => !promo.some(x => x.productId === p.id))}
+                    onPick={p => setPromo(prev => [...prev, { productId: p.id, name: p.name, quantity: 1 }])}
+                    showPrice="free"
+                  />
+                </>
+              )}
             </div>
           )}
           <div className="text-xs text-secondary">

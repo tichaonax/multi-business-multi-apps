@@ -63,7 +63,7 @@ import { getCashRoundingConfig, calcCashRounding, distributeRoundingAdjustment }
 import type { AYLILine } from '@/lib/cash-rounding-utils'
 import { useTimeDisplay } from '@/hooks/use-time-display'
 import { generateDeliveryKitchenReceipt, generateDeliveryCustomerReceipt, generateSampleOfferReceipt } from '@/lib/printing/receipt-templates'
-import { GiveSampleModal, RedeemSampleModal, SampleSubstituteModal } from '@/components/pos/sample-offers'
+import { GiveSampleModal, RedeemSampleModal, SampleSubstituteModal, filterAllowedFreeItems } from '@/components/pos/sample-offers'
 import { printRawEscPos, escPosToBase64 } from '@/lib/printing/raw-escpos-dispatch'
 import type { PendingSample, ValidatedSampleOffer, SampleProductOption } from '@/components/pos/sample-offers'
 import type { DeliveryReceiptData } from '@/lib/printing/receipt-templates'
@@ -2257,11 +2257,17 @@ export default function RestaurantPOS() {
 
   // Minimum purchase total before a sample can be given (Restaurant → POS Settings, default $4.00)
   const [sampleMinPurchase, setSampleMinPurchase] = useState(4)
+  // Free substitutes follow the same preset free-items list and price cap as promised items
+  const [sampleFreeConfig, setSampleFreeConfig] = useState<{ ids: string[]; maxPrice: number }>({ ids: [], maxPrice: 0 })
   useEffect(() => {
     if (!currentBusinessId) return
     fetch(`/api/restaurant/sample-offers/settings?businessId=${currentBusinessId}`)
       .then(r => r.json())
-      .then(d => { if (d.success) setSampleMinPurchase(Number(d.minPurchase)) })
+      .then(d => {
+        if (!d.success) return
+        setSampleMinPurchase(Number(d.minPurchase))
+        setSampleFreeConfig({ ids: d.freeItemProductIds || [], maxPrice: Number(d.maxFreeItemPrice) || 0 })
+      })
       .catch(() => {})
   }, [currentBusinessId])
 
@@ -2370,16 +2376,19 @@ export default function RestaurantPOS() {
     setSampleSubTarget(null)
   }
 
-  const printSampleSlips = async (targetPrinterId: string) => {
+  // waitFirst: pause before the first slip when it follows the sales receipt on the same printer
+  const printSampleSlips = async (targetPrinterId: string, waitFirst = true): Promise<boolean> => {
     const jobs = pendingSampleEscPosRef.current
-    if (!jobs.length || !currentBusinessId) return
+    if (!jobs.length || !currentBusinessId) return false
     pendingSampleEscPosRef.current = []
-    for (const job of jobs) {
-      await new Promise(r => setTimeout(r, 1500))
+    let ok = true
+    for (const [i, job] of jobs.entries()) {
+      if (waitFirst || i > 0) await new Promise(r => setTimeout(r, 1500))
       try {
         await printRawEscPos(targetPrinterId, atob(job), currentBusinessId)
-      } catch { toast.error('Sample receipt failed to print. Reprint it from the Sample Offers report.') }
+      } catch { ok = false; toast.error('Sample receipt failed to print. Reprint it from the Sample Offers report.') }
     }
+    return ok
   }
 
   // Scanned sample receipt (global barcode modal, Step 2c) → phone verification modal
@@ -6191,7 +6200,11 @@ export default function RestaurantPOS() {
                       ? (mealProgramCashDue > 0 && (!amountReceived || parseFloat(amountReceived) < mealProgramCashDue))
                       : paymentMethod === 'ECOCASH' ? !ecocashTxCode.trim()
                       : paymentMethod === 'ON_DELIVERY' || paymentMethod === 'ON_PICKUP' || paymentMethod === 'CREDIT' ? false
-                      : (paymentMethod === 'CASH' && total > 0 && (!amountReceived || Math.round(parseFloat(amountReceived) * 100) / 100 < Math.round((cashRoundedTotal !== null ? cashRoundedTotal : total) * 100) / 100))
+                      // Cash must cover the Amount Due shown above: (rounded) total minus any credit applied
+                      : (paymentMethod === 'CASH' && total > 0 && (!amountReceived || Math.round(parseFloat(amountReceived) * 100) / 100 < Math.round(Math.max(0,
+                          (cashRoundedTotal !== null ? cashRoundedTotal : total)
+                          - ((applyCredit && deliveryAccount && !deliveryAccount.isBlacklisted) ? Math.min(deliveryAccount.balance, total) : 0)
+                        ) * 100) / 100))
                   ))}
                   className="flex-1 py-3 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
@@ -6710,7 +6723,8 @@ export default function RestaurantPOS() {
         <SampleSubstituteModal
           lineRole={sampleSubTarget.lineRole}
           originalName={sampleSubTarget.originalName}
-          products={sampleProducts.filter(p => p.id !== sampleSubTarget.originalProductId && p.isAvailable !== false)}
+          products={(sampleSubTarget.lineRole === 'FREE' ? filterAllowedFreeItems(sampleProducts, sampleFreeConfig.ids, sampleFreeConfig.maxPrice) : sampleProducts)
+            .filter(p => p.id !== sampleSubTarget.originalProductId && p.isAvailable !== false)}
           onClose={() => setSampleSubTarget(null)}
           onApply={product => applySampleSubstitution(sampleSubTarget, product)}
         />
@@ -6720,6 +6734,12 @@ export default function RestaurantPOS() {
       <UnifiedReceiptPreviewModal
         isOpen={showReceiptPreview}
         extraEscPosJobs={[...pendingDeliveryEscPos, ...pendingSampleEscPos]}
+        printOnly={pendingSampleEscPos.length > 0 ? {
+          label: 'Print sample receipt only',
+          print: async (printerId) => {
+            if (await printSampleSlips(printerId, false)) toast.push('Sample receipt sent to printer.')
+          },
+        } : undefined}
         onClose={() => {
           setShowReceiptPreview(false)
           setPendingReceiptData(null)

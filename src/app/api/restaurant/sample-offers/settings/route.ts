@@ -6,6 +6,8 @@ import { canAccessBusiness, getSampleOfferSettings } from '@/lib/sample-offers'
 // MBM-329 — free sample settings in Businesses.settings:
 //   sampleOfferValidityDays — offer validity in days (new offers only; each offer stores its own expiry)
 //   sampleMinPurchase       — purchase total needed before a sample can be given (default $4.00)
+//   sampleFreeItemProductIds — preset list of items that can be promised free for the next visit
+//   sampleMaxFreeItemPrice  — items on that list priced above this are not offered (default $2.00)
 export async function GET(req: NextRequest) {
   const user = await getServerUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -18,7 +20,7 @@ export async function GET(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   const user = await getServerUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const { businessId, validityDays, minPurchase } = await req.json()
+  const { businessId, validityDays, minPurchase, freeItemProductIds, maxFreeItemPrice } = await req.json()
   if (!businessId) return NextResponse.json({ error: 'businessId is required' }, { status: 400 })
 
   // Same rule as editing business details: system admin or business owner
@@ -34,12 +36,20 @@ export async function PUT(req: NextRequest) {
   if (!Number.isFinite(min) || min < 0 || min > 100000) {
     return NextResponse.json({ error: 'Minimum purchase must be an amount of $0.00 or more.' }, { status: 400 })
   }
+  const maxFree = Math.round(Number(maxFreeItemPrice) * 100) / 100
+  if (!Number.isFinite(maxFree) || maxFree < 0 || maxFree > 100000) {
+    return NextResponse.json({ error: 'Maximum free item price must be an amount of $0.00 or more.' }, { status: 400 })
+  }
+  const requestedIds: string[] = Array.isArray(freeItemProductIds) ? [...new Set(freeItemProductIds.map(String))] : []
+  const validIds = requestedIds.length
+    ? (await prisma.businessProducts.findMany({ where: { id: { in: requestedIds }, businessId }, select: { id: true } })).map(p => p.id)
+    : []
 
   const business = await prisma.businesses.findUnique({ where: { id: businessId }, select: { settings: true } })
   if (!business) return NextResponse.json({ error: 'Business not found' }, { status: 404 })
   await prisma.businesses.update({
     where: { id: businessId },
-    data: { settings: { ...((business.settings as Record<string, unknown>) || {}), sampleOfferValidityDays: days, sampleMinPurchase: min } },
+    data: { settings: { ...((business.settings as Record<string, unknown>) || {}), sampleOfferValidityDays: days, sampleMinPurchase: min, sampleFreeItemProductIds: validIds, sampleMaxFreeItemPrice: maxFree } },
   })
-  return NextResponse.json({ success: true, validityDays: days, minPurchase: min })
+  return NextResponse.json({ success: true, validityDays: days, minPurchase: min, freeItemProductIds: validIds, maxFreeItemPrice: maxFree })
 }

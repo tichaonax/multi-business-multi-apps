@@ -453,8 +453,11 @@ export async function PUT(request: NextRequest) {
       )
     }
 
-    // Add metadata to config
+    // Add metadata to config. Keep settings this schema doesn't know about (e.g. the
+    // MBM-329 free sample settings) — the schema strips unknown keys, so replacing
+    // the whole object would wipe them.
     const updatedSettings = {
+      ...((business.settings as Record<string, unknown>) || {}),
       ...configData,
       lastUpdated: new Date().toISOString(),
       version: 1

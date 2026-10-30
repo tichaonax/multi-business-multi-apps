@@ -10,6 +10,7 @@ import { prisma } from '@/lib/prisma'
 
 export const DEFAULT_SAMPLE_OFFER_VALIDITY_DAYS = 7
 export const DEFAULT_SAMPLE_MIN_PURCHASE = 4 // restaurant default: purchase total of $4.00 or more
+export const DEFAULT_SAMPLE_MAX_FREE_ITEM_PRICE = 2 // promised free items priced above this are never offered
 export const SAMPLE_OFFER_CODE_PATTERN = /^SMP-[A-Z0-9]{8}$/i
 
 // No 0/O/1/I — easier to read aloud or type when a barcode won't scan
@@ -30,16 +31,36 @@ export function phonesMatch(a: string | null | undefined, b: string | null | und
   return da.slice(-9) === db.slice(-9)
 }
 
-/** Business settings JSON: sampleOfferValidityDays (1–365, default 7), sampleMinPurchase (≥ 0, default 4.00). */
-export async function getSampleOfferSettings(businessId: string): Promise<{ validityDays: number; minPurchase: number }> {
+export interface SampleOfferSettings {
+  validityDays: number
+  minPurchase: number
+  /** Preset list of products that may be promised free for the next visit */
+  freeItemProductIds: string[]
+  /** Items on the list priced above this are not offered */
+  maxFreeItemPrice: number
+}
+
+/**
+ * Business settings JSON: sampleOfferValidityDays (1–365, default 7), sampleMinPurchase (≥ 0, default 4.00),
+ * sampleFreeItemProductIds (default none), sampleMaxFreeItemPrice (≥ 0, default 2.00).
+ */
+export async function getSampleOfferSettings(businessId: string): Promise<SampleOfferSettings> {
   const business = await prisma.businesses.findUnique({ where: { id: businessId }, select: { settings: true } })
   const settings = (business?.settings as any) || {}
   const days = Number(settings.sampleOfferValidityDays)
   const min = settings.sampleMinPurchase == null ? NaN : Number(settings.sampleMinPurchase)
+  const maxFree = settings.sampleMaxFreeItemPrice == null ? NaN : Number(settings.sampleMaxFreeItemPrice)
   return {
     validityDays: Number.isInteger(days) && days >= 1 && days <= 365 ? days : DEFAULT_SAMPLE_OFFER_VALIDITY_DAYS,
     minPurchase: Number.isFinite(min) && min >= 0 ? min : DEFAULT_SAMPLE_MIN_PURCHASE,
+    freeItemProductIds: Array.isArray(settings.sampleFreeItemProductIds) ? settings.sampleFreeItemProductIds.map(String) : [],
+    maxFreeItemPrice: Number.isFinite(maxFree) && maxFree >= 0 ? maxFree : DEFAULT_SAMPLE_MAX_FREE_ITEM_PRICE,
   }
+}
+
+/** A product may be promised (or substituted) free only if it is on the preset list and within the price cap. */
+export function isAllowedFreeItem(settings: SampleOfferSettings, product: { id: string; basePrice: unknown }): boolean {
+  return settings.freeItemProductIds.includes(product.id) && Number(product.basePrice) <= settings.maxFreeItemPrice + 0.0001
 }
 
 export async function getSampleOfferValidityDays(businessId: string): Promise<number> {
@@ -174,8 +195,11 @@ export async function assertRedemptionLinesMatch(
     if (line.id !== expectedId) throw mismatch(`free ${promo.productName} changed`)
     let suppliedName = promo.productName
     if (sub) {
-      const subProduct = await prisma.businessProducts.findFirst({ where: { id: sub.substituteProductId, businessId: offer.businessId }, select: { name: true } })
+      const subProduct = await prisma.businessProducts.findFirst({ where: { id: sub.substituteProductId, businessId: offer.businessId }, select: { id: true, name: true, basePrice: true } })
       if (!subProduct) throw mismatch('substitute item not found')
+      if (!isAllowedFreeItem(await getSampleOfferSettings(offer.businessId), subProduct)) {
+        throw new SampleOfferError(`${subProduct.name} is not on the free items list (or is above the maximum free item price). Choose another substitute.`, 400)
+      }
       suppliedName = subProduct.name
       rows.push({ lineRole: 'FREE', promoItemId: promo.id, originalProductId: promo.productId, originalProductName: promo.productName, substituteProductId: sub.substituteProductId, substituteProductName: subProduct.name, substituteUnitPrice: 0 })
     }
@@ -202,6 +226,7 @@ export async function getSampleOfferReceiptData(offerId: string) {
       promo_items: { orderBy: { createdAt: 'asc' } },
       business_customers: { select: { name: true, customerNumber: true } },
       businesses: { select: { name: true, address: true, phone: true } },
+      sampled_product: { select: { basePrice: true } },
     },
   })
   if (!offer) return null
@@ -216,6 +241,8 @@ export async function getSampleOfferReceiptData(offerId: string) {
     customerNumber: offer.business_customers.customerNumber,
     customerPhone: offer.customerPhone,
     sampledProductName: offer.sampledProductName,
+    // Current menu price (the slip says prices may change)
+    sampledProductPrice: Number(offer.sampled_product.basePrice),
     promoItems: offer.promo_items.map(p => ({ name: p.productName, quantity: p.quantity })),
     issuedAt: offer.issuedAt.toISOString(),
     expiresAt: offer.expiresAt.toISOString(),
