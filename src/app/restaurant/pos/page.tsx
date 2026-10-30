@@ -10,7 +10,7 @@ import { BusinessTypeRoute } from '@/components/auth/business-type-route'
 import { BusinessTypeRedirect } from '@/components/business-type-redirect'
 import { BarcodeScanner } from '@/components/universal/barcode-scanner'
 import { UniversalProduct } from '@/components/universal/product-card'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useToastContext } from '@/components/ui/toast'
 import { CollapsibleSection } from '@/components/ui/collapsible-section'
 import { useSession } from 'next-auth/react'
@@ -62,7 +62,10 @@ import { calcEcocashFeeFromBusiness, getEcocashSummary } from '@/lib/ecocash-uti
 import { getCashRoundingConfig, calcCashRounding, distributeRoundingAdjustment } from '@/lib/cash-rounding-utils'
 import type { AYLILine } from '@/lib/cash-rounding-utils'
 import { useTimeDisplay } from '@/hooks/use-time-display'
-import { generateDeliveryKitchenReceipt, generateDeliveryCustomerReceipt } from '@/lib/printing/receipt-templates'
+import { generateDeliveryKitchenReceipt, generateDeliveryCustomerReceipt, generateSampleOfferReceipt } from '@/lib/printing/receipt-templates'
+import { GiveSampleModal, RedeemSampleModal, SampleSubstituteModal } from '@/components/pos/sample-offers'
+import { printRawEscPos, escPosToBase64 } from '@/lib/printing/raw-escpos-dispatch'
+import type { PendingSample, ValidatedSampleOffer, SampleProductOption } from '@/components/pos/sample-offers'
 import type { DeliveryReceiptData } from '@/lib/printing/receipt-templates'
 import { generateBarcodeEscPos } from '@/lib/printing/card-print-utils'
 import { ManagerOverrideModal, type OrderSummary as CancelOrderSummary } from '@/components/manager-override/manager-override-modal'
@@ -226,6 +229,19 @@ export default function RestaurantPOS() {
   const [showReceiptPreview, setShowReceiptPreview] = useState(false)
   const [pendingReceiptData, setPendingReceiptData] = useState<ReceiptData | null>(null)
   const [pendingDeliveryEscPos, setPendingDeliveryEscPos] = useState<string[]>([])
+  // MBM-329 — free sample (issue) / sample receipt (redemption)
+  const [pendingSample, setPendingSample] = useState<PendingSample | null>(null)
+  const [showGiveSample, setShowGiveSample] = useState(false)
+  const [redeemSampleCode, setRedeemSampleCode] = useState<string | null>(null) // non-null = modal open
+  const [sampleRedemption, setSampleRedemption] = useState<{
+    offer: ValidatedSampleOffer
+    phone: string
+    substitutions: Array<{ lineRole: 'PAID' | 'FREE'; promoItemId?: string | null; originalProductId: string; substituteProductId: string }>
+  } | null>(null)
+  const [sampleSubTarget, setSampleSubTarget] = useState<{ cartId: string; lineRole: 'PAID' | 'FREE'; originalProductId: string; originalName: string; promoItemId?: string } | null>(null)
+  const [pendingSampleEscPos, setPendingSampleEscPos] = useState<string[]>([])
+  const pendingSampleEscPosRef = useRef<string[]>([])
+  useEffect(() => { pendingSampleEscPosRef.current = pendingSampleEscPos }, [pendingSampleEscPos])
   const [completedOrder, setCompletedOrder] = useState<any>(null)
   // Which token section was just copied, for the inline fade-out
   // confirmation next to that section's Copy button — see
@@ -483,6 +499,8 @@ export default function RestaurantPOS() {
         const savedCart = localStorage.getItem(`cart-${currentBusinessId}`)
         if (savedCart) {
           let parsedCart: CartItem[] = JSON.parse(savedCart)
+          // MBM-329 — sample offer lines need a live, phone-verified redemption; drop them on reload
+          parsedCart = parsedCart.filter(i => !(i as any).sampleOfferId)
           console.log('✅ Cart restored from localStorage:', parsedCart.length, 'items')
 
           // ── Validate cart against DB ──────────────────────────────────────
@@ -1866,6 +1884,9 @@ export default function RestaurantPOS() {
         }
       })
 
+      // MBM-329 — sample receipt after the sales receipt (auto-print path skips the preview modal)
+      if (preferences.autoPrintReceipt && printerId) await printSampleSlips(printerId)
+
       // Close completed order modal after successful print
       if (preferences.autoPrintReceipt) {
         setTimeout(() => {
@@ -2228,6 +2249,163 @@ export default function RestaurantPOS() {
   }, [completedOrder])
 
   // Show loading while session or business context is loading
+  // ── MBM-329 — free samples & sample receipt redemption ──────────────────────
+  const sampleProducts = useMemo<SampleProductOption[]>(() => menuItems
+    .filter(m => !(m as any).esp32Token && !(m as any).r710Token && !m.isCombo && !(m as any).isAYLICombo
+      && !String(m.id).startsWith('inv_') && !(m as any).attributes?.isCustomBulk && !m.isSoldByWeight)
+    .map(m => ({ id: m.id, name: m.name, price: Number(m.price), category: m.category, isAvailable: m.isAvailable })), [menuItems])
+
+  // Minimum purchase total before a sample can be given (Restaurant → POS Settings, default $4.00)
+  const [sampleMinPurchase, setSampleMinPurchase] = useState(4)
+  useEffect(() => {
+    if (!currentBusinessId) return
+    fetch(`/api/restaurant/sample-offers/settings?businessId=${currentBusinessId}`)
+      .then(r => r.json())
+      .then(d => { if (d.success) setSampleMinPurchase(Number(d.minPurchase)) })
+      .catch(() => {})
+  }, [currentBusinessId])
+
+  // The modal itself asks for the customer (existing search or quick-register) when none is selected
+  const openGiveSample = () => setShowGiveSample(true)
+
+  const selectSampleCustomer = (c: any) => {
+    setSelectedCustomer(c)
+    setAppliedReward(null)
+    setSkipRewardThisTime(true)
+    setShowRewardHistory(false)
+    autoAppliedForRef.current = null
+  }
+
+  const cancelSampleRedemption = () => {
+    setCart(prev => {
+      const next = prev.filter(i => !(i as any).sampleOfferId)
+      broadcastCartState(next)
+      return next
+    })
+    setSampleRedemption(null)
+    setSampleSubTarget(null)
+  }
+
+  const handleSampleOfferValidated = (offer: ValidatedSampleOffer, phone: string) => {
+    const menuFor = (id: string) => menuItems.find(m => m.id === id)
+    const promotedMenu = menuFor(offer.promoted.productId)
+    const lines: CartItem[] = [
+      {
+        ...(promotedMenu || {}),
+        id: 'sample:paid',
+        name: offer.promoted.name,
+        category: promotedMenu?.category || 'sample-offer',
+        price: promotedMenu ? Number(promotedMenu.price) : offer.promoted.price,
+        quantity: 1,
+        sampleOfferId: offer.id,
+        sampleRole: 'PROMOTED',
+        sampleProductId: offer.promoted.productId,
+      } as any,
+      ...offer.promoItems.map(p => {
+        const m = menuFor(p.productId)
+        return {
+          ...(m || {}),
+          id: `sample:free:${p.promoItemId}`,
+          name: `${p.name} (FREE - sample offer)`,
+          category: m?.category || 'sample-offer',
+          price: 0,
+          quantity: p.quantity,
+          sampleOfferId: offer.id,
+          sampleRole: 'FREE_PROMO',
+          samplePromoItemId: p.promoItemId,
+          sampleProductId: p.productId,
+        } as any
+      }),
+    ]
+    setSelectedCustomer({
+      id: offer.customer.id,
+      customerNumber: offer.customer.customerNumber,
+      name: offer.customer.name,
+      phone: offer.customer.phone ?? undefined,
+      email: offer.customer.email ?? undefined,
+      customerType: offer.customer.customerType,
+    })
+    setCart(prev => {
+      const next = [...prev.filter(i => !(i as any).sampleOfferId), ...lines]
+      broadcastCartState(next)
+      return next
+    })
+    setPendingSample(null)
+    setSampleRedemption({ offer, phone, substitutions: [] })
+    setRedeemSampleCode(null)
+    const unavailable = [offer.promoted, ...offer.promoItems].filter(p => !p.available).map(p => p.name)
+    toast.push(
+      unavailable.length > 0
+        ? `Sample offer added. Unavailable: ${unavailable.join(', ')}. Offer the customer a substitute or cancel the redemption.`
+        : 'Sample offer verified and added to the cart.',
+      { type: unavailable.length > 0 ? 'warning' : 'success', duration: 6000 }
+    )
+  }
+
+  const applySampleSubstitution = (
+    target: { cartId: string; lineRole: 'PAID' | 'FREE'; originalProductId: string; originalName: string; promoItemId?: string },
+    product: SampleProductOption
+  ) => {
+    const m = menuItems.find(x => x.id === product.id)
+    setCart(prev => {
+      const next = prev.map(i => i.id !== target.cartId ? i : ({
+        ...(m || {}),
+        ...i,
+        name: target.lineRole === 'PAID' ? `${product.name} (sub for ${target.originalName})` : `${product.name} (FREE - sub for ${target.originalName})`,
+        category: m?.category || i.category,
+        price: target.lineRole === 'PAID' ? Number(product.price) : 0,
+        sampleProductId: product.id,
+        substitutedFrom: target.originalName,
+      } as any))
+      broadcastCartState(next)
+      return next
+    })
+    setSampleRedemption(prev => prev ? {
+      ...prev,
+      substitutions: [
+        ...prev.substitutions.filter(s => !(s.lineRole === target.lineRole && (s.promoItemId || null) === (target.promoItemId || null))),
+        { lineRole: target.lineRole, promoItemId: target.promoItemId || null, originalProductId: target.originalProductId, substituteProductId: product.id },
+      ],
+    } : prev)
+    setSampleSubTarget(null)
+  }
+
+  const printSampleSlips = async (targetPrinterId: string) => {
+    const jobs = pendingSampleEscPosRef.current
+    if (!jobs.length || !currentBusinessId) return
+    pendingSampleEscPosRef.current = []
+    for (const job of jobs) {
+      await new Promise(r => setTimeout(r, 1500))
+      try {
+        await printRawEscPos(targetPrinterId, atob(job), currentBusinessId)
+      } catch { toast.error('Sample receipt failed to print. Reprint it from the Sample Offers report.') }
+    }
+  }
+
+  // Scanned sample receipt (global barcode modal, Step 2c) → phone verification modal
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const code = (e as CustomEvent).detail?.offerCode
+      if (code) setRedeemSampleCode(code)
+    }
+    window.addEventListener('pos:scan-sample-offer', handler)
+    return () => window.removeEventListener('pos:scan-sample-offer', handler)
+  }, [])
+
+  // Keep sample state consistent with the cart / selected customer
+  useEffect(() => {
+    if (pendingSample && pendingSample.customerId !== selectedCustomer?.id) setPendingSample(null)
+    if (sampleRedemption && selectedCustomer?.id !== sampleRedemption.offer.customer.id) {
+      cancelSampleRedemption()
+      toast.push('Sample offer redemption cancelled because the customer changed.', { type: 'warning', duration: 5000 })
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCustomer?.id])
+  useEffect(() => {
+    if (sampleRedemption && !cart.some(i => (i as any).sampleOfferId)) setSampleRedemption(null)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cart])
+
   if (status === 'loading' || businessLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -2501,6 +2679,12 @@ export default function RestaurantPOS() {
   }
 
   const removeFromCart = (itemId: string) => {
+    // MBM-329 — removing any offer line cancels the whole redemption (offer stays valid)
+    if (itemId.startsWith('sample:')) {
+      cancelSampleRedemption()
+      toast.push('Sample offer redemption cancelled. The offer is still valid until it expires.')
+      return
+    }
     setCart(prev => {
       const removedItem = prev.find(i => i.id === itemId)
       let newCart = prev.filter(i => i.id !== itemId)
@@ -2515,6 +2699,10 @@ export default function RestaurantPOS() {
   }
 
   const updateQuantity = (itemId: string, quantity: number) => {
+    if (itemId.startsWith('sample:') && quantity > 0) {
+      toast.push('Sample offer quantities are fixed. Add extra portions as a separate item.', { type: 'warning', duration: 4000 })
+      return
+    }
     if (quantity <= 0) {
       removeFromCart(itemId)
       return
@@ -2785,7 +2973,8 @@ export default function RestaurantPOS() {
         : 0
 
       // Auto-add free WiFi token if cart has a today's special and no WiFi token yet
-      let cartForOrder = [...cart]
+      // MBM-329 — offer lines use a 'sample:' cart key; the server needs the real product id
+      let cartForOrder = cart.map(i => (i as any).sampleProductId ? ({ ...i, id: (i as any).sampleProductId } as CartItem) : i)
       const hasSpecialInCart = cartForOrder.some(i => i.isTodaysSpecial && todaysSpecial?.includeWifi)
       const hasWifiAlready = cartForOrder.some(i => (i as any).esp32Token || (i as any).r710Token)
       if (hasSpecialInCart && !hasWifiAlready) {
@@ -2837,6 +3026,20 @@ export default function RestaurantPOS() {
         customerId: selectedCustomer?.id || null,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         ...(selectedSalesperson?.employeeId ? { salespersonEmployeeId: selectedSalesperson.employeeId } : {}),
+        ...(pendingSample ? {
+          sampleIssue: {
+            productId: pendingSample.productId,
+            promoItems: pendingSample.promoItems.map(p => ({ productId: p.productId, quantity: p.quantity })),
+          },
+        } : {}),
+        ...(sampleRedemption ? {
+          sampleRedemption: {
+            offerId: sampleRedemption.offer.id,
+            offerCode: sampleRedemption.offer.offerCode,
+            phone: sampleRedemption.phone,
+            substitutions: sampleRedemption.substitutions,
+          },
+        } : {}),
       }
       console.log('Request body:', requestBody)
 
@@ -2863,6 +3066,10 @@ export default function RestaurantPOS() {
         const receiptItems: CartItem[] = [...cart]
         if (result.rewardFreeItem) {
           receiptItems.push({ ...result.rewardFreeItem, id: 'reward-free', category: 'promo' })
+        }
+        // MBM-329 — the free sample shows on the sales receipt at $0
+        if (result.sampleOffer) {
+          receiptItems.push({ id: 'sample-free', name: `FREE SAMPLE - ${result.sampleOffer.sampledProductName}`, price: 0, quantity: 1, category: 'sample' } as CartItem)
         }
 
         console.log('🟢 [completeOrder] paymentMethod:', paymentMethod, 'ecocashTxCode:', ecocashTxCode)
@@ -3013,6 +3220,24 @@ export default function RestaurantPOS() {
         } else {
           setPendingDeliveryEscPos([])
         }
+
+        // MBM-329 — pre-generate the separate sample receipt (printed after the sales receipt)
+        if (result.sampleOffer) {
+          const so = result.sampleOffer
+          const barcodeEscPos = await generateBarcodeEscPos(so.offerCode).catch(() => undefined)
+          const esc = generateSampleOfferReceipt({ ...so, barcodeEscPos })
+          const jobs = [escPosToBase64(esc)]
+          pendingSampleEscPosRef.current = jobs
+          setPendingSampleEscPos(jobs)
+        } else {
+          pendingSampleEscPosRef.current = []
+          setPendingSampleEscPos([])
+        }
+        if (result.sampleOfferWarning) {
+          toast.push(result.sampleOfferWarning, { type: 'warning', duration: 8000 })
+        }
+        setPendingSample(null)
+        setSampleRedemption(null)
 
         // Delivery: attach delivery meta (pass explicit applyCredit flag)
         if (orderType === 'delivery' && selectedCustomer) {
@@ -5424,6 +5649,78 @@ export default function RestaurantPOS() {
                 </div>
               )}
 
+              {/* MBM-329 — free sample / sample receipt redemption */}
+              <div className="mb-3 space-y-2">
+                {sampleRedemption && (
+                  <div className="rounded-lg border border-teal-300 dark:border-teal-700 bg-teal-50 dark:bg-teal-900/20 p-2 text-sm space-y-1">
+                    <div className="font-medium text-teal-800 dark:text-teal-200">
+                      🎟 Sample offer {sampleRedemption.offer.offerCode} — {sampleRedemption.offer.customer.name}
+                    </div>
+                    {cart.filter(i => (i as any).sampleOfferId).map(i => {
+                      const line = i as any
+                      const isPaid = line.sampleRole === 'PROMOTED'
+                      const promo = !isPaid ? sampleRedemption.offer.promoItems.find(p => p.promoItemId === line.samplePromoItemId) : null
+                      const original = isPaid ? sampleRedemption.offer.promoted : promo
+                      const unavailable = original && line.sampleProductId === original.productId && !original.available
+                      return (
+                        <div key={i.id} className="flex items-center justify-between gap-2">
+                          <span className="text-primary">
+                            {i.name} {isPaid ? `$${Number(i.price).toFixed(2)}` : ''}
+                            {unavailable && <span className="ml-1 text-xs text-red-600">unavailable</span>}
+                          </span>
+                          {original && (
+                            <button
+                              type="button"
+                              className="text-xs text-teal-700 dark:text-teal-300 underline"
+                              onClick={() => setSampleSubTarget({ cartId: i.id, lineRole: isPaid ? 'PAID' : 'FREE', originalProductId: original.productId, originalName: original.name, promoItemId: promo?.promoItemId })}
+                            >Substitute</button>
+                          )}
+                        </div>
+                      )
+                    })}
+                    <button type="button" onClick={() => { cancelSampleRedemption(); toast.push('Sample offer redemption cancelled. The offer is still valid until it expires.') }} className="text-xs text-red-600 underline">
+                      Cancel redemption
+                    </button>
+                  </div>
+                )}
+                {pendingSample && (
+                  <div className="rounded-lg border border-teal-300 dark:border-teal-700 bg-teal-50 dark:bg-teal-900/20 p-2 text-sm">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium text-teal-800 dark:text-teal-200">🎁 FREE SAMPLE — {pendingSample.productName}</span>
+                      <span className="text-green-600">$0.00</span>
+                    </div>
+                    {pendingSample.promoItems.length > 0 && (
+                      <div className="text-xs text-secondary">Promised for next visit: {pendingSample.promoItems.map(p => `${p.quantity > 1 ? `${p.quantity} x ` : ''}${p.name}`).join(', ')}</div>
+                    )}
+                    {total + 0.0001 < sampleMinPurchase && (
+                      <div className="text-xs text-red-600">Order total is below ${sampleMinPurchase.toFixed(2)}. Add items or remove the sample.</div>
+                    )}
+                    <button type="button" onClick={() => setPendingSample(null)} className="text-xs text-red-600 underline">Remove sample</button>
+                  </div>
+                )}
+                {!sampleRedemption && !pendingSample && (
+                  <>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      disabled={cart.length === 0 || total + 0.0001 < sampleMinPurchase}
+                      title={total + 0.0001 < sampleMinPurchase ? `Free samples are given with purchases of $${sampleMinPurchase.toFixed(2)} or more` : undefined}
+                      onClick={openGiveSample}
+                      className="flex-1 py-2 text-sm rounded-lg border border-teal-500 text-teal-700 dark:text-teal-300 hover:bg-teal-50 dark:hover:bg-teal-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >🎁 Give Free Sample</button>
+                    <button
+                      type="button"
+                      onClick={() => setRedeemSampleCode('')}
+                      className="flex-1 py-2 text-sm rounded-lg border border-teal-500 text-teal-700 dark:text-teal-300 hover:bg-teal-50 dark:hover:bg-teal-900/20"
+                    >🎟 Redeem Sample Receipt</button>
+                  </div>
+                  {cart.length > 0 && total + 0.0001 < sampleMinPurchase && (
+                    <p className="text-xs text-secondary">Free sample available on purchases of ${sampleMinPurchase.toFixed(2)} or more.</p>
+                  )}
+                  </>
+                )}
+              </div>
+
               <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-2 space-y-2">
               <button
                 onClick={handleProcessOrderClick}
@@ -6388,10 +6685,41 @@ export default function RestaurantPOS() {
         )
       })()}
 
+      {/* MBM-329 — free sample modals */}
+      {showGiveSample && currentBusinessId && (
+        <GiveSampleModal
+          businessId={currentBusinessId}
+          customer={selectedCustomer}
+          onCustomerSelected={selectSampleCustomer}
+          businessName={currentBusiness?.businessName || undefined}
+          businessPhone={currentBusiness?.phone || undefined}
+          products={sampleProducts}
+          onClose={() => setShowGiveSample(false)}
+          onConfirm={sample => { setPendingSample(sample); setShowGiveSample(false) }}
+        />
+      )}
+      {redeemSampleCode !== null && currentBusinessId && (
+        <RedeemSampleModal
+          businessId={currentBusinessId}
+          initialCode={redeemSampleCode}
+          onClose={() => setRedeemSampleCode(null)}
+          onValidated={handleSampleOfferValidated}
+        />
+      )}
+      {sampleSubTarget && (
+        <SampleSubstituteModal
+          lineRole={sampleSubTarget.lineRole}
+          originalName={sampleSubTarget.originalName}
+          products={sampleProducts.filter(p => p.id !== sampleSubTarget.originalProductId && p.isAvailable !== false)}
+          onClose={() => setSampleSubTarget(null)}
+          onApply={product => applySampleSubstitution(sampleSubTarget, product)}
+        />
+      )}
+
       {/* Unified Receipt Preview Modal */}
       <UnifiedReceiptPreviewModal
         isOpen={showReceiptPreview}
-        extraEscPosJobs={pendingDeliveryEscPos}
+        extraEscPosJobs={[...pendingDeliveryEscPos, ...pendingSampleEscPos]}
         onClose={() => {
           setShowReceiptPreview(false)
           setPendingReceiptData(null)
@@ -6463,6 +6791,9 @@ export default function RestaurantPOS() {
                 try { await printDelivery(toB64(customerEsc)) } catch { /* non-critical */ }
               })()
             }
+
+            // MBM-329 — sample receipt (network printer path; USB/QZ print it via extraEscPosJobs)
+            if (options.printerId) await printSampleSlips(options.printerId)
 
             // Close preview and completed order modal
             setShowReceiptPreview(false)

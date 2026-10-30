@@ -638,6 +638,17 @@ export async function createCleanBackup(
       where: { businessId: { in: businessIds } }
     })
 
+    // Free menu samples + return-purchase offers (MBM-329)
+    businessData.sampleOffers = await prisma.sampleOffers.findMany({
+      where: { businessId: { in: businessIds } }
+    })
+    businessData.sampleOfferPromoItems = await prisma.sampleOfferPromoItems.findMany({
+      where: { offer: { businessId: { in: businessIds } } }
+    })
+    businessData.sampleOfferSubstitutions = await prisma.sampleOfferSubstitutions.findMany({
+      where: { offer: { businessId: { in: businessIds } } }
+    })
+
     // Coupons
     businessData.coupons = await prisma.coupons.findMany({
       where: { businessId: { in: businessIds } }
@@ -1956,7 +1967,9 @@ export async function createCleanBackup(
     // 6.48.0 (2026-10-21): MBM-327 audit — added the MBM-296 pricing tables
     // productPriceHistory, productExceptionReviews, pricingExceptionSettings.
     // 6.49.0 (2026-10-24): MBM-328 chatMessageReactions.
-    schemaVersion: '6.49.0',
+    // 6.50.0 (2026-10-30): MBM-329 sampleOffers, sampleOfferPromoItems,
+    // sampleOfferSubstitutions.
+    schemaVersion: '6.50.0',
     checksums: {
       businessData: businessDataChecksum,
       deviceData: deviceDataChecksum

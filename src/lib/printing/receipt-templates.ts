@@ -1936,3 +1936,80 @@ export function generateDeliveryRunSheet(data: DeliveryRunSheetData): string {
   r += CUT
   return r
 }
+
+// ============================================================
+// MBM-329 — Free sample receipt (return-purchase offer)
+// ============================================================
+
+export interface SampleOfferReceiptData {
+  businessName: string
+  businessAddress?: string
+  businessPhone?: string
+  offerCode: string
+  customerName: string
+  customerNumber: string
+  customerPhone: string
+  sampledProductName: string
+  promoItems: Array<{ name: string; quantity: number }>
+  issuedAt: Date | string
+  expiresAt: Date | string
+  barcodeEscPos?: string   // pre-rendered GS v 0 raster from generateBarcodeEscPos(offerCode)
+  isReprint?: boolean
+}
+
+/**
+ * Separate slip printed after the regular receipt when a free sample is given.
+ * The barcode encodes the offer code (SMP-XXXXXXXX) for the global scan handler.
+ */
+export function generateSampleOfferReceipt(data: SampleOfferReceiptData): string {
+  const item = stripEmojis(data.sampledProductName)
+  let r = ''
+  r += ESC + '@'
+
+  r += ALIGN_CENTER
+  r += centerText(stripEmojis(data.businessName)) + LF
+  if (data.businessAddress) r += centerText(stripEmojis(data.businessAddress)) + LF
+  if (data.businessPhone) r += centerText(`Tel: ${formatPhoneNumberForDisplay(data.businessPhone)}`) + LF
+  r += LF
+  r += line('=') + LF
+  r += centerText('FREE SAMPLE') + LF
+  r += centerText('TRY SOMETHING NEW!') + LF
+  if (data.isReprint) r += centerText('** REPRINT **') + LF
+  r += line('=') + LF
+
+  r += ALIGN_LEFT
+  r += wrapText(`Customer: ${stripEmojis(data.customerName)} (${data.customerNumber})`) + LF
+  r += `Phone   : ${formatPhoneNumberForDisplay(data.customerPhone)}` + LF
+  r += wrapText(`Sample provided: ${item}`) + LF
+  r += line('-') + LF
+
+  r += wrapText(`Enjoyed your sample? Bring this receipt on your next visit to purchase ${item}.`) + LF
+  if (data.promoItems.length > 0) {
+    r += LF
+    r += 'Your return-purchase offer includes:' + LF
+    data.promoItems.forEach(p => {
+      r += wrapText(`  FREE ${p.quantity > 1 ? `${p.quantity} x ` : ''}${stripEmojis(p.name)}`) + LF
+    })
+  }
+  r += line('-') + LF
+
+  r += `Issued : ${formatDateTime(new Date(data.issuedAt))}` + LF
+  r += `Expires: ${formatDateTime(new Date(data.expiresAt))}` + LF
+  r += line('-') + LF
+
+  r += wrapText('Present this receipt before payment and provide your registered phone number. This offer is valid once and only for the customer named above.') + LF
+
+  if (data.barcodeEscPos) {
+    r += LF
+    r += ALIGN_CENTER
+    r += data.barcodeEscPos
+    r += LF
+  } else {
+    r += LF + ALIGN_CENTER + data.offerCode + LF
+  }
+
+  r += ALIGN_CENTER
+  r += centerText('We hope to see you again soon!') + LF
+  r += CUT
+  return r
+}

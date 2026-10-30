@@ -78,6 +78,8 @@ const NEW_TABLE_KEYS = [
   'chatMessageDismissals',
   // Chat emoji reactions (MBM-328)
   'chatMessageReactions',
+  // Free menu samples (MBM-329)
+  'sampleOffers', 'sampleOfferPromoItems', 'sampleOfferSubstitutions',
   // Supplier / Contractor / Payee Category System (MBM-220)
   'supplierCategoryGroups', 'supplierCategories',
   'contractorCategoryGroups', 'contractorCategories',

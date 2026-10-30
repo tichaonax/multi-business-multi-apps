@@ -294,7 +294,7 @@ export function CustomerLookup({
                 setShowDropdown(true)
                 updateDropdownRect()
               }}
-              placeholder="Search by name, ID or scan loyalty card..."
+              placeholder="Search by name, phone, ID or scan loyalty card..."
               className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-primary focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
             {loading && (

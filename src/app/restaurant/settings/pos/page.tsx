@@ -9,6 +9,7 @@ import { useRouter } from 'next/navigation'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { POSSettingsHub } from '@/components/settings/POSSettingsHub'
 import { SessionUser } from '@/lib/permission-utils'
+import { SampleOfferSettingsCard } from '@/components/settings/sample-offer-settings-card'
 
 export default function RestaurantPosSettingsPage() {
   const { data: session } = useSession()
@@ -63,11 +64,14 @@ export default function RestaurantPosSettingsPage() {
       </div>
 
       {currentBusinessId ? (
-        <POSSettingsHub
-          businessId={currentBusinessId}
-          businessType="restaurant"
-          posLink="/restaurant/pos"
-        />
+        <>
+          <POSSettingsHub
+            businessId={currentBusinessId}
+            businessType="restaurant"
+            posLink="/restaurant/pos"
+          />
+          <SampleOfferSettingsCard businessId={currentBusinessId} />
+        </>
       ) : (
         <p className="text-sm text-gray-500">No business selected.</p>
       )}

@@ -14,6 +14,7 @@ import { getEcocashConfig, calcEcocashFee } from '@/lib/ecocash-utils'
 
 import { randomBytes } from 'crypto';
 import { getServerUser } from '@/lib/get-server-user'
+import { assertSampleIssuable, validateOfferForRedemption, assertRedemptionLinesMatch, getSampleOfferValidityDays, getSampleOfferSettings, generateSampleOfferCode, getSampleOfferReceiptData, SampleOfferError } from '@/lib/sample-offers'
 
 // R710 session manager for on-the-fly token generation
 const r710SessionManager = new R710SessionManager()
@@ -284,8 +285,20 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // MBM-329 — a sample offer claimed for this order; released if the order fails
+  let claimedSampleOfferId: string | null = null
+  const releaseSampleClaim = async () => {
+    if (!claimedSampleOfferId) return
+    const id = claimedSampleOfferId
+    claimedSampleOfferId = null
+    await prisma.sampleOffers.updateMany({
+      where: { id, redeemedOrderId: null },
+      data: { status: 'ISSUED', redeemedAt: null, redeemedByUserId: null },
+    }).catch(err => console.error('[MBM-329] Failed to release sample offer claim', id, err))
+  }
+
   try {
-    const { items, total, tableNumber, businessId = 'restaurant-demo', paymentMethod = 'CASH', amountReceived, idempotencyKey, customerId, discountAmount: reqDiscountAmount = 0, rewardId, couponId, couponCode: reqCouponCode, couponDiscount: reqCouponDiscount = 0, couponCustomerPhone, timezone, ecocashTxCode, ecocashFeeType, ecocashFeeValue, ecocashBase: clientEcoBase, ecocashFeeAmount: clientFeeAmount, salespersonEmployeeId } = await req.json()
+    const { items, total, tableNumber, businessId = 'restaurant-demo', paymentMethod = 'CASH', amountReceived, idempotencyKey, customerId, discountAmount: reqDiscountAmount = 0, rewardId, couponId, couponCode: reqCouponCode, couponDiscount: reqCouponDiscount = 0, couponCustomerPhone, timezone, ecocashTxCode, ecocashFeeType, ecocashFeeValue, ecocashBase: clientEcoBase, ecocashFeeAmount: clientFeeAmount, salespersonEmployeeId, sampleIssue, sampleRedemption } = await req.json()
     // B2 — Trust the client-computed fee (includes minimumFee); fall back to server calculation
     const ecoBase = clientEcoBase ?? total  // backward compat: default to full total
     const ecocashFeeAmount = paymentMethod === 'ECOCASH'
@@ -445,6 +458,59 @@ export async function POST(req: NextRequest) {
           )
         }
       }
+    }
+
+    // MBM-329 — free sample issue / return-offer redemption: validate before the order exists
+    let sampleIssueCheck: Awaited<ReturnType<typeof assertSampleIssuable>> | null = null
+    let samplePromoProducts: Array<{ id: string; name: string; quantity: number; variantId: string | null }> = []
+    let sampleRedemptionPlan: Awaited<ReturnType<typeof assertRedemptionLinesMatch>> | null = null
+    try {
+      if (sampleIssue && sampleRedemption) {
+        throw new SampleOfferError("A customer redeeming a sample offer can't receive another sample in the same transaction.")
+      }
+      if (!sampleRedemption && items.some((i: any) => i?.sampleOfferId)) {
+        throw new SampleOfferError('Sample offer items are in the cart without a sample offer. Cancel the redemption and scan again.', 400)
+      }
+      if (sampleIssue) {
+        if (!sampleIssue.productId) throw new SampleOfferError('Select the menu item to give as a sample.', 400)
+        const { minPurchase } = await getSampleOfferSettings(businessId)
+        if (Number(total) + 0.0001 < minPurchase) {
+          throw new SampleOfferError(`Free samples are only given with purchases of $${minPurchase.toFixed(2)} or more.`, 400)
+        }
+        sampleIssueCheck = await assertSampleIssuable(businessId, customerId, sampleIssue.productId)
+        const promo = Array.isArray(sampleIssue.promoItems) ? sampleIssue.promoItems : []
+        if (promo.length > 0) {
+          const found = await prisma.businessProducts.findMany({
+            where: { id: { in: promo.map((p: any) => p.productId) }, businessId },
+            select: { id: true, name: true },
+          })
+          samplePromoProducts = promo.map((p: any) => {
+            const prod = found.find(f => f.id === p.productId)
+            if (!prod) throw new SampleOfferError('A promised free item was not found.', 400)
+            return { id: prod.id, name: prod.name, quantity: Math.max(1, Math.floor(Number(p.quantity) || 1)), variantId: p.variantId || null }
+          })
+        }
+      }
+      if (sampleRedemption) {
+        const offer = await validateOfferForRedemption(businessId, String(sampleRedemption.offerCode || ''), String(sampleRedemption.phone || ''))
+        if (offer.id !== sampleRedemption.offerId) throw new SampleOfferError('Sample offer mismatch. Cancel the redemption and scan again.')
+        if (customerId !== offer.customerId) {
+          throw new SampleOfferError(`This offer belongs to ${offer.business_customers.name}. Select that customer to redeem it.`)
+        }
+        sampleRedemptionPlan = await assertRedemptionLinesMatch(offer, items, Array.isArray(sampleRedemption.substitutions) ? sampleRedemption.substitutions : [])
+        // Atomic claim — only one checkout can win, even when two tills redeem at once
+        const claim = await prisma.sampleOffers.updateMany({
+          where: { id: offer.id, status: 'ISSUED', expiresAt: { gt: new Date() } },
+          data: { status: 'REDEEMED', redeemedAt: new Date(), redeemedByUserId: user.id },
+        })
+        if (claim.count !== 1) throw new SampleOfferError('This offer was just redeemed at another till.')
+        claimedSampleOfferId = offer.id
+      }
+    } catch (sampleErr) {
+      if (sampleErr instanceof SampleOfferError) {
+        return NextResponse.json({ success: false, error: sampleErr.message, sampleOfferError: true }, { status: sampleErr.status })
+      }
+      throw sampleErr
     }
 
     // Create the order first using business_orders table
@@ -763,6 +829,7 @@ export async function POST(req: NextRequest) {
             userMessage = `WiFi Token Error: ${errorMessage}\n\nTransaction cancelled. Please try again or contact support.`;
           }
 
+          await releaseSampleClaim()
           return NextResponse.json({
             error: userMessage,
             success: false,
@@ -955,6 +1022,7 @@ export async function POST(req: NextRequest) {
             await prisma.r710TokenSales.deleteMany({ where: { tokenId: { in: soldTokenIdsForRollback } } })
             await prisma.r710Tokens.updateMany({ where: { id: { in: soldTokenIdsForRollback } }, data: { status: 'AVAILABLE' } })
           }
+          await releaseSampleClaim()
           return NextResponse.json({
             error: `R710 Token Error: ${errorMessage}\n\nTransaction cancelled. Please try again or contact support.`,
             success: false,
@@ -1162,6 +1230,7 @@ export async function POST(req: NextRequest) {
           });
 
           const errorMessage = comboError instanceof Error ? comboError.message : 'Unknown error';
+          await releaseSampleClaim()
           return NextResponse.json({
             error: `Combo Error: ${errorMessage}\n\nTransaction cancelled. Please try again or contact support.`,
             success: false,
@@ -1259,7 +1328,13 @@ export async function POST(req: NextRequest) {
           attributes: {
             productId: item.id,
             productName: item.name,
-            category: item.category
+            category: item.category,
+            // MBM-329 — return-offer lines (paid promoted item / free promised item)
+            ...(item.sampleOfferId ? {
+              sampleOfferId: item.sampleOfferId,
+              sampleRole: item.sampleRole,
+              ...(item.substitutedFrom ? { substitutedFrom: item.substitutedFrom } : {}),
+            } : {})
           }
         }
       })
@@ -1356,6 +1431,92 @@ export async function POST(req: NextRequest) {
           console.error(`Stock deduction failed for item ${item.id}:`, stockError)
           inventoryUpdates.push({ itemId: item.id, success: false, error: 'Stock deduction failed' })
         }
+      }
+    }
+
+    // MBM-329 — link a redeemed offer to this order (permanently consumed from here on)
+    if (claimedSampleOfferId && sampleRedemptionPlan) {
+      const offerId = claimedSampleOfferId
+      await prisma.sampleOffers.update({ where: { id: offerId }, data: { redeemedOrderId: newOrder.id } })
+      claimedSampleOfferId = null
+      try {
+        for (const row of sampleRedemptionPlan.substitutionRows) {
+          await prisma.sampleOfferSubstitutions.create({
+            data: { offerId, redemptionOrderId: newOrder.id, processedByUserId: user.id, customerAccepted: true, ...row },
+          })
+        }
+        for (const sp of sampleRedemptionPlan.suppliedPromoItems) {
+          await prisma.sampleOfferPromoItems.update({
+            where: { id: sp.promoItemId },
+            data: { suppliedProductId: sp.productId, suppliedProductName: sp.productName },
+          })
+        }
+      } catch (subErr) {
+        console.error('[MBM-329] Failed to record sample offer substitutions/supplied items', subErr)
+      }
+    }
+
+    // MBM-329 — issue a free sample: $0 line (no stock deduction) + the return offer
+    let sampleOffer: Awaited<ReturnType<typeof getSampleOfferReceiptData>> = null
+    let sampleOfferWarning: string | null = null
+    if (sampleIssueCheck) {
+      try {
+        const validityDays = await getSampleOfferValidityDays(businessId)
+        const issuedAt = new Date()
+        let created: { id: string } | null = null
+        for (let attempt = 0; attempt < 5 && !created; attempt++) {
+          try {
+            created = await prisma.sampleOffers.create({
+              data: {
+                businessId,
+                offerCode: generateSampleOfferCode(),
+                customerId: sampleIssueCheck.customer.id,
+                customerPhone: sampleIssueCheck.customer.phone!,
+                sampledProductId: sampleIssueCheck.product.id,
+                sampledVariantId: sampleIssue.variantId || null,
+                sampledProductName: sampleIssueCheck.product.name,
+                issuedOrderId: newOrder.id,
+                issuedByUserId: user.id,
+                issuedByEmployeeId: employeeId,
+                issuedAt,
+                validityDays,
+                expiresAt: new Date(issuedAt.getTime() + validityDays * 24 * 60 * 60 * 1000),
+                promo_items: {
+                  create: samplePromoProducts.map(p => ({ productId: p.id, variantId: p.variantId, productName: p.name, quantity: p.quantity })),
+                },
+              },
+              select: { id: true },
+            })
+          } catch (createErr: any) {
+            // Retry only on an offer-code collision; anything else (e.g. already sampled) stops here
+            if (createErr?.code === 'P2002' && String(createErr?.meta?.target || '').includes('offerCode')) continue
+            throw createErr
+          }
+        }
+        if (!created) throw new Error('Could not generate a unique offer code')
+        await prisma.businessOrderItems.create({
+          data: {
+            orderId: newOrder.id,
+            productVariantId: null, // tasting portion — no stock deduction (MBM-329 decision 2)
+            quantity: 1,
+            unitPrice: 0,
+            discountAmount: 0,
+            totalPrice: 0,
+            attributes: {
+              productId: sampleIssueCheck.product.id,
+              productName: `FREE SAMPLE - ${sampleIssueCheck.product.name}`,
+              category: 'sample',
+              sampleOfferId: created.id,
+              sampleRole: 'SAMPLE',
+            },
+          },
+        })
+        sampleOffer = await getSampleOfferReceiptData(created.id)
+      } catch (issueErr: any) {
+        console.error('[MBM-329] Sample offer issue failed', issueErr)
+        sampleOfferWarning = issueErr?.code === 'P2002'
+          ? 'The sample was not recorded: this customer already received a sample of this item.'
+          : 'The sample offer could not be recorded. The sale itself completed.'
       }
     }
 
@@ -1584,6 +1745,8 @@ export async function POST(req: NextRequest) {
       wifiTokens: generatedESP32Tokens,
       r710Tokens: generatedR710Tokens,
       rewardFreeItem,  // Free product from reward (if any)
+      sampleOffer,        // MBM-329 — sample receipt data (when a sample was issued)
+      sampleOfferWarning,
       businessInfo, // Include business details for receipt
       message: inventoryUpdates.some(u => !u.success) || generatedESP32Tokens.some(t => !t.success) || generatedR710Tokens.some(t => !t.success)
         ? 'Order created with some warnings'
@@ -1601,6 +1764,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(responsePayload)
   } catch (error: any) {
+    await releaseSampleClaim()
     console.error('Order processing error:', error)
     return NextResponse.json(
       {

@@ -156,6 +156,7 @@ model BusinessCustomers {
   business_orders            BusinessOrders[]
   customer_laybys            CustomerLayby[]
   customer_rewards           CustomerRewards[]
+  sample_offers              SampleOffers[]
   invoices                   Invoices[]
   delivery_customer_account  DeliveryCustomerAccounts?
   restaurant_credit_payments RestaurantCreditPayments[]
@@ -201,46 +202,49 @@ model BusinessOrderItems {
 }
 
 model BusinessOrders {
-  id                        String                    @id @default(uuid())
-  businessId                String
-  orderNumber               String
-  customerId                String?
-  employeeId                String?
-  orderType                 OrderType                 @default(SALE)
-  status                    OrderStatus               @default(PENDING)
-  subtotal                  Decimal                   @db.Decimal(10, 2)
-  taxAmount                 Decimal                   @db.Decimal(10, 2)
-  discountAmount            Decimal                   @default(0) @db.Decimal(10, 2)
-  totalAmount               Decimal                   @db.Decimal(10, 2)
-  paymentMethod             PaymentMethod?
-  paymentStatus             PaymentStatus             @default(PENDING)
-  businessType              String
-  attributes                Json?
-  notes                     String?
-  processedAt               DateTime?
-  transactionDate           DateTime?
-  isManualEntry             Boolean                   @default(false)
-  manualEntryNote           String?
-  createdBy                 String?
-  paidAt                    DateTime?
-  paidBy                    String?
-  projectId                 String?                   @map("project_id")
-  createdAt                 DateTime                  @default(now())
-  updatedAt                 DateTime
-  business_order_items      BusinessOrderItems[]
-  businesses                Businesses                @relation(fields: [businessId], references: [id])
-  business_customers        BusinessCustomers?        @relation(fields: [customerId], references: [id])
-  employees                 Employees?                @relation(fields: [employeeId], references: [id])
-  creator                   Users?                    @relation("BusinessOrderCreator", fields: [createdBy], references: [id])
-  payer                     Users?                    @relation("BusinessOrderPayer", fields: [paidBy], references: [id])
-  project                   Projects?                 @relation("ProjectMaterialSales", fields: [projectId], references: [id], onDelete: SetNull)
-  reprint_logs              ReprintLog[]
-  coupon_usages             CouponUsages[]
-  meal_program_transaction  MealProgramTransactions?
-  customer_rewards          CustomerRewards[]         @relation("RedeemedReward")
-  order_cancellation        OrderCancellation?
-  restaurant_credit_payment RestaurantCreditPayments?
-  vehicle_service_job       VehicleServiceJobs?
+  id                         String                     @id @default(uuid())
+  businessId                 String
+  orderNumber                String
+  customerId                 String?
+  employeeId                 String?
+  orderType                  OrderType                  @default(SALE)
+  status                     OrderStatus                @default(PENDING)
+  subtotal                   Decimal                    @db.Decimal(10, 2)
+  taxAmount                  Decimal                    @db.Decimal(10, 2)
+  discountAmount             Decimal                    @default(0) @db.Decimal(10, 2)
+  totalAmount                Decimal                    @db.Decimal(10, 2)
+  paymentMethod              PaymentMethod?
+  paymentStatus              PaymentStatus              @default(PENDING)
+  businessType               String
+  attributes                 Json?
+  notes                      String?
+  processedAt                DateTime?
+  transactionDate            DateTime?
+  isManualEntry              Boolean                    @default(false)
+  manualEntryNote            String?
+  createdBy                  String?
+  paidAt                     DateTime?
+  paidBy                     String?
+  projectId                  String?                    @map("project_id")
+  createdAt                  DateTime                   @default(now())
+  updatedAt                  DateTime
+  business_order_items       BusinessOrderItems[]
+  businesses                 Businesses                 @relation(fields: [businessId], references: [id])
+  business_customers         BusinessCustomers?         @relation(fields: [customerId], references: [id])
+  employees                  Employees?                 @relation(fields: [employeeId], references: [id])
+  creator                    Users?                     @relation("BusinessOrderCreator", fields: [createdBy], references: [id])
+  payer                      Users?                     @relation("BusinessOrderPayer", fields: [paidBy], references: [id])
+  project                    Projects?                  @relation("ProjectMaterialSales", fields: [projectId], references: [id], onDelete: SetNull)
+  reprint_logs               ReprintLog[]
+  coupon_usages              CouponUsages[]
+  meal_program_transaction   MealProgramTransactions?
+  customer_rewards           CustomerRewards[]          @relation("RedeemedReward")
+  sample_offer_issued        SampleOffers?              @relation("SampleOfferIssuedOrder")
+  sample_offer_redeemed      SampleOffers?              @relation("SampleOfferRedeemedOrder")
+  sample_offer_substitutions SampleOfferSubstitutions[]
+  order_cancellation         OrderCancellation?
+  restaurant_credit_payment  RestaurantCreditPayments?
+  vehicle_service_job        VehicleServiceJobs?
 
   @@index([orderNumber])
   @@index([businessId, createdAt(sort: Desc)])
@@ -329,6 +333,7 @@ model BusinessProducts {
   daily_special_add_ons       DailySpecialAddOn[]
   vehicle_part_compatibility  VehiclePartCompatibility[]
   product_tags                ProductTags[]
+  sample_offers               SampleOffers[]
 
   @@unique([businessId, sku])
   @@map("business_products")
@@ -558,6 +563,7 @@ model Businesses {
   customer_display_sessions                                                CustomerDisplaySession[]
   customer_laybys                                                          CustomerLayby[]
   customer_rewards                                                         CustomerRewards[]
+  sample_offers                                                            SampleOffers[]
   promo_campaigns                                                          PromoCampaigns[]
   pos_terminal_configs                                                     PosTerminalConfig[]
   device_connection_history                                                DeviceConnectionHistory[]
@@ -1653,57 +1659,57 @@ model ExpenseSubSubcategories {
 }
 
 model ExpenseAccounts {
-  id                         String                      @id @default(uuid())
-  accountNumber              String                      @unique
-  accountName                String
-  balance                    Decimal                     @default(0) @db.Decimal(12, 2)
-  description                String?
-  isActive                   Boolean                     @default(true)
-  lowBalanceThreshold        Decimal                     @default(500) @db.Decimal(12, 2)
-  createdBy                  String
-  createdAt                  DateTime                    @default(now())
-  updatedAt                  DateTime                    @default(now()) @updatedAt
-  parentAccountId            String?
-  siblingNumber              Int?
-  isSibling                  Boolean                     @default(false)
-  canMerge                   Boolean                     @default(true)
-  businessId                 String?
-  accountType                String                      @default("GENERAL") // "GENERAL" or "PERSONAL"
+  id                              String                          @id @default(uuid())
+  accountNumber                   String                          @unique
+  accountName                     String
+  balance                         Decimal                         @default(0) @db.Decimal(12, 2)
+  description                     String?
+  isActive                        Boolean                         @default(true)
+  lowBalanceThreshold             Decimal                         @default(500) @db.Decimal(12, 2)
+  createdBy                       String
+  createdAt                       DateTime                        @default(now())
+  updatedAt                       DateTime                        @default(now()) @updatedAt
+  parentAccountId                 String?
+  siblingNumber                   Int?
+  isSibling                       Boolean                         @default(false)
+  canMerge                        Boolean                         @default(true)
+  businessId                      String?
+  accountType                     String                          @default("GENERAL") // "GENERAL" or "PERSONAL"
   // Auto-deposit cap (shared across all contributing businesses — admin-only)
-  depositCap                 Decimal?                    @map("deposit_cap") @db.Decimal(12, 2) // null = no cap
-  depositCapSetBy            String?                     @map("deposit_cap_set_by") // FK to Users (audit)
-  depositCapSetAt            DateTime?                   @map("deposit_cap_set_at") // when cap was last set/changed
-  depositCapReachedAt        DateTime?                   @map("deposit_cap_reached_at") // set when any deposit hits the cap; cleared manually when cap is raised/removed
-  isAutoDepositFrozen        Boolean                     @default(false) @map("is_auto_deposit_frozen") // admin-only: blocks all auto-deposits to this account
-  autoDepositFrozenBy        String?                     @map("auto_deposit_frozen_by") // FK to Users (audit)
-  autoDepositFrozenAt        DateTime?                   @map("auto_deposit_frozen_at") // when freeze was applied
-  isLoanAccount              Boolean                     @default(false) @map("is_loan_account") // loan tracking: auto-deposits capped at $0; balance may not exceed $0
-  business                   Businesses?                 @relation("BusinessExpenseAccounts", fields: [businessId], references: [id])
-  depositCapSetter           Users?                      @relation("ExpenseAccountCapSetter", fields: [depositCapSetBy], references: [id])
-  autoDepositFreezer         Users?                      @relation("ExpenseAccountFreezer", fields: [autoDepositFrozenBy], references: [id])
-  deposits                   ExpenseAccountDeposits[]
-  payments                   ExpenseAccountPayments[]
-  paymentBatchSubmissions    PaymentBatchSubmissions[]
-  creator                    Users                       @relation("ExpenseAccountCreator", fields: [createdBy], references: [id])
-  portal_integrations        PortalIntegrations[]        @relation("PortalIntegrationExpenseAccount")
-  r710_business_integrations R710BusinessIntegrations[]  @relation("R710IntegrationExpenseAccount")
-  r710_token_sales           R710TokenSales[]            @relation("R710TokenSaleToExpenseAccount")
-  wifi_token_sales           WifiTokenSales[]
-  meal_program_transactions  MealProgramTransactions[]
-  expense_account_grants     ExpenseAccountGrants[]      @relation("ExpenseAccountGrants")
-  loans                      ExpenseAccountLoans[]       @relation("ExpenseAccountLoans")
-  outgoingLoans              AccountOutgoingLoans[]      @relation("OutgoingLoans")
-  incomingTransfers          BusinessTransferLedger[]    @relation("TransferToAccount")
-  supplier_payment_requests  SupplierPaymentRequests[]
-  rent_config                BusinessRentConfig?         @relation("RentExpenseAccount")
-  auto_deposit_configs       ExpenseAccountAutoDeposit[] @relation("ExpenseAccountAutoDeposits")
-  cash_allocation_line_items CashAllocationLineItem[]
-  petty_cash_requests        PettyCashRequests[]         @relation("PettyCashExpenseAccount")
-  petty_cash_transactions    PettyCashTransaction[]      @relation("PettyCashTransactionExpense")
-  businessLoan               BusinessLoan?               @relation("LoanExpenseAccount")
-  combo_requests             ComboPaymentRequests[]      @relation("ExpenseAccountComboRequests")
+  depositCap                      Decimal?                        @map("deposit_cap") @db.Decimal(12, 2) // null = no cap
+  depositCapSetBy                 String?                         @map("deposit_cap_set_by") // FK to Users (audit)
+  depositCapSetAt                 DateTime?                       @map("deposit_cap_set_at") // when cap was last set/changed
+  depositCapReachedAt             DateTime?                       @map("deposit_cap_reached_at") // set when any deposit hits the cap; cleared manually when cap is raised/removed
+  isAutoDepositFrozen             Boolean                         @default(false) @map("is_auto_deposit_frozen") // admin-only: blocks all auto-deposits to this account
+  autoDepositFrozenBy             String?                         @map("auto_deposit_frozen_by") // FK to Users (audit)
+  autoDepositFrozenAt             DateTime?                       @map("auto_deposit_frozen_at") // when freeze was applied
+  isLoanAccount                   Boolean                         @default(false) @map("is_loan_account") // loan tracking: auto-deposits capped at $0; balance may not exceed $0
+  business                        Businesses?                     @relation("BusinessExpenseAccounts", fields: [businessId], references: [id])
+  depositCapSetter                Users?                          @relation("ExpenseAccountCapSetter", fields: [depositCapSetBy], references: [id])
+  autoDepositFreezer              Users?                          @relation("ExpenseAccountFreezer", fields: [autoDepositFrozenBy], references: [id])
+  deposits                        ExpenseAccountDeposits[]
+  payments                        ExpenseAccountPayments[]
+  paymentBatchSubmissions         PaymentBatchSubmissions[]
+  creator                         Users                           @relation("ExpenseAccountCreator", fields: [createdBy], references: [id])
+  portal_integrations             PortalIntegrations[]            @relation("PortalIntegrationExpenseAccount")
+  r710_business_integrations      R710BusinessIntegrations[]      @relation("R710IntegrationExpenseAccount")
+  r710_token_sales                R710TokenSales[]                @relation("R710TokenSaleToExpenseAccount")
+  wifi_token_sales                WifiTokenSales[]
+  meal_program_transactions       MealProgramTransactions[]
+  expense_account_grants          ExpenseAccountGrants[]          @relation("ExpenseAccountGrants")
+  loans                           ExpenseAccountLoans[]           @relation("ExpenseAccountLoans")
+  outgoingLoans                   AccountOutgoingLoans[]          @relation("OutgoingLoans")
+  incomingTransfers               BusinessTransferLedger[]        @relation("TransferToAccount")
+  supplier_payment_requests       SupplierPaymentRequests[]
+  rent_config                     BusinessRentConfig?             @relation("RentExpenseAccount")
+  auto_deposit_configs            ExpenseAccountAutoDeposit[]     @relation("ExpenseAccountAutoDeposits")
+  cash_allocation_line_items      CashAllocationLineItem[]
+  petty_cash_requests             PettyCashRequests[]             @relation("PettyCashExpenseAccount")
+  petty_cash_transactions         PettyCashTransaction[]          @relation("PettyCashTransactionExpense")
+  businessLoan                    BusinessLoan?                   @relation("LoanExpenseAccount")
+  combo_requests                  ComboPaymentRequests[]          @relation("ExpenseAccountComboRequests")
   restaurant_expense_transactions RestaurantExpenseTransactions[]
-  user_accesses              ExpenseAccountUserAccess[]  @relation("ExpenseAccountUserAccesses")
+  user_accesses                   ExpenseAccountUserAccess[]      @relation("ExpenseAccountUserAccesses")
 
   @@index([isActive], map: "idx_expense_accounts_active")
   @@index([balance], map: "idx_expense_accounts_balance")
@@ -1867,13 +1873,13 @@ model ExpenseAccountPayments {
   approvedAmount                    Decimal?                         @map("approved_amount") @db.Decimal(12, 2)
   amountChangeNote                  String?                          @map("amount_change_note")
   // Return unused funds (MBM-308) — requester-initiated, cashier-confirmed
-  returnRequestedAmount              Decimal?                         @map("return_requested_amount") @db.Decimal(12, 2)
-  returnRequestedAt                  DateTime?                        @map("return_requested_at")
-  returnRequestedBy                  String?                          @map("return_requested_by")
-  returnNote                         String?                          @map("return_note")
-  returnConfirmedAt                  DateTime?                        @map("return_confirmed_at")
-  returnConfirmedBy                  String?                          @map("return_confirmed_by")
-  locked                             Boolean                          @default(false) @map("locked")
+  returnRequestedAmount             Decimal?                         @map("return_requested_amount") @db.Decimal(12, 2)
+  returnRequestedAt                 DateTime?                        @map("return_requested_at")
+  returnRequestedBy                 String?                          @map("return_requested_by")
+  returnNote                        String?                          @map("return_note")
+  returnConfirmedAt                 DateTime?                        @map("return_confirmed_at")
+  returnConfirmedBy                 String?                          @map("return_confirmed_by")
+  locked                            Boolean                          @default(false) @map("locked")
   projectId                         String?                          @map("project_id")
   project                           Projects?                        @relation("ProjectExpensePayments", fields: [projectId], references: [id], onDelete: SetNull)
   payment_voucher                   ExpensePaymentVouchers?
@@ -1945,19 +1951,19 @@ model ExpensePaymentReceipts {
   // the auto-created VehicleExpenses/VehicleMaintenanceRecords row.
   vehicleId       String?   @map("vehicle_id")
 
-  expensePayment ExpenseAccountPayments    @relation(fields: [expensePaymentId], references: [id], onDelete: Cascade)
-  payeePerson    Persons?                  @relation("ReceiptPayeePerson", fields: [payeePersonId], references: [id])
-  payeeBusiness  Businesses?               @relation("ReceiptPayeeBusiness", fields: [payeeBusinessId], references: [id])
-  payeeSupplier  BusinessSuppliers?        @relation("ReceiptPayeeSupplier", fields: [payeeSupplierId], references: [id])
-  creator        Users                     @relation("ReceiptCreator", fields: [createdBy], references: [id])
-  image          Images?                   @relation("ReceiptImage", fields: [imageId], references: [id])
-  category       ExpenseCategories?        @relation("ReceiptCategory", fields: [categoryId], references: [id])
-  subcategory    ExpenseSubcategories?     @relation("ReceiptSubcategory", fields: [subcategoryId], references: [id])
-  comboItem      ComboPaymentRequestItems? @relation("ReceiptComboItem", fields: [comboItemId], references: [id], onDelete: SetNull)
-  overrideByUser Users?                    @relation("ReceiptOverrideBy", fields: [overrideBy], references: [id])
-  vehicle        Vehicles?                 @relation("ReceiptVehicle", fields: [vehicleId], references: [id], onDelete: SetNull)
-  vehicle_expenses             VehicleExpenses[]            @relation("VehicleExpenseReceipt")
-  vehicle_maintenance_records  VehicleMaintenanceRecords[]  @relation("VehicleMaintenanceReceipt")
+  expensePayment              ExpenseAccountPayments      @relation(fields: [expensePaymentId], references: [id], onDelete: Cascade)
+  payeePerson                 Persons?                    @relation("ReceiptPayeePerson", fields: [payeePersonId], references: [id])
+  payeeBusiness               Businesses?                 @relation("ReceiptPayeeBusiness", fields: [payeeBusinessId], references: [id])
+  payeeSupplier               BusinessSuppliers?          @relation("ReceiptPayeeSupplier", fields: [payeeSupplierId], references: [id])
+  creator                     Users                       @relation("ReceiptCreator", fields: [createdBy], references: [id])
+  image                       Images?                     @relation("ReceiptImage", fields: [imageId], references: [id])
+  category                    ExpenseCategories?          @relation("ReceiptCategory", fields: [categoryId], references: [id])
+  subcategory                 ExpenseSubcategories?       @relation("ReceiptSubcategory", fields: [subcategoryId], references: [id])
+  comboItem                   ComboPaymentRequestItems?   @relation("ReceiptComboItem", fields: [comboItemId], references: [id], onDelete: SetNull)
+  overrideByUser              Users?                      @relation("ReceiptOverrideBy", fields: [overrideBy], references: [id])
+  vehicle                     Vehicles?                   @relation("ReceiptVehicle", fields: [vehicleId], references: [id], onDelete: SetNull)
+  vehicle_expenses            VehicleExpenses[]           @relation("VehicleExpenseReceipt")
+  vehicle_maintenance_records VehicleMaintenanceRecords[] @relation("VehicleMaintenanceReceipt")
 
   @@index([expensePaymentId], map: "idx_expense_payment_receipts_payment_id")
   @@index([payeePersonId], map: "idx_expense_payment_receipts_person_id")
@@ -2222,34 +2228,34 @@ model AccountOutgoingLoans {
 
 // Repayments received against outgoing loans
 model AccountOutgoingLoanPayments {
-  id               String               @id @default(uuid())
-  loanId           String
-  amount           Decimal              @db.Decimal(12, 2)
-  paymentDate      DateTime
-  paymentMethod    String // "CASH" | "PAYROLL_DEDUCTION" | "BANK_TRANSFER" | "OTHER"
-  payrollEntryId   String?
-  depositId        String?
-  notes            String?
-  recordedBy       String
-  createdAt        DateTime             @default(now())
+  id              String               @id @default(uuid())
+  loanId          String
+  amount          Decimal              @db.Decimal(12, 2)
+  paymentDate     DateTime
+  paymentMethod   String // "CASH" | "PAYROLL_DEDUCTION" | "BANK_TRANSFER" | "OTHER"
+  payrollEntryId  String?
+  depositId       String?
+  notes           String?
+  recordedBy      String
+  createdAt       DateTime             @default(now())
   // MBM-312: cashier-approval gate for BUSINESS-loan repayments. recordedBy
   // (above) doubles as "who requested it" for a PENDING row — no separate
   // requester field needed. Existing rows default to APPROVED since the
   // money they represent has already moved (they predate this gate).
-  status           String               @default("APPROVED") // "PENDING" | "APPROVED" | "REJECTED"
-  approvedBy       String?
-  approvedAt       DateTime?
+  status          String               @default("APPROVED") // "PENDING" | "APPROVED" | "REJECTED"
+  approvedBy      String?
+  approvedAt      DateTime?
   // Set only when the cashier approved less than `amount` (partial approval)
   // — null means the full requested amount was approved. approvalNote is
   // required by the UI whenever approvedAmount is set.
-  approvedAmount   Decimal?             @db.Decimal(12, 2)
-  approvalNote     String?
-  rejectedAt       DateTime?
-  rejectionReason  String?
-  loan             AccountOutgoingLoans @relation(fields: [loanId], references: [id], onDelete: Cascade)
-  payrollEntry     PayrollEntries?      @relation("OutgoingLoanPayrollEntry", fields: [payrollEntryId], references: [id])
-  recorder         Users                @relation("OutgoingLoanPaymentRecorder", fields: [recordedBy], references: [id])
-  approver         Users?               @relation("OutgoingLoanPaymentApprover", fields: [approvedBy], references: [id])
+  approvedAmount  Decimal?             @db.Decimal(12, 2)
+  approvalNote    String?
+  rejectedAt      DateTime?
+  rejectionReason String?
+  loan            AccountOutgoingLoans @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  payrollEntry    PayrollEntries?      @relation("OutgoingLoanPayrollEntry", fields: [payrollEntryId], references: [id])
+  recorder        Users                @relation("OutgoingLoanPaymentRecorder", fields: [recordedBy], references: [id])
+  approver        Users?               @relation("OutgoingLoanPaymentApprover", fields: [approvedBy], references: [id])
 
   @@index([loanId])
   @@map("account_outgoing_loan_payments")
@@ -2380,39 +2386,39 @@ model EmojiLookup {
 }
 
 model Images {
-  id                        String                    @id @default(uuid())
-  data                      Bytes
-  mimeType                  String                    @default("image/jpeg")
-  size                      Int
-  expiresAt                 DateTime?
-  createdAt                 DateTime                  @default(now())
-  businessId                String?
-  uploadedBy                String?
+  id                         String                      @id @default(uuid())
+  data                       Bytes
+  mimeType                   String                      @default("image/jpeg")
+  size                       Int
+  expiresAt                  DateTime?
+  createdAt                  DateTime                    @default(now())
+  businessId                 String?
+  uploadedBy                 String?
   // MBM-297 — product image pipeline. All nullable/optional so every
   // existing row (uploaded before this pipeline existed) stays valid with
   // no backfill: `thumbnailImageId` unset means "no thumbnail, use the
   // full image"; `sourceType`/`backgroundProcessingStatus` unset means
   // "uploaded before this pipeline tracked that"; `contentHash` unset
   // means "uploaded before duplicate detection existed."
-  thumbnailImageId          String?                   @unique
-  thumbnailImage            Images?                   @relation("ImageThumbnail", fields: [thumbnailImageId], references: [id], onDelete: SetNull)
-  fullImageFor              Images?                   @relation("ImageThumbnail")
-  sourceType                ImageSourceType?
+  thumbnailImageId           String?                     @unique
+  thumbnailImage             Images?                     @relation("ImageThumbnail", fields: [thumbnailImageId], references: [id], onDelete: SetNull)
+  fullImageFor               Images?                     @relation("ImageThumbnail")
+  sourceType                 ImageSourceType?
   backgroundProcessingStatus BackgroundProcessingStatus?
   // SHA-256 of the final uploaded bytes — exact-duplicate detection only
   // (a re-crop or re-compression changes the hash; that's a known,
   // documented limitation, not a bug: see plan §6.5).
-  contentHash               String?
-  product_images            ProductImages[]
-  warehouse_items           WarehouseItems[]
-  barcode_inventory_items   BarcodeInventoryItems[]
-  display_product_configs   DisplayProductConfig[]    @relation("DisplayAdImage")
-  expense_payment_receipts  ExpensePaymentReceipts[]  @relation("ReceiptImage")
-  inventory_domains         InventoryDomains[]        @relation("DomainIconImage")
-  category_reference_images CategoryReferenceImages[]
-  image_tags                ImageTags[]
-  businesses                Businesses?               @relation(fields: [businessId], references: [id])
-  uploader                  Users?                    @relation("ImageUploadedBy", fields: [uploadedBy], references: [id])
+  contentHash                String?
+  product_images             ProductImages[]
+  warehouse_items            WarehouseItems[]
+  barcode_inventory_items    BarcodeInventoryItems[]
+  display_product_configs    DisplayProductConfig[]      @relation("DisplayAdImage")
+  expense_payment_receipts   ExpensePaymentReceipts[]    @relation("ReceiptImage")
+  inventory_domains          InventoryDomains[]          @relation("DomainIconImage")
+  category_reference_images  CategoryReferenceImages[]
+  image_tags                 ImageTags[]
+  businesses                 Businesses?                 @relation(fields: [businessId], references: [id])
+  uploader                   Users?                      @relation("ImageUploadedBy", fields: [uploadedBy], references: [id])
 
   @@index([businessId])
   @@index([contentHash])
@@ -4036,53 +4042,53 @@ model SalespersonEodReport {
 }
 
 model VehicleDrivers {
-  id                       String                  @id @default(uuid())
-  fullName                 String
-  licenseNumber            String                  @unique
-  licenseExpiry            DateTime?
-  phoneNumber              String?
-  emailAddress             String?
-  emergencyContact         String?
-  emergencyPhone           String?
-  userId                   String?
-  isActive                 Boolean                 @default(true)
-  dateOfBirth              DateTime?
-  address                  String?
-  createdAt                DateTime                @default(now())
-  updatedAt                DateTime
-  licenseCountryOfIssuance String
-  driverLicenseTemplateId  String?
-  licenseDocUrl            String?
-  licenseDocName           String?
-  driver_authorizations    DriverAuthorizations[]
-  driver_license_templates DriverLicenseTemplates? @relation(fields: [driverLicenseTemplateId], references: [id])
-  users                    Users?                  @relation(fields: [userId], references: [id])
-  vehicle_trips            VehicleTrips[]
-  vehicle_expenses             VehicleExpenses[]           @relation("VehicleExpenseDriver")
-  vehicle_maintenance_records  VehicleMaintenanceRecords[] @relation("VehicleMaintenanceDriver")
+  id                          String                      @id @default(uuid())
+  fullName                    String
+  licenseNumber               String                      @unique
+  licenseExpiry               DateTime?
+  phoneNumber                 String?
+  emailAddress                String?
+  emergencyContact            String?
+  emergencyPhone              String?
+  userId                      String?
+  isActive                    Boolean                     @default(true)
+  dateOfBirth                 DateTime?
+  address                     String?
+  createdAt                   DateTime                    @default(now())
+  updatedAt                   DateTime
+  licenseCountryOfIssuance    String
+  driverLicenseTemplateId     String?
+  licenseDocUrl               String?
+  licenseDocName              String?
+  driver_authorizations       DriverAuthorizations[]
+  driver_license_templates    DriverLicenseTemplates?     @relation(fields: [driverLicenseTemplateId], references: [id])
+  users                       Users?                      @relation(fields: [userId], references: [id])
+  vehicle_trips               VehicleTrips[]
+  vehicle_expenses            VehicleExpenses[]           @relation("VehicleExpenseDriver")
+  vehicle_maintenance_records VehicleMaintenanceRecords[] @relation("VehicleMaintenanceDriver")
 
   @@map("vehicle_drivers")
 }
 
 model VehicleExpenses {
-  id                   String                   @id @default(uuid())
+  id                   String                  @id @default(uuid())
   vehicleId            String
   tripId               String?
   businessId           String?
   expenseType          ExpenseType
   expenseCategory      String?
-  amount               Decimal                  @db.Decimal(10, 2)
-  currency             String                   @default("USD")
+  amount               Decimal                 @db.Decimal(10, 2)
+  currency             String                  @default("USD")
   expenseDate          DateTime
-  isBusinessDeductible Boolean                  @default(false)
+  isBusinessDeductible Boolean                 @default(false)
   receiptUrl           String?
   vendorName           String?
   description          String?
   mileageAtExpense     Int?
-  fuelQuantity         Decimal?                 @db.Decimal(8, 2)
+  fuelQuantity         Decimal?                @db.Decimal(8, 2)
   fuelType             FuelType?
   createdBy            String
-  createdAt            DateTime                 @default(now())
+  createdAt            DateTime                @default(now())
   updatedAt            DateTime
   // MBM-302: traces this expense back to the receipt/payment that funded
   // it (informational, same onDelete:SetNull shape as other optional links
@@ -4090,13 +4096,13 @@ model VehicleExpenses {
   receiptId            String?
   expensePaymentId     String?
   driverId             String?
-  businesses           Businesses?              @relation(fields: [businessId], references: [id])
-  users                Users                    @relation(fields: [createdBy], references: [id])
-  vehicle_trips        VehicleTrips?            @relation(fields: [tripId], references: [id])
-  vehicles             Vehicles                 @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
-  receipt              ExpensePaymentReceipts?  @relation("VehicleExpenseReceipt", fields: [receiptId], references: [id], onDelete: SetNull)
-  expensePayment       ExpenseAccountPayments?  @relation("VehicleExpensePayment", fields: [expensePaymentId], references: [id], onDelete: SetNull)
-  driver               VehicleDrivers?          @relation("VehicleExpenseDriver", fields: [driverId], references: [id], onDelete: SetNull)
+  businesses           Businesses?             @relation(fields: [businessId], references: [id])
+  users                Users                   @relation(fields: [createdBy], references: [id])
+  vehicle_trips        VehicleTrips?           @relation(fields: [tripId], references: [id])
+  vehicles             Vehicles                @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  receipt              ExpensePaymentReceipts? @relation("VehicleExpenseReceipt", fields: [receiptId], references: [id], onDelete: SetNull)
+  expensePayment       ExpenseAccountPayments? @relation("VehicleExpensePayment", fields: [expensePaymentId], references: [id], onDelete: SetNull)
+  driver               VehicleDrivers?         @relation("VehicleExpenseDriver", fields: [driverId], references: [id], onDelete: SetNull)
 
   @@index([receiptId])
   @@index([expensePaymentId])
@@ -4361,11 +4367,11 @@ model Vehicles {
   // = "NO USE PUBLIC ROAD") had no validation, no required exemption-licence
   // details, and no history; licensingStatus is now the single authoritative
   // source of truth, set only via the validated status-transition workflow.
-  licensingStatus              VehicleLicensingStatus      @default(NON_EXEMPT)
-  statusEffectiveAt            DateTime?
-  retirementReason              String?
-  retirementReasonDescription   String?
-  retiredAt                     DateTime?
+  licensingStatus             VehicleLicensingStatus      @default(NON_EXEMPT)
+  statusEffectiveAt           DateTime?
+  retirementReason            String?
+  retirementReasonDescription String?
+  retiredAt                   DateTime?
   driver_authorizations       DriverAuthorizations[]
   vehicle_expenses            VehicleExpenses[]
   vehicle_exemptions          VehicleExemptions[]
@@ -4373,8 +4379,8 @@ model Vehicles {
   vehicle_maintenance_records VehicleMaintenanceRecords[]
   vehicle_reimbursements      VehicleReimbursements[]
   vehicle_renewal_receipts    VehicleRenewalReceipts[]
-  vehicle_trips                VehicleTrips[]
-  vehicle_status_history       VehicleStatusHistory[]
+  vehicle_trips               VehicleTrips[]
+  vehicle_status_history      VehicleStatusHistory[]
   businesses                  Businesses?                 @relation(fields: [businessId], references: [id])
   users                       Users?                      @relation(fields: [userId], references: [id])
   expense_payment_receipts    ExpensePaymentReceipts[]    @relation("ReceiptVehicle")
@@ -4385,22 +4391,22 @@ model Vehicles {
 // MBM-305: one row per status transition — the authoritative audit trail
 // backing the retirement/reinstatement reports (spec §10, §11.4).
 model VehicleStatusHistory {
-  id                           String                   @id @default(uuid())
-  vehicleId                    String
-  previousStatus                VehicleLicensingStatus?
-  newStatus                     VehicleLicensingStatus
-  effectiveAt                   DateTime
-  changedByUserId                String
-  retirementReason               String?
-  retirementReasonDescription    String?
+  id                          String                  @id @default(uuid())
+  vehicleId                   String
+  previousStatus              VehicleLicensingStatus?
+  newStatus                   VehicleLicensingStatus
+  effectiveAt                 DateTime
+  changedByUserId             String
+  retirementReason            String?
+  retirementReasonDescription String?
   // ids of the VehicleLicenses rows created/deactivated as part of this
   // transition, for traceability — not a FK (rows can later be superseded
   // again by a normal renewal), just a point-in-time reference.
-  createdLicenseIds              String[]
-  deactivatedLicenseIds          String[]
-  createdAt                      DateTime                 @default(now())
-  vehicles                       Vehicles                 @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
-  changedBy                      Users                     @relation(fields: [changedByUserId], references: [id])
+  createdLicenseIds           String[]
+  deactivatedLicenseIds       String[]
+  createdAt                   DateTime                @default(now())
+  vehicles                    Vehicles                @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  changedBy                   Users                   @relation(fields: [changedByUserId], references: [id])
 
   @@index([vehicleId])
   @@index([newStatus])
@@ -5552,24 +5558,24 @@ model ProductPriceHistory {
   reason        String?  @db.VarChar(500)
   createdAt     DateTime @default(now())
 
-  business  Businesses @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  changedByUser Users?  @relation("ProductPriceHistoryChangedBy", fields: [changedBy], references: [id])
+  business      Businesses @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  changedByUser Users?     @relation("ProductPriceHistoryChangedBy", fields: [changedBy], references: [id])
 
   @@index([businessId, catalogSource, productRefId, priceType, createdAt(sort: Desc)])
   @@map("product_price_history")
 }
 
 model PricingExceptionSettings {
-  id                     String    @id @default(uuid())
-  businessId             String    @unique
-  minimumMarginPct       Decimal   @default(10) @db.Decimal(5, 2)
-  maximumMarginPct       Decimal   @default(90) @db.Decimal(5, 2)
-  priceChangeAlertPct    Decimal   @default(30) @db.Decimal(5, 2)
-  decimalErrorMultiples  Decimal[] @default([10, 100, 0.1, 0.01])
-  benchmarkTolerancePct  Decimal   @default(50) @db.Decimal(5, 2)
-  highImpactThreshold    Decimal   @default(100) @db.Decimal(10, 2)
-  createdAt              DateTime  @default(now())
-  updatedAt              DateTime  @updatedAt
+  id                    String    @id @default(uuid())
+  businessId            String    @unique
+  minimumMarginPct      Decimal   @default(10) @db.Decimal(5, 2)
+  maximumMarginPct      Decimal   @default(90) @db.Decimal(5, 2)
+  priceChangeAlertPct   Decimal   @default(30) @db.Decimal(5, 2)
+  decimalErrorMultiples Decimal[] @default([10, 100, 0.1, 0.01])
+  benchmarkTolerancePct Decimal   @default(50) @db.Decimal(5, 2)
+  highImpactThreshold   Decimal   @default(100) @db.Decimal(10, 2)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
   business Businesses @relation(fields: [businessId], references: [id], onDelete: Cascade)
 
@@ -6184,6 +6190,87 @@ model CustomerRewards {
   @@index([customerId, status])
   @@index([businessId, status])
   @@map("customer_rewards")
+}
+
+// ============================================================
+// Free menu samples with return-purchase offers (MBM-329)
+// ============================================================
+
+model SampleOffers {
+  id                 String    @id @default(uuid())
+  businessId         String
+  offerCode          String    @unique // barcode value, SMP-XXXXXXXX
+  customerId         String
+  customerPhone      String // snapshot at issue time
+  sampledProductId   String
+  sampledVariantId   String?
+  sampledProductName String
+  issuedOrderId      String    @unique // one sample per transaction
+  issuedByUserId     String?
+  issuedByEmployeeId String?
+  issuedAt           DateTime  @default(now())
+  validityDays       Int
+  expiresAt          DateTime
+  status             String    @default("ISSUED") // ISSUED | REDEEMED (EXPIRED is derived from expiresAt)
+  redeemedAt         DateTime?
+  redeemedOrderId    String?   @unique
+  redeemedByUserId   String?
+  createdAt          DateTime  @default(now())
+
+  businesses         Businesses                 @relation(fields: [businessId], references: [id])
+  business_customers BusinessCustomers          @relation(fields: [customerId], references: [id])
+  sampled_product    BusinessProducts           @relation(fields: [sampledProductId], references: [id])
+  issued_order       BusinessOrders             @relation("SampleOfferIssuedOrder", fields: [issuedOrderId], references: [id])
+  redeemed_order     BusinessOrders?            @relation("SampleOfferRedeemedOrder", fields: [redeemedOrderId], references: [id])
+  promo_items        SampleOfferPromoItems[]
+  substitutions      SampleOfferSubstitutions[]
+
+  @@unique([customerId, sampledProductId]) // same menu-item sample never given twice to a customer
+  @@index([businessId, issuedAt])
+  @@index([businessId, status])
+  @@index([businessId, redeemedAt])
+  @@map("sample_offers")
+}
+
+model SampleOfferPromoItems {
+  id                  String   @id @default(uuid())
+  offerId             String
+  productId           String
+  variantId           String?
+  productName         String
+  quantity            Int      @default(1)
+  suppliedProductId   String? // actually given at redemption (original or accepted substitute)
+  suppliedProductName String?
+  createdAt           DateTime @default(now())
+
+  offer SampleOffers @relation(fields: [offerId], references: [id], onDelete: Cascade)
+
+  @@index([offerId])
+  @@map("sample_offer_promo_items")
+}
+
+model SampleOfferSubstitutions {
+  id                    String   @id @default(uuid())
+  offerId               String
+  redemptionOrderId     String
+  lineRole              String // PAID | FREE
+  promoItemId           String?
+  originalProductId     String
+  originalProductName   String
+  substituteProductId   String
+  substituteProductName String
+  substituteUnitPrice   Decimal  @db.Decimal(10, 2)
+  customerAccepted      Boolean  @default(true)
+  acceptedAt            DateTime @default(now())
+  processedByUserId     String?
+  createdAt             DateTime @default(now())
+
+  offer            SampleOffers   @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  redemption_order BusinessOrders @relation(fields: [redemptionOrderId], references: [id])
+
+  @@index([offerId])
+  @@index([redemptionOrderId])
+  @@map("sample_offer_substitutions")
 }
 
 model InventoryTransfers {
@@ -8238,53 +8325,53 @@ model ComboPaymentRequestSections {
 }
 
 model ComboPaymentRequestItems {
-  id              String    @id @default(uuid())
-  requestId       String
-  sectionId       String?
-  description     String
-  quantity        Decimal?  @db.Decimal(10, 3)
-  unit            String?
-  estimatedAmount Decimal?  @db.Decimal(12, 2)
-  approvedAmount  Decimal?  @db.Decimal(12, 2)
-  categoryId      String?
-  subcategoryId   String?
-  payeeType       String?
-  payeePersonId   String?
-  payeeUserId     String?
-  payeeEmployeeId String?
-  payeeBusinessId String?
-  payeeSupplierId String?
-  isPaid          Boolean   @default(false)
-  paidAt          DateTime?
-  paidAmount      Decimal?  @db.Decimal(12, 2)
-  receiptNumber   String?
-  notes           String?
+  id                      String    @id @default(uuid())
+  requestId               String
+  sectionId               String?
+  description             String
+  quantity                Decimal?  @db.Decimal(10, 3)
+  unit                    String?
+  estimatedAmount         Decimal?  @db.Decimal(12, 2)
+  approvedAmount          Decimal?  @db.Decimal(12, 2)
+  categoryId              String?
+  subcategoryId           String?
+  payeeType               String?
+  payeePersonId           String?
+  payeeUserId             String?
+  payeeEmployeeId         String?
+  payeeBusinessId         String?
+  payeeSupplierId         String?
+  isPaid                  Boolean   @default(false)
+  paidAt                  DateTime?
+  paidAmount              Decimal?  @db.Decimal(12, 2)
+  receiptNumber           String?
+  notes                   String?
   // MBM-303: non-null = "no receipt for this item, here's why" — the item
   // counts as accounted for without a matching ExpensePaymentReceipts sum.
   // No separate boolean/markedBy/markedAt — who/when is already captured by
   // the audit log entry the PATCH route that sets this writes.
-  noReceiptReason String?
+  noReceiptReason         String?
   // MBM-319: the recorded restaurant expense line this item was raised for.
   // Plain id, kept even after the live link (line.comboItemId) is released
   // on a partial payment — the sales report uses it to avoid counting the
   // same expense twice (on purchase date and again when paid).
   restaurantExpenseLineId String?
-  sortOrder       Int       @default(0)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @default(now()) @updatedAt
+  sortOrder               Int       @default(0)
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @default(now()) @updatedAt
 
-  request       ComboPaymentRequests         @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  section       ComboPaymentRequestSections? @relation(fields: [sectionId], references: [id], onDelete: SetNull)
-  category      ExpenseCategories?           @relation("ComboItemCategory", fields: [categoryId], references: [id])
-  subcategory   ExpenseSubcategories?        @relation("ComboItemSubcategory", fields: [subcategoryId], references: [id])
-  payeePerson   Persons?                     @relation("ComboItemPayeePerson", fields: [payeePersonId], references: [id])
-  payeeUser     Users?                       @relation("ComboItemPayeeUser", fields: [payeeUserId], references: [id])
-  payeeEmployee Employees?                   @relation("ComboItemPayeeEmployee", fields: [payeeEmployeeId], references: [id])
-  payeeBusiness Businesses?                  @relation("ComboItemPayeeBusiness", fields: [payeeBusinessId], references: [id])
-  payeeSupplier BusinessSuppliers?           @relation("ComboItemPayeeSupplier", fields: [payeeSupplierId], references: [id])
-  receipts      ExpensePaymentReceipts[]     @relation("ReceiptComboItem")
+  request                 ComboPaymentRequests         @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  section                 ComboPaymentRequestSections? @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+  category                ExpenseCategories?           @relation("ComboItemCategory", fields: [categoryId], references: [id])
+  subcategory             ExpenseSubcategories?        @relation("ComboItemSubcategory", fields: [subcategoryId], references: [id])
+  payeePerson             Persons?                     @relation("ComboItemPayeePerson", fields: [payeePersonId], references: [id])
+  payeeUser               Users?                       @relation("ComboItemPayeeUser", fields: [payeeUserId], references: [id])
+  payeeEmployee           Employees?                   @relation("ComboItemPayeeEmployee", fields: [payeeEmployeeId], references: [id])
+  payeeBusiness           Businesses?                  @relation("ComboItemPayeeBusiness", fields: [payeeBusinessId], references: [id])
+  payeeSupplier           BusinessSuppliers?           @relation("ComboItemPayeeSupplier", fields: [payeeSupplierId], references: [id])
+  receipts                ExpensePaymentReceipts[]     @relation("ReceiptComboItem")
   // MBM-319: the recorded restaurant expense line this item pays, if any
-  restaurant_expense_line RestaurantExpenseLines? @relation("RestaurantExpenseLineComboItem")
+  restaurant_expense_line RestaurantExpenseLines?      @relation("RestaurantExpenseLineComboItem")
 
   @@index([requestId])
   @@index([sectionId])
@@ -8328,35 +8415,35 @@ model IssuingAuthorities {
 }
 
 model WarehouseBatches {
-  id                  String           @id @default(uuid())
-  batchName           String
-  batchNumber         String?
-  importedBy          String
-  importedAt          DateTime         @default(now())
-  status              String           @default("ACTIVE")
-  rowCount            Int
-  totalYuanCost       Decimal?         @db.Decimal(14, 2)
-  totalUsdCost        Decimal?         @db.Decimal(14, 2)
-  collectionFee       String?
-  pickedUpAtCollectionPoint Boolean    @default(false)
-  collectionTransportCost   Decimal?   @db.Decimal(10, 2)
-  transactionFeePct   Decimal?         @db.Decimal(5, 2)
-  fileHash            String           @unique
-  originalFileName    String
-  notes               String?
+  id                        String           @id @default(uuid())
+  batchName                 String
+  batchNumber               String?
+  importedBy                String
+  importedAt                DateTime         @default(now())
+  status                    String           @default("ACTIVE")
+  rowCount                  Int
+  totalYuanCost             Decimal?         @db.Decimal(14, 2)
+  totalUsdCost              Decimal?         @db.Decimal(14, 2)
+  collectionFee             String?
+  pickedUpAtCollectionPoint Boolean          @default(false)
+  collectionTransportCost   Decimal?         @db.Decimal(10, 2)
+  transactionFeePct         Decimal?         @db.Decimal(5, 2)
+  fileHash                  String           @unique
+  originalFileName          String
+  notes                     String?
   // MBM-300 — Container Batch header block (exchange rate + batch-wide
   // summary totals), parsed straight from that file's own header rows.
   // Nullable/additive — batches from the earlier Yuan-stage import simply
   // don't have these set.
-  exchangeRate          Decimal?       @db.Decimal(10, 4)
-  totalLandedCost       Decimal?       @db.Decimal(14, 2)
-  totalProjectedSelling Decimal?       @db.Decimal(14, 2)
-  totalProjectedProfit  Decimal?       @db.Decimal(14, 2)
-  profitMarginPct       String?
-  createdAt           DateTime         @default(now())
-  updatedAt           DateTime         @default(now()) @updatedAt
-  users               Users            @relation(fields: [importedBy], references: [id])
-  warehouse_items     WarehouseItems[]
+  exchangeRate              Decimal?         @db.Decimal(10, 4)
+  totalLandedCost           Decimal?         @db.Decimal(14, 2)
+  totalProjectedSelling     Decimal?         @db.Decimal(14, 2)
+  totalProjectedProfit      Decimal?         @db.Decimal(14, 2)
+  profitMarginPct           String?
+  createdAt                 DateTime         @default(now())
+  updatedAt                 DateTime         @default(now()) @updatedAt
+  users                     Users            @relation(fields: [importedBy], references: [id])
+  warehouse_items           WarehouseItems[]
 
   @@map("warehouse_batches")
 }
@@ -8395,7 +8482,7 @@ model WarehouseItems {
   // sharing the same businessProductId if conversion happens later via
   // Edit Item, so the batch stays in sync regardless of which entry point
   // was used.
-  itemsPerPacket             Int?
+  itemsPerPacket            Int?
   variantSpec               String?
   imageId                   String?
   originalQty               Int?

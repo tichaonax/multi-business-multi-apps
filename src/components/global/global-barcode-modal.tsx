@@ -280,6 +280,23 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence, curre
       }
       // --- End delivery order barcode check ---
 
+      // --- Step 2c: Free sample receipt (SMP-XXXXXXXX, MBM-329) ---
+      if (/^SMP-[A-Z0-9]{8}$/i.test(barcodeToLookup)) {
+        const onRestaurantPos = typeof window !== 'undefined' && window.location.pathname.startsWith('/restaurant/pos')
+        if (onRestaurantPos) {
+          // POS opens its phone-verification modal; nothing is redeemed until payment
+          window.dispatchEvent(new CustomEvent('pos:scan-sample-offer', { detail: { offerCode: barcodeToLookup.toUpperCase() } }))
+          setCardScanHandled(true)
+          onClose()
+        } else {
+          setError('This is a free sample receipt. Scan it at the restaurant POS before payment.')
+        }
+        setIsLoading(false)
+        setIsIdentifying(false)
+        return
+      }
+      // --- End sample receipt check ---
+
       // Not a card — proceed to product lookup
       setIsIdentifying(false)
 

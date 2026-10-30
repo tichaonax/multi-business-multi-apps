@@ -56,6 +56,13 @@ export default function RestaurantReportsPage() {
       color: 'bg-rose-600 hover:bg-rose-700'
     },
     {
+      title: '🎁 Sample Offers',
+      description: 'Free samples given, return offers redeemed, substitutions, resulting sales and conversion rate',
+      href: `/${businessType}/reports/sample-offers`,
+      icon: '🎁',
+      color: 'bg-teal-600 hover:bg-teal-700'
+    },
+    {
       title: '🍱 Meal Program Report',
       description: 'Expense tracking, salesperson summaries, and participant meal history',
       href: `/${businessType}/reports/meal-program`,

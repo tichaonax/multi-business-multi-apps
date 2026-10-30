@@ -165,6 +165,10 @@ export const RESTORE_ORDER = [
   // Promo Campaigns, Coupons and Customer Rewards
   'promoCampaigns',           // Depends on businesses
   'customerRewards',          // Depends on businesses, businessCustomers, promoCampaigns, businessOrders
+  // Free menu samples (MBM-329)
+  'sampleOffers',             // Depends on businesses, businessCustomers, businessProducts, businessOrders (@unique offerCode)
+  'sampleOfferPromoItems',    // Depends on sampleOffers
+  'sampleOfferSubstitutions', // Depends on sampleOffers, businessOrders
   'coupons',                  // Depends on businesses, employees
   'couponUsages',             // Depends on coupons, businessOrders, employees
 
@@ -512,6 +516,7 @@ const UNIQUE_CONSTRAINT_FIELDS: Record<string, string | { fields: string[] }> = 
 
   // Promo system unique constraints
   'customerRewards': 'couponCode',
+  'sampleOffers': 'offerCode',
 
   // Coupons: unique on (businessId, code) — cross-server restores can have same code, different id
   'coupons': { fields: ['businessId', 'code'] },

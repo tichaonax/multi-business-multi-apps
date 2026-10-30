@@ -10,6 +10,7 @@ All detailed project plans live in `ai-contexts/project-plans/`.
 
 | ID | Title | File | Status |
 |----|-------|------|--------|
+| MBM-329 | Free menu samples with customer-specific return offers: one-per-item/one-per-order sample issue, barcode sample receipt, phone-verified race-safe redemption with accepted substitutions, refund/void-safe, conversion reports | [view](ai-contexts/project-plans/review/projectplan-MBM-329-menu-sample-return-offers-2026-10-30.md) | 🟢 BUILT — migration applied on dev, typechecked clean vs baseline; awaiting live browser testing (branch `feature/MBM-329-menu-sample-return-offers`) |
 | MBM-328 | Emojis in chat: emoji picker in the composer (A) + optional quick reactions on messages (B) | [view](ai-contexts/project-plans/review/projectplan-MBM-328-chat-emojis.md) | 📝 Awaiting approval |
 | MBM-327 | Backup audit (3 MBM-296 pricing tables added) + "My purchases" under collapsible person/date headers, one month loaded at a time | [view](ai-contexts/project-plans/review/projectplan-MBM-327-restaurant-expenses-backup-audit-and-grouping.md) | 📝 Awaiting approval |
 | MBM-326 | Submitted combo requests missing from the cashier's Pending Actions (only reachable via notification / account page); admin fallback when no other FULL grantee to notify | [view](ai-contexts/project-plans/review/projectplan-MBM-326-combo-requests-in-pending-actions-2026-10-17.md) | 🟢 BUILT — awaiting user testing |

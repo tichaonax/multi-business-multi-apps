@@ -372,6 +372,8 @@ const SKIP_BUSINESS_SCOPING = new Set([
   'chatMessageRecipients',       // messageId + userId FK, no businessId column
   'chatMessageDismissals',       // messageId + userId FK, no businessId column
   'chatMessageReactions',        // MBM-328: messageId + userId FK, no businessId column
+  'sampleOfferPromoItems',       // MBM-329: offerId FK, no businessId column
+  'sampleOfferSubstitutions',    // MBM-329: offerId FK, no businessId column
   'chatAttachments',             // messageId (nullable) + uploadedBy FK, no businessId column
   // AYLI Combo child tables — no businessId (linked via comboId)
   'asYouLikeItComboSizes',       // comboId FK, no businessId field
