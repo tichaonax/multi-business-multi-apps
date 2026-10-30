@@ -3937,6 +3937,122 @@ Coupons are different from campaign rewards — they are **created manually** by
 
 > Coupons can also have a barcode printed on them — the cashier scans the coupon like a product barcode and the discount is applied without any typing.
 
+### Free Menu Samples & Return Offers (Restaurant)
+
+Give a customer a small free taste of a menu item with their meal. They get a **sample receipt** with a barcode, and when they come back they bring it to buy that item. You can optionally promise a free side or other item with that next purchase.
+
+**The rules the system enforces:**
+- The customer must be registered and have a phone number.
+- The order total must reach the **minimum purchase** (default **$4.00**).
+- Only **one sample per order**.
+- A customer can sample each menu item **only once, ever**. This applies whether or not they used the offer, and even after it expired. They can still sample other items on later visits.
+- A customer redeeming a sample receipt can't receive a new sample in the same order.
+
+#### Setting It Up (Owner / Admin)
+
+Go to **Restaurant → POS Settings** and find the **🎁 Free sample offers** card:
+- **Minimum purchase to give a sample**: the order total needed before the button is enabled. The default is $4.00.
+- **Sample receipt (coupon) expiry**: how many days the customer has to come back. The default is 7 days.
+
+Click **Save**. A changed expiry applies to samples given from then on. Receipts already printed keep their own expiry.
+
+#### Giving a Free Sample
+
+1. Add the customer's order to the cart as normal.
+2. Click **🎁 Give Free Sample** under the total.
+   - The button stays disabled until the total reaches the minimum purchase. A note under it shows the amount needed.
+3. If no customer is selected yet, the window asks **"Who is the sample for?"**
+   - Search by **name or phone** (or customer number), then pick the customer.
+   - If they're not registered, click **Add New Customer**, enter their name and phone number, and click **Create & Select**.
+   - To pick someone else, click **Change customer**.
+4. Pick the menu item for the sample. Items this customer has already sampled are greyed out, with the date they had it.
+5. *(Optional)* Tick **Include free items with their next purchase** and add the side dish or other items, with quantities. Leave this unticked if you're not promising anything extra.
+6. Click **Add sample**. The cart shows **🎁 FREE SAMPLE — [item]** at $0.00. The total doesn't change. Promised items are listed as "Promised for next visit". They are **not** given today.
+7. Take payment as normal.
+
+After the sales receipt, a **separate sample receipt** prints. It shows:
+- the customer's name, number and phone;
+- the sampled item and the promised free items;
+- the issue and expiry date and time;
+- a barcode.
+
+Hand it to the customer and remind them to bring it back.
+
+> The tasting portion is recorded on the order but does **not** reduce stock.
+> To take a sample off before paying, click **Remove sample**. If items are removed and the total falls below the minimum, the sample box shows a red warning. Add items or remove the sample.
+
+#### Redeeming a Sample Receipt (Return Visit)
+
+1. **Before payment**, scan the barcode on the sample receipt. If you have no scanner, click **🎟 Redeem Sample Receipt** and type the code (e.g. `SMP-7KQ2XW9D`).
+2. Ask the customer for their **registered phone number** and type it in. Then click **Verify & add items**.
+   - The receipt alone is not enough. The phone must match the customer the offer was given to. You can type it in any format (`0771234567` or `+263 77 123 4567`).
+3. If everything checks out, the system:
+   - selects that customer;
+   - adds the sampled item **at its normal price**. The sample receipt does not give another free serving;
+   - adds any promised items marked **FREE - sample offer** at $0.00.
+4. Add anything else the customer wants and take payment. The offer is used up only once payment succeeds.
+
+A teal **🎟 Sample offer** box in the cart shows the offer items. The quantities of these items are fixed; add extra portions as a separate item.
+
+**If the system refuses the receipt**, it says why:
+
+| Message | Meaning |
+|---|---|
+| This barcode is not a valid sample offer | The code doesn't exist for this restaurant |
+| The phone number doesn't match… | Wrong phone. Possession of the receipt is not enough |
+| This offer was already redeemed on [date] (order …) | It has been used. Each receipt works once |
+| This offer expired on [date] | Past its expiry. Expired offers can't be used, and the customer still can't get the same sample again |
+| This offer was just redeemed at another till | Someone redeemed the same receipt at the same moment. Only one checkout can succeed |
+
+#### Item Not Available? Offering a Substitute
+
+1. In the **🎟 Sample offer** box, click **Substitute** next to the item that's unavailable. Items the system knows are unavailable are marked in red.
+2. Pick the replacement and tell the customer.
+   - Replacing the **paid** item: the substitute is charged at **its own normal price**, shown before you apply it.
+   - Replacing a **free** promised item: the substitute stays **free**.
+3. Tick **The customer accepted this substitution** and click **Apply substitution**.
+
+If the customer doesn't accept, click **Cancel redemption**. The offer items leave the cart and nothing is used up. The receipt stays valid until its original expiry.
+
+The final receipt shows what was actually given, e.g. `Chips (FREE - sub for Coleslaw)`. The substitution is recorded with who processed it.
+
+#### Cancelling, Refunds and Voids
+
+- **Cancelled before payment** (Cancel Order, Cancel redemption, changing the customer, or a failed payment): the offer is **not** used up.
+- **Refunding or voiding a redemption sale** later does **not** give the customer the offer back. It stays used and the report flags the sale as voided/refunded.
+- **Voiding the original order that came with the sample** leaves the offer valid, because the customer already had the sample. The report notes "issuing order voided".
+
+#### Reprinting a Sample Receipt
+
+1. Go to **Restaurant → Reports → 🎁 Sample Offers** and open the **Offers** tab.
+2. Choose the printer in **Reprint printer**. It lists your **USB**, **QZ Tray** and network receipt printers, and starts on the one you last used.
+3. Click **Reprint** on the offer. The copy is marked **REPRINT**.
+
+#### The Sample Offers Report
+
+**Restaurant → Reports → 🎁 Sample Offers** shows how well samples bring customers back.
+
+**Filters:**
+- **Sample issued date** and **Offer redeemed date** are separate date ranges.
+- You can also filter by status, substitution, customer, menu item and salesperson.
+
+**Statuses:**
+- **Valid**: not used yet and not expired.
+- **Expired**: never redeemed.
+- **Redeemed**.
+- **Redeemed — sale voided**: the return sale was later voided or refunded.
+
+| Tab | What it shows |
+|---|---|
+| **Summary** | Samples issued, redeemed, **conversion rate** (redeemed ÷ issued), still valid, expired, voided. Retained sales are split into promoted items vs accepted substitutes. Voided/refunded sales are shown separately. |
+| **Offers** | One row per sample: customer, phone, item, issue date, salesperson, original order, promised items, status and expiry/redemption date. Click a row for the items actually supplied, substitutions and any void/refund details. Reprint from here. |
+| **Substitutions** | Original item → substitute, paid or free, customer accepted, who processed it, redemption order |
+| **By menu item** | Samples issued and redeemed per sampled item, conversion and resulting sales |
+| **By salesperson** | Samples each person gave out, how many came back, conversion and resulting sales |
+| **Customer conversion** | How many customers who received samples came back and bought with their offer |
+
+> Voided or refunded redemption sales never count towards retained sales or the conversion rate, so the report doesn't overstate the promotion's results.
+
 ### Layby (Installment Purchases)
 
 A layby allows a customer to reserve items and pay over time. The goods are held until fully paid.
