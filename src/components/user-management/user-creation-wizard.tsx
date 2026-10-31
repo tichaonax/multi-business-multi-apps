@@ -3,6 +3,7 @@
 import React, { useState } from 'react'
 import { SessionUser, getActiveBusinessMemberships, isSystemAdmin } from '@/lib/permission-utils'
 import { BUSINESS_PERMISSION_PRESETS, BusinessPermissions, BusinessType, CORE_PERMISSIONS, BUSINESS_TYPE_MODULES, USER_LEVEL_PERMISSIONS } from '@/types/permissions'
+import { FarmCameraPermissionGroup } from '@/components/farm-cameras/farm-camera-permission-group'
 import { ModalPortal } from '@/components/ui/modal-portal'
 
 interface UserCreationWizardProps {
@@ -1032,6 +1033,7 @@ function CustomPermissionsEditor({ permissions, businessType, onChange }: Custom
     { title: 'Employee Management', permissions: CORE_PERMISSIONS.employeeManagement },
     { title: 'Vehicle Management', permissions: USER_LEVEL_PERMISSIONS.vehicleManagement.permissions },
     { title: 'Data Management', permissions: CORE_PERMISSIONS.dataManagement },
+    { title: 'Farm Cameras', permissions: CORE_PERMISSIONS.farmCameras },
     { title: 'System Administration', permissions: USER_LEVEL_PERMISSIONS.systemAdministration.permissions },
   ]
 
@@ -1042,7 +1044,16 @@ function CustomPermissionsEditor({ permissions, businessType, onChange }: Custom
 
   return (
     <div className="space-y-4">
-      {allPermissionGroups.map((group) => (
+      {allPermissionGroups.map((group) => group.title === 'Farm Cameras' ? (
+        // MBM-331: Farm Control id + link, permissions locked until linked
+        <FarmCameraPermissionGroup
+          key={group.title}
+          userId={undefined}
+          permissions={group.permissions}
+          values={permissions as Record<string, unknown>}
+          onToggle={updatePermission}
+        />
+      ) : (
         <div key={group.title} className="border border-gray-200 dark:border-gray-600 rounded-lg p-3">
           <div className="flex items-center justify-between mb-2">
             <h4 className="text-sm font-medium text-gray-900 dark:text-white">{group.title}</h4>

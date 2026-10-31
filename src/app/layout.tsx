@@ -24,6 +24,8 @@ import { NotificationProvider } from '@/components/providers/notification-provid
 import { FloatingChat } from '@/components/chat/floating-chat'
 import { PolicyGuard } from '@/components/policies/PolicyGuard'
 import { ScaleProvider } from '@/contexts/ScaleContext'
+import { FarmControlProvider } from '@/components/farm-cameras/farm-control-provider'
+import { FarmCameraViewsProvider } from '@/components/farm-cameras/farm-camera-views'
 
 export const metadata: Metadata = {
   title: 'Multi-Business Management Platform',
@@ -78,6 +80,10 @@ export default function RootLayout({
                       <NotificationProvider>
                       <NavigationProvider>
                         <GlobalBarcodeProvider>
+                        {/* MBM-331: Farm Control camera session + frame messages (renders nothing itself),
+                            and the enlarged camera view the header strip and camera screen open */}
+                        <FarmControlProvider>
+                        <FarmCameraViewsProvider>
                           <div className="min-h-screen w-full [overflow-x:clip]">
                             <ConditionalGlobalHeader />
                             <ConfirmProvider>
@@ -101,6 +107,8 @@ export default function RootLayout({
                               like the old (permanently-disabled) placement below the tree. */}
                           <ConditionalHealthIndicator />
                           <ConditionalServerIndicator />
+                        </FarmCameraViewsProvider>
+                        </FarmControlProvider>
                         </GlobalBarcodeProvider>
                       </NavigationProvider>
                       </NotificationProvider>

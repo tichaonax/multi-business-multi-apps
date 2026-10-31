@@ -22,6 +22,7 @@ import { usePolicyOverdue } from '@/hooks/use-policy-overdue'
 import { useActiveServerLabel } from '@/hooks/use-active-server-label'
 import { getDefaultPagePath } from '@/lib/business-default-pages'
 import { subscribeChatBadge, ChatBadgeState } from '@/lib/chat-badge'
+import { FarmCameraStrip } from '@/components/farm-cameras/farm-camera-strip'
 import { ComplianceDigestSections, parseComplianceDigest, formatAlertTimestamp } from '@/components/vehicles/license-compliance-digest'
 
 interface GlobalHeaderProps {
@@ -565,6 +566,9 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
             )}
             {showBreadcrumb && <div className="hidden sm:block min-w-0 overflow-hidden"><Breadcrumb pathname={pathname} title={title} /></div>}
           </div>
+
+          {/* MBM-331: farm camera strip, middle of the header on wide screens */}
+          <FarmCameraStrip placement="inline" />
 
           {/* Right side - Business context, Theme toggle and User menu */}
           <div className="flex items-center space-x-1 sm:space-x-4 shrink-0 pr-1 sm:pr-0">
@@ -1631,6 +1635,8 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
           </div>
         </div>
       </div>
+      {/* MBM-331: farm camera strip, its own row on narrow screens */}
+      <FarmCameraStrip placement="row" />
     </header>
 
       {/* Test Print Modal */}

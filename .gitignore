@@ -100,6 +100,8 @@ logs
 # Server-specific configuration files (contain server-specific values)
 config/service-config.json
 data/sync/config.json
+# MBM-331: Farm Control signing keys (private keys, per server — never commit)
+data/farm-control/
 
 # Auto-generated build info (regenerated on each build)
 config/build-info.json

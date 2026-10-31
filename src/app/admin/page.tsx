@@ -36,14 +36,15 @@ import {
   Receipt,
   HandCoins,
   Building,
-  Bell
+  Bell,
+  Camera
 } from 'lucide-react'
 import { useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import Link from 'next/link'
 import AdminSeedPromptModal from '@/components/admin/admin-seed-prompt-modal'
 import { useToastContext } from '@/components/ui/toast'
-import { isSystemAdmin } from '@/lib/permission-utils'
+import { isSystemAdmin, hasUserPermission } from '@/lib/permission-utils'
 
 export default function AdminPage() {
   const { data: session } = useSession()
@@ -423,6 +424,19 @@ export default function AdminPage() {
               only hardware links elsewhere) but were missing from this
               dashboard, so this page wasn't actually a complete index of
               admin functionality. */}
+
+          {hasUserPermission(session?.user as any, 'canManageFarmControl') && (
+            <div className="card p-6">
+              <div className="flex items-center mb-3">
+                <Camera className="h-6 w-6 mr-2 text-green-600" />
+                <h3 className="text-lg font-semibold text-primary">Farm Cameras</h3>
+              </div>
+              <p className="text-secondary mb-4 text-sm">Connect this server to Farm Control, assign cameras to businesses and link users.</p>
+              <Link href="/admin/farm-control" className="btn-primary inline-block text-sm">
+                Manage Farm Cameras
+              </Link>
+            </div>
+          )}
 
           {isSysAdmin && (
             <div className="card p-6">

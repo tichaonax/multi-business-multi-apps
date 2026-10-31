@@ -13,6 +13,7 @@ import {
   BUSINESS_TYPE_MODULES,
   DEFAULT_USER_PERMISSIONS
 } from '@/types/permissions'
+import { FarmCameraPermissionGroup } from '@/components/farm-cameras/farm-camera-permission-group'
 import { ModalPortal } from '@/components/ui/modal-portal'
 import { ProfileIdentityFields } from '@/components/shared/profile-identity-fields'
 
@@ -815,6 +816,7 @@ export function UserEditModal({ user, currentUser, onClose, onSuccess, onError }
                         </div>
                         {!collapsedPermissions[index] && (
                           <CustomPermissionsEditor
+                            userId={user.id}
                             permissions={membership.customPermissions}
                             businessType={membership.businessType as BusinessType || 'other'}
                             currentRole={membership.role}
@@ -1096,9 +1098,10 @@ interface CustomPermissionsEditorProps {
   businessType: BusinessType
   onChange: (permissions: Partial<BusinessPermissions>) => void
   currentRole: keyof typeof BUSINESS_PERMISSION_PRESETS  // NEW - needed to determine visibility
+  userId?: string  // MBM-331: for the Farm Cameras block
 }
 
-function CustomPermissionsEditor({ permissions, businessType, onChange, currentRole }: CustomPermissionsEditorProps) {
+function CustomPermissionsEditor({ permissions, businessType, onChange, currentRole, userId }: CustomPermissionsEditorProps) {
   const updatePermission = (key: string, value: boolean) => {
     onChange({
       ...permissions,
@@ -1117,6 +1120,7 @@ function CustomPermissionsEditor({ permissions, businessType, onChange, currentR
     { title: 'Data Management', permissions: CORE_PERMISSIONS.dataManagement },
     { title: 'Payroll Management', permissions: CORE_PERMISSIONS.payrollManagement },
     { title: 'WiFi Portal Integration', permissions: CORE_PERMISSIONS.wifiPortalIntegration },
+    { title: 'Farm Cameras', permissions: CORE_PERMISSIONS.farmCameras },
   ]
 
   // ⚠️ CRITICAL: Only show Manager Payroll Actions for business-owner and business-manager roles
@@ -1138,7 +1142,16 @@ function CustomPermissionsEditor({ permissions, businessType, onChange, currentR
 
   return (
     <div className="space-y-4">
-      {allPermissionGroups.map((group) => (
+      {allPermissionGroups.map((group) => group.title === 'Farm Cameras' ? (
+        // MBM-331: Farm Control id + link, permissions locked until linked
+        <FarmCameraPermissionGroup
+          key={group.title}
+          userId={userId}
+          permissions={group.permissions}
+          values={permissions as Record<string, unknown>}
+          onToggle={updatePermission}
+        />
+      ) : (
         <div key={group.title} className="border border-gray-200 dark:border-gray-600 rounded-lg p-3">
           <div className="flex items-center justify-between mb-2">
             <h4 className="text-sm font-medium text-gray-900 dark:text-white">{group.title}</h4>

@@ -80,6 +80,8 @@ const NEW_TABLE_KEYS = [
   'chatMessageReactions',
   // Free menu samples (MBM-329)
   'sampleOffers', 'sampleOfferPromoItems', 'sampleOfferSubstitutions',
+  // Farm Control camera integration (MBM-331)
+  'farmControlCameraBusinesses', 'farmControlUserLinks', 'farmCameraUserPreferences',
   // Supplier / Contractor / Payee Category System (MBM-220)
   'supplierCategoryGroups', 'supplierCategories',
   'contractorCategoryGroups', 'contractorCategories',

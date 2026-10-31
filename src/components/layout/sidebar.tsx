@@ -6,6 +6,7 @@ import { useRouter, usePathname } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { canAccessModule, hasPermission, checkPermission, isSystemAdmin, hasUserPermission, SessionUser } from '@/lib/permission-utils'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
+import { useFarmControl } from '@/components/farm-cameras/farm-control-provider'
 import { useNavigation } from '@/contexts/navigation-context'
 import { useScale } from '@/contexts/ScaleContext'
 import { useGlobalCart } from '@/contexts/global-cart-context'
@@ -68,6 +69,7 @@ export function Sidebar() {
   const { navigateTo } = useNavigation()
   // normalize session user early to avoid repeating casts later
   const currentUser = session?.user as any
+  const hasFarmCameras = (useFarmControl()?.me?.cameraIds?.length ?? 0) > 0 // MBM-331
   const [profilePhotoUrl, setProfilePhotoUrl] = useState<string | null>(null)
   const [businesses, setBusinesses] = useState<Business[]>([])
   const [businessGroups, setBusinessGroups] = useState<BusinessGroup[]>([])
@@ -2051,6 +2053,25 @@ export function Sidebar() {
           >
             <span className="text-lg">🔌</span>
             <span>Workstation Agents</span>
+          </Link>
+        )}
+
+        {/* My Cameras (MBM-331) - the user's own camera screen, when MBM allows them cameras */}
+        {hasFarmCameras && (
+          <Link href="/cameras" className={getLinkClasses('/cameras')}>
+            <span className="text-lg">📹</span>
+            <span>My Cameras</span>
+          </Link>
+        )}
+
+        {/* Farm Cameras (MBM-331) - Farm Control connection, camera businesses, user links */}
+        {hasUserPermission(currentUser, 'canManageFarmControl') && (
+          <Link
+            href="/admin/farm-control"
+            className={getLinkClasses('/admin/farm-control')}
+          >
+            <span className="text-lg">📷</span>
+            <span>Farm Cameras</span>
           </Link>
         )}
 

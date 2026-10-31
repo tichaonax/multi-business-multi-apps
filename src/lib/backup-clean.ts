@@ -649,6 +649,14 @@ export async function createCleanBackup(
       where: { offer: { businessId: { in: businessIds } } }
     })
 
+    // Farm Control camera ↔ business assignments (MBM-331). The integration
+    // settings themselves (farmControlIntegrations) are deliberately NOT backed
+    // up: each MBM server has its own Farm Control integration and signing key,
+    // so restoring one server's connection onto another would be wrong.
+    businessData.farmControlCameraBusinesses = await prisma.farmControlCameraBusinesses.findMany({
+      where: { businessId: { in: businessIds } }
+    })
+
     // Coupons
     businessData.coupons = await prisma.coupons.findMany({
       where: { businessId: { in: businessIds } }
@@ -1357,6 +1365,14 @@ export async function createCleanBackup(
   businessData.chatMessageDismissals = await prisma.chatMessageDismissals.findMany()
   // MBM-328 — emoji reactions on chat messages
   businessData.chatMessageReactions = await prisma.chatMessageReactions.findMany()
+
+  // MBM-331 — per-user Farm Control link status and camera preferences
+  businessData.farmControlUserLinks = await prisma.farmControlUserLinks.findMany({
+    where: { userId: { in: userIds } }
+  })
+  businessData.farmCameraUserPreferences = await prisma.farmCameraUserPreferences.findMany({
+    where: { userId: { in: userIds } }
+  })
   // MBM-307/MBM-308+: chat message attachments (PDF/JPEG/PNG/audio/video) —
   // bytea like `images`, but capped per-type and comparatively low-volume,
   // so a plain findMany is fine here rather than the images table's own
@@ -1969,7 +1985,10 @@ export async function createCleanBackup(
     // 6.49.0 (2026-10-24): MBM-328 chatMessageReactions.
     // 6.50.0 (2026-10-30): MBM-329 sampleOffers, sampleOfferPromoItems,
     // sampleOfferSubstitutions.
-    schemaVersion: '6.50.0',
+    // 6.51.0 (2026-10-31): MBM-331 farmControlCameraBusinesses,
+    // farmControlUserLinks, farmCameraUserPreferences (farmControlIntegrations
+    // is server-specific and not backed up).
+    schemaVersion: '6.51.0',
     checksums: {
       businessData: businessDataChecksum,
       deviceData: deviceDataChecksum

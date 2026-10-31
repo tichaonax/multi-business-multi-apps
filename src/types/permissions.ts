@@ -78,6 +78,7 @@ export interface UserLevelPermissions {
 
   // Universal Printing Module (User-level - cross-business capability)
   canManageNetworkPrinters: boolean;  // Admin only - register, configure, delete printers
+  canManageFarmControl: boolean;      // MBM-331: Farm Control integration admin screen
   canSelectPrinters: boolean;         // Select from existing printers for printing
   canUseLabelPrinters: boolean;       // Print labels from inventory
   canPrintReceipts: boolean;          // Print sales receipts
@@ -355,6 +356,10 @@ export interface CoreBusinessPermissions {
   // POS Settings (Scale & Weighing, Vendor Pricing)
   canAccessScaleSettings: boolean;
   canAccessVendorPricing: boolean;
+
+  // Farm Control cameras (MBM-331) - never granted by a preset; given per business
+  canViewFarmCameras: boolean;       // See this business's farm cameras (strip, modal, camera screen)
+  canCaptureFarmCameras: boolean;    // Record / take pictures in Farm Control's windows (else &capture=0)
 }
 
 // Business-Type-Specific Permission Modules
@@ -1280,6 +1285,7 @@ export const USER_LEVEL_PERMISSIONS = {
     description: 'Manage network printers and print receipts/labels across all businesses',
     permissions: [
       { key: 'canManageNetworkPrinters', label: 'Manage Network Printers' },
+      { key: 'canManageFarmControl', label: 'Manage Farm Control Camera Integration' },
       { key: 'canUseLabelPrinters', label: 'Use Label Printers' },
       { key: 'canPrintReceipts', label: 'Print Receipts' },
       { key: 'canPrintInventoryLabels', label: 'Print Inventory Labels' },
@@ -1592,6 +1598,10 @@ export const CORE_PERMISSIONS = {
     { key: 'canAccessScaleSettings', label: 'Access Scale & Weighing Settings' },
     { key: 'canAccessVendorPricing', label: 'Access Vendor Pricing Presets (Buying & Selling per kg)' },
   ],
+  farmCameras: [
+    { key: 'canViewFarmCameras', label: 'View Farm Cameras (strip, enlarged view, camera screen)' },
+    { key: 'canCaptureFarmCameras', label: 'Record Video & Take Pictures from Farm Cameras' },
+  ],
 }
 
 // Business-level role presets (Core permissions only)
@@ -1780,6 +1790,8 @@ export const BUSINESS_OWNER_PERMISSIONS: CoreBusinessPermissions = {
   canQuickEditPOSItems: true,
   canAccessScaleSettings: true,
   canAccessVendorPricing: true,
+  canViewFarmCameras: false,
+  canCaptureFarmCameras: false,
 };
 
 export const BUSINESS_MANAGER_PERMISSIONS: CoreBusinessPermissions = {
@@ -1969,6 +1981,8 @@ export const BUSINESS_MANAGER_PERMISSIONS: CoreBusinessPermissions = {
   canQuickEditPOSItems: true,
   canAccessScaleSettings: true,
   canAccessVendorPricing: true,
+  canViewFarmCameras: false,
+  canCaptureFarmCameras: false,
 };
 
 export const BUSINESS_EMPLOYEE_PERMISSIONS: CoreBusinessPermissions = {
@@ -2158,6 +2172,8 @@ export const BUSINESS_EMPLOYEE_PERMISSIONS: CoreBusinessPermissions = {
   canQuickEditPOSItems: false,
   canAccessScaleSettings: false,
   canAccessVendorPricing: false,
+  canViewFarmCameras: false,
+  canCaptureFarmCameras: false,
 };
 
 export const BUSINESS_READ_ONLY_PERMISSIONS: CoreBusinessPermissions = {
@@ -2345,6 +2361,8 @@ export const BUSINESS_READ_ONLY_PERMISSIONS: CoreBusinessPermissions = {
   canQuickEditPOSItems: false,
   canAccessScaleSettings: false,
   canAccessVendorPricing: false,
+  canViewFarmCameras: false,
+  canCaptureFarmCameras: false,
 };
 
 // Delivery Driver permissions - Delivery queue and status updates only
@@ -2537,6 +2555,8 @@ export const BUSINESS_DELIVERY_DRIVER_PERMISSIONS: CoreBusinessPermissions = {
   canQuickEditPOSItems: false,
   canAccessScaleSettings: false,
   canAccessVendorPricing: false,
+  canViewFarmCameras: false,
+  canCaptureFarmCameras: false,
 };
 
 // Restaurant Associate permissions - Food prep and POS operations
@@ -2727,6 +2747,8 @@ export const BUSINESS_RESTAURANT_ASSOCIATE_PERMISSIONS: CoreBusinessPermissions 
   canQuickEditPOSItems: false,
   canAccessScaleSettings: false,
   canAccessVendorPricing: false,
+  canViewFarmCameras: false,
+  canCaptureFarmCameras: false,
 };
 
 // Salesperson permissions - Minimal access for sales staff only
@@ -2917,6 +2939,8 @@ export const BUSINESS_SALESPERSON_PERMISSIONS: CoreBusinessPermissions = {
   canQuickEditPOSItems: false,
   canAccessScaleSettings: false,
   canAccessVendorPricing: false,
+  canViewFarmCameras: false,
+  canCaptureFarmCameras: false,
 };
 
 // System admin permissions (cross-business)
@@ -3104,6 +3128,8 @@ export const SYSTEM_ADMIN_PERMISSIONS: CoreBusinessPermissions = {
   canQuickEditPOSItems: true,
   canAccessScaleSettings: true,
   canAccessVendorPricing: true,
+  canViewFarmCameras: false,
+  canCaptureFarmCameras: false,
 };
 
 // User-Level Permission Presets
@@ -3178,6 +3204,7 @@ export const DEFAULT_USER_PERMISSIONS: UserLevelPermissions = {
 
   // Universal Printing Module - Limited access by default
   canManageNetworkPrinters: false,      // Admin only
+  canManageFarmControl: false,
   canSelectPrinters: false,             // Must be granted
   canUseLabelPrinters: false,           // Must be granted
   canPrintReceipts: false,              // Must be granted
@@ -3298,6 +3325,7 @@ export const ADMIN_USER_PERMISSIONS: UserLevelPermissions = {
 
   // Universal Printing Module - Full access
   canManageNetworkPrinters: true,       // Admins can manage printers
+  canManageFarmControl: true,
   canSelectPrinters: true,             // Admins can select printers
   canUseLabelPrinters: true,           // Admins can use label printers
   canPrintReceipts: true,              // Admins can print receipts
@@ -3409,6 +3437,7 @@ export const DRIVER_PERMISSIONS: UserLevelPermissions = {
 
   // Universal Printing Module - No access
   canManageNetworkPrinters: false,
+  canManageFarmControl: false,
   canUseLabelPrinters: false,
   canPrintReceipts: false,
   canPrintInventoryLabels: false,
@@ -3520,6 +3549,7 @@ export const RESTAURANT_ASSOCIATE_USER_PERMISSIONS: UserLevelPermissions = {
 
   // Universal Printing Module - Receipt printing only
   canManageNetworkPrinters: false,
+  canManageFarmControl: false,
   canSelectPrinters: true,  // ✅ Can select from existing printers for receipt printing
   canUseLabelPrinters: false,
   canPrintReceipts: true,  // ✅ Can print customer receipts at POS

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { SessionUser } from '@/lib/permission-utils'
 import { BusinessPermissions, BusinessType, CORE_PERMISSIONS, BUSINESS_TYPE_MODULES, BUSINESS_PERMISSION_PRESETS } from '@/types/permissions'
+import { FarmCameraPermissionGroup } from '@/components/farm-cameras/farm-camera-permission-group'
 import { ModalPortal } from '@/components/ui/modal-portal'
 
 interface BusinessMembership {
@@ -182,12 +183,22 @@ export function BusinessPermissionModal({
           {/* Permission Categories */}
           <div className="space-y-6">
             {/* Core Permissions */}
-            {Object.entries(CORE_PERMISSIONS).map(([category, categoryPermissions]) => (
+            {Object.entries(CORE_PERMISSIONS).map(([category, categoryPermissions]) => category === 'farmCameras' ? (
+              // MBM-331: Farm Control id + link, permissions locked until linked
+              <FarmCameraPermissionGroup
+                key={category}
+                userId={user.id}
+                permissions={categoryPermissions}
+                values={permissions as Record<string, unknown>}
+                onToggle={updatePermission}
+              />
+            ) : (
               <div key={category} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
                 <h3 className="font-medium text-gray-900 dark:text-white mb-3 capitalize">
                   {({
                     posBadgeVisibility: 'POS Badge Visibility',
                     wifiPortalIntegration: 'WiFi Portal Integration',
+                    farmCameras: 'Farm Cameras',
                     expiryManagement: 'Expiry Management',
                   } as Record<string, string>)[category] || `${category.replace(/([A-Z])/g, ' $1').trim()} Permissions`}
                 </h3>

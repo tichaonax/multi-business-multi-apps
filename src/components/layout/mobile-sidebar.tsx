@@ -4,6 +4,7 @@ import { useSession, signOut } from 'next-auth/react'
 import Link from 'next/link'
 import { useState, useEffect } from 'react'
 import { hasUserPermission, SessionUser } from '@/lib/permission-utils'
+import { useFarmControl } from '@/components/farm-cameras/farm-control-provider'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { useScale } from '@/contexts/ScaleContext'
 import { useR710QuickSell } from '@/contexts/r710-quick-sell-context'
@@ -29,6 +30,7 @@ const getBusinessTypeIcon = (type: string): string => {
 
 export function MobileSidebar() {
   const { data: session } = useSession()
+  const hasFarmCameras = (useFarmControl()?.me?.cameraIds?.length ?? 0) > 0 // MBM-331
   const [isOpen, setIsOpen] = useState(false)
   const [expandedTypes, setExpandedTypes] = useState<Set<string>>(new Set())
   const [esp32IntegrationEnabled, setEsp32IntegrationEnabled] = useState(false)
@@ -576,6 +578,14 @@ export function MobileSidebar() {
 
               {(isAdmin || isBusinessOwner) && (
                 <Link href="/admin/workstation-agents" className={sectionLinkClass} onClick={close}>🔌 Workstation Agents</Link>
+              )}
+
+              {hasFarmCameras && (
+                <Link href="/cameras" className={sectionLinkClass} onClick={close}>📹 My Cameras</Link>
+              )}
+
+              {hasUserPermission(user, 'canManageFarmControl') && (
+                <Link href="/admin/farm-control" className={sectionLinkClass} onClick={close}>📷 Farm Cameras</Link>
               )}
 
               {isAdmin && (

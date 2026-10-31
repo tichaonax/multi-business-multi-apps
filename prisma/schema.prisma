@@ -564,6 +564,7 @@ model Businesses {
   customer_laybys                                                          CustomerLayby[]
   customer_rewards                                                         CustomerRewards[]
   sample_offers                                                            SampleOffers[]
+  farm_control_camera_businesses                                           FarmControlCameraBusinesses[]
   promo_campaigns                                                          PromoCampaigns[]
   pos_terminal_configs                                                     PosTerminalConfig[]
   device_connection_history                                                DeviceConnectionHistory[]
@@ -3976,6 +3977,8 @@ model Users {
   restaurant_expense_items_created                                RestaurantExpenseItems[]          @relation("RestaurantExpenseItemCreator")
   restaurant_expense_transactions_created                         RestaurantExpenseTransactions[]   @relation("RestaurantExpenseTxnCreator")
   restaurant_expense_transactions_voided                          RestaurantExpenseTransactions[]   @relation("RestaurantExpenseTxnVoider")
+  farm_control_user_link                                          FarmControlUserLinks?
+  farm_camera_user_preferences                                    FarmCameraUserPreferences?
 
   @@map("users")
 }
@@ -9149,4 +9152,79 @@ model RestaurantExpenseLines {
   @@index([transactionId])
   @@index([status])
   @@map("restaurant_expense_lines")
+}
+
+// MBM-331 — Farm Control camera integration. One integration per MBM server
+// (one row); the signing private key lives in a file on the server, never here.
+model FarmControlIntegrations {
+  id             String   @id @default(uuid())
+  isEnabled      Boolean  @default(false)
+  baseUrl        String   @default("") // Farm Control address, e.g. https://farm-server.tailXXXX.ts.net:8443
+  integrationId  String   @default("") // `iss` in assertions, `integration` in frame addresses
+  audience       String   @default("") // `aud` in assertions
+  keyId          String   @default("") // `kid` of the active signing key
+  publicKeyPem   String   @default("")
+  allowedOrigins String[] @default([]) // reference only: the origins registered with FarmNet
+  maxLargeViews  Int      @default(2) // Farm Control's viewers + players per user (2, or 3 if the farm raised it)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@map("farm_control_integrations")
+}
+
+// Which MBM business(es) a Farm Control camera belongs to. Unassigned cameras
+// are hidden from everyone.
+model FarmControlCameraBusinesses {
+  id         String   @id @default(uuid())
+  cameraId   String
+  siteId     String
+  cameraName String // cached Farm Control name, for display
+  siteName   String
+  businessId String
+  createdAt  DateTime @default(now())
+
+  businesses Businesses @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([cameraId, businessId])
+  @@index([businessId])
+  @@map("farm_control_camera_businesses")
+}
+
+// Link status of an MBM user to a Farm Control identity (the linking itself is
+// done by FarmNet in Farm Control).
+model FarmControlUserLinks {
+  id              String    @id @default(uuid())
+  userId          String    @unique
+  status          String    @default("NOT_REQUESTED") // NOT_REQUESTED | REQUESTED | LINKED | REFUSED
+  farmControlName String?
+  requestedAt     DateTime?
+  lastSessionAt   DateTime?
+  lastRefusedAt   DateTime?
+  // Set by a camera admin on the Farm Cameras screen (never automatic, D3):
+  // view / capture in every business with camera access, without per-business grants
+  viewAllBusinesses    Boolean @default(false)
+  captureAllBusinesses Boolean @default(false)
+  updatedAt       DateTime  @updatedAt
+
+  users Users @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("farm_control_user_links")
+}
+
+// A user's own camera preferences (never access).
+model FarmCameraUserPreferences {
+  id               String   @id @default(uuid())
+  userId           String   @unique
+  stripVisible     Boolean  @default(true)
+  stripCameraIds   String[] @default([]) // at most 4, in order
+  stripMode        String   @default("live") // live | pictures
+  posStripMode     String   @default("pictures") // live | pictures, on POS screens
+  showNamesOnStrip Boolean  @default(true)
+  showStripOnPos   Boolean  @default(false)
+  cameraLabels     Json     @default("{}") // { cameraId: { name, showName } }
+  updatedAt        DateTime @updatedAt
+
+  users Users @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("farm_camera_user_preferences")
 }

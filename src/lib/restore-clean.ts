@@ -169,6 +169,7 @@ export const RESTORE_ORDER = [
   'sampleOffers',             // Depends on businesses, businessCustomers, businessProducts, businessOrders (@unique offerCode)
   'sampleOfferPromoItems',    // Depends on sampleOffers
   'sampleOfferSubstitutions', // Depends on sampleOffers, businessOrders
+  'farmControlCameraBusinesses', // MBM-331: depends on businesses (@@unique cameraId+businessId)
   'coupons',                  // Depends on businesses, employees
   'couponUsages',             // Depends on coupons, businessOrders, employees
 
@@ -390,6 +391,8 @@ export const RESTORE_ORDER = [
   'chatMessageDismissals',   // Depends on chatMessages, users — per-user "delete for me" on a system alert
   'chatMessageReactions',    // MBM-328: depends on chatMessages, users (@@unique messageId+userId+emoji)
   'chatAttachments',         // Depends on chatMessages (nullable — unsent at backup time), users (MBM-307)
+  'farmControlUserLinks',      // MBM-331: depends on users (@unique userId)
+  'farmCameraUserPreferences', // MBM-331: depends on users (@unique userId)
 
   // Notifications
   'appNotifications',   // Depends on users
@@ -517,6 +520,11 @@ const UNIQUE_CONSTRAINT_FIELDS: Record<string, string | { fields: string[] }> = 
   // Promo system unique constraints
   'customerRewards': 'couponCode',
   'sampleOffers': 'offerCode',
+
+  // MBM-331 Farm Control
+  'farmControlCameraBusinesses': { fields: ['cameraId', 'businessId'] },
+  'farmControlUserLinks': 'userId',
+  'farmCameraUserPreferences': 'userId',
 
   // Coupons: unique on (businessId, code) — cross-server restores can have same code, different id
   'coupons': { fields: ['businessId', 'code'] },
