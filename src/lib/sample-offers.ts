@@ -74,6 +74,8 @@ export function offerDisplayStatus(offer: { status: string; expiresAt: Date }): 
 }
 
 export class SampleOfferError extends Error {
+  /** Set when the offer was already redeemed (phone matched): the POS may sell the item again as a regular sale */
+  redeemedOffer?: { sampledProductId: string; sampledProductName: string; customer: { id: string; name: string; customerNumber: string; phone: string | null; email?: string | null; customerType: string } }
   constructor(message: string, public status = 409) {
     super(message)
   }
@@ -136,7 +138,9 @@ export async function validateOfferForRedemption(businessId: string, offerCode: 
   if (offer.status === 'REDEEMED') {
     const on = offer.redeemedAt ? ` on ${fmt(offer.redeemedAt)}` : ''
     const ord = offer.redeemed_order?.orderNumber ? ` (order ${offer.redeemed_order.orderNumber})` : ''
-    throw new SampleOfferError(`This offer was already redeemed${on}${ord}.`)
+    const err = new SampleOfferError(`This offer was already redeemed${on}${ord}.`)
+    err.redeemedOffer = { sampledProductId: offer.sampledProductId, sampledProductName: offer.sampledProductName, customer: offer.business_customers }
+    throw err
   }
   if (offer.expiresAt.getTime() <= Date.now()) {
     throw new SampleOfferError(`This offer expired on ${fmt(offer.expiresAt)}.`)

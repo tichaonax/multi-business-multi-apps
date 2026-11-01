@@ -279,19 +279,28 @@ export function GiveSampleModal({ businessId, customer, products, onConfirm, onC
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function RedeemSampleModal({ businessId, initialCode, onValidated, onClose }: {
+/** An already-redeemed offer's item, offered again as a regular sale */
+export interface RedeemedOfferItem {
+  customer: ValidatedSampleOffer['customer']
+  item: { productId: string; name: string; price: number; available: boolean }
+}
+
+export function RedeemSampleModal({ businessId, initialCode, onValidated, onRegularSale, onClose }: {
   businessId: string
   initialCode?: string
   onValidated: (offer: ValidatedSampleOffer, phone: string) => void
+  /** Already redeemed: the customer still wants the item at today's price */
+  onRegularSale?: (redeemed: RedeemedOfferItem) => void
   onClose: () => void
 }) {
   const [code, setCode] = useState(initialCode || '')
   const [phone, setPhone] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [redeemed, setRedeemed] = useState<RedeemedOfferItem | null>(null)
 
   const submit = async () => {
-    setBusy(true); setError(null)
+    setBusy(true); setError(null); setRedeemed(null)
     try {
       const res = await fetch('/api/restaurant/sample-offers/validate', {
         method: 'POST',
@@ -299,7 +308,11 @@ export function RedeemSampleModal({ businessId, initialCode, onValidated, onClos
         body: JSON.stringify({ businessId, offerCode: code.trim().toUpperCase(), phone }),
       })
       const data = await res.json()
-      if (!res.ok || !data.success) { setError(data.error || 'This sample offer cannot be redeemed.'); return }
+      if (!res.ok || !data.success) {
+        setError(data.error || 'This sample offer cannot be redeemed.')
+        if (data.redeemed) setRedeemed(data.redeemed)
+        return
+      }
       onValidated(data.offer, phone)
     } catch {
       setError('Could not check the sample offer. Try again.')
@@ -314,9 +327,15 @@ export function RedeemSampleModal({ businessId, initialCode, onValidated, onClos
       onClose={onClose}
       footer={<>
         <button type="button" onClick={onClose} className="px-4 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 text-primary">Cancel</button>
-        <button type="button" disabled={busy || !code.trim() || !phone.trim()} onClick={submit} className="px-4 py-2 text-sm rounded-md bg-teal-600 text-white disabled:opacity-50">
-          {busy ? 'Checking…' : 'Verify & add items'}
-        </button>
+        {redeemed && onRegularSale ? (
+          <button type="button" disabled={!redeemed.item.available} onClick={() => onRegularSale(redeemed)} className="px-4 py-2 text-sm rounded-md bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50">
+            Add to cart · ${redeemed.item.price.toFixed(2)}
+          </button>
+        ) : (
+          <button type="button" disabled={busy || !code.trim() || !phone.trim()} onClick={submit} className="px-4 py-2 text-sm rounded-md bg-teal-600 text-white disabled:opacity-50">
+            {busy ? 'Checking…' : 'Verify & add items'}
+          </button>
+        )}
       </>}
     >
       <div>
@@ -330,6 +349,19 @@ export function RedeemSampleModal({ businessId, initialCode, onValidated, onClos
         <p className="mt-1 text-xs text-secondary">The receipt alone is not enough. The phone number must match the customer the offer was issued to.</p>
       </div>
       {error && <div className="rounded-md border border-red-300 bg-red-50 dark:bg-red-900/20 p-2 text-sm text-red-700 dark:text-red-300">{error}</div>}
+      {redeemed && onRegularSale && (
+        <div className="rounded-md border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 p-3 text-sm space-y-2">
+          <p className="font-medium text-amber-900 dark:text-amber-200">Does {redeemed.customer.name} still want this item?</p>
+          <div className="flex items-center justify-between rounded border border-amber-200 dark:border-amber-800 bg-white dark:bg-gray-800 px-3 py-2">
+            <span className="text-primary">{redeemed.item.name}</span>
+            <span className="font-semibold text-primary">${redeemed.item.price.toFixed(2)}</span>
+          </div>
+          <p className="text-amber-900 dark:text-amber-200">
+            The free items from this offer no longer apply: it would be a regular sale at today&apos;s price. If the customer says yes, add it to the cart and continue as normal.
+          </p>
+          {!redeemed.item.available && <p className="text-red-700 dark:text-red-300">This item is not available right now.</p>}
+        </div>
+      )}
     </ModalShell>
   )
 }

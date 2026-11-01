@@ -44,6 +44,23 @@ export async function POST(req: NextRequest) {
       },
     })
   } catch (err) {
+    if (err instanceof SampleOfferError && err.redeemedOffer) {
+      // Already redeemed: the customer may still buy the item, as a regular
+      // sale at today's price (the offer's free items no longer apply)
+      const r = err.redeemedOffer
+      const p = await prisma.businessProducts.findFirst({
+        where: { id: r.sampledProductId, businessId },
+        select: { id: true, name: true, basePrice: true, isActive: true, isAvailable: true },
+      })
+      return NextResponse.json({
+        success: false,
+        error: err.message,
+        redeemed: {
+          customer: r.customer,
+          item: { productId: r.sampledProductId, name: p?.name || r.sampledProductName, price: p ? Number(p.basePrice) : 0, available: !!p && p.isActive && p.isAvailable },
+        },
+      }, { status: err.status })
+    }
     if (err instanceof SampleOfferError) return NextResponse.json({ success: false, error: err.message }, { status: err.status })
     console.error('[sample-offers/validate]', err)
     return NextResponse.json({ success: false, error: 'Could not check the sample offer.' }, { status: 500 })

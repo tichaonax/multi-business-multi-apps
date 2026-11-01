@@ -65,7 +65,7 @@ import { useTimeDisplay } from '@/hooks/use-time-display'
 import { generateDeliveryKitchenReceipt, generateDeliveryCustomerReceipt, generateSampleOfferReceipt } from '@/lib/printing/receipt-templates'
 import { GiveSampleModal, RedeemSampleModal, SampleSubstituteModal, filterAllowedFreeItems } from '@/components/pos/sample-offers'
 import { printRawEscPos, escPosToBase64 } from '@/lib/printing/raw-escpos-dispatch'
-import type { PendingSample, ValidatedSampleOffer, SampleProductOption } from '@/components/pos/sample-offers'
+import type { PendingSample, ValidatedSampleOffer, SampleProductOption, RedeemedOfferItem } from '@/components/pos/sample-offers'
 import type { DeliveryReceiptData } from '@/lib/printing/receipt-templates'
 import { generateBarcodeEscPos } from '@/lib/printing/card-print-utils'
 import { ManagerOverrideModal, type OrderSummary as CancelOrderSummary } from '@/components/manager-override/manager-override-modal'
@@ -2290,6 +2290,23 @@ export default function RestaurantPOS() {
     })
     setSampleRedemption(null)
     setSampleSubTarget(null)
+  }
+
+  // An already-redeemed offer: the customer still wants the item, so it's a
+  // regular sale at today's price (no offer tag, no free items)
+  const handleRedeemedOfferRegularSale = async (redeemed: RedeemedOfferItem) => {
+    const menuItem = menuItems.find(m => m.id === redeemed.item.productId)
+    if (!menuItem) { toast.error(`${redeemed.item.name} is not on the menu right now.`); return }
+    setSelectedCustomer({
+      id: redeemed.customer.id,
+      customerNumber: redeemed.customer.customerNumber,
+      name: redeemed.customer.name,
+      phone: redeemed.customer.phone ?? undefined,
+      email: redeemed.customer.email ?? undefined,
+      customerType: redeemed.customer.customerType,
+    })
+    setRedeemSampleCode(null)
+    await addToCart(menuItem)
   }
 
   const handleSampleOfferValidated = (offer: ValidatedSampleOffer, phone: string) => {
@@ -6717,6 +6734,7 @@ export default function RestaurantPOS() {
           initialCode={redeemSampleCode}
           onClose={() => setRedeemSampleCode(null)}
           onValidated={handleSampleOfferValidated}
+          onRegularSale={handleRedeemedOfferRegularSale}
         />
       )}
       {sampleSubTarget && (
