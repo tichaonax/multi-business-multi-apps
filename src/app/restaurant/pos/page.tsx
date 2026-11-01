@@ -5561,6 +5561,14 @@ export default function RestaurantPOS() {
                       >
                         +
                       </button>
+                      <button
+                        type="button"
+                        onClick={() => removeFromCart(item.id)}
+                        className="text-red-500 hover:text-red-700 text-xs touch-manipulation"
+                        title="Remove this item"
+                      >
+                        Remove
+                      </button>
                     </div>
                     )}
                   </div>
