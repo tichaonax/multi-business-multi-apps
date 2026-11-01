@@ -140,5 +140,44 @@ export async function getCameraPreferences(userId: string) {
     showNamesOnStrip: p?.showNamesOnStrip ?? true,
     showStripOnPos: p?.showStripOnPos ?? false,
     cameraLabels: (p?.cameraLabels && typeof p.cameraLabels === 'object' ? p.cameraLabels : {}) as Record<string, { name?: string; showName?: boolean }>,
+    alertsBell: p?.alertsBell ?? true,
+    alertsChat: p?.alertsChat ?? true,
   }
+}
+
+/**
+ * MBM-332 — a user as getServerUser() shapes them, loaded without a browser
+ * session (for the alerts poller, which runs in the server process; it must
+ * not pull in next-auth / next/server). Null when missing or inactive.
+ */
+export async function loadCameraUser(userId: string): Promise<SessionUser | null> {
+  const [u, memberships] = await Promise.all([
+    prisma.users.findUnique({ where: { id: userId }, select: { id: true, email: true, name: true, role: true, permissions: true, isActive: true } }),
+    prisma.businessMemberships.findMany({ where: { userId, isActive: true }, include: { businesses: { select: { id: true, name: true, type: true } } } }),
+  ])
+  if (!u || !u.isActive) return null
+  return {
+    id: u.id,
+    email: u.email,
+    name: u.name,
+    role: u.role,
+    permissions: (u.permissions || {}) as Record<string, any>,
+    businessMemberships: memberships.map(m => ({
+      businessId: m.businesses.id,
+      businessName: m.businesses.name,
+      businessType: m.businesses.type,
+      role: m.role,
+      permissions: (m.permissions || {}) as Record<string, any>,
+      isActive: m.isActive,
+      joinedAt: m.joinedAt,
+      lastAccessedAt: m.lastAccessedAt,
+    })),
+  } as SessionUser
+}
+
+/** MBM-332 — the Farm Control site ids of these cameras (from the camera ↔ business rows). */
+export async function getCameraSiteIds(cameraIds: string[]): Promise<Set<string>> {
+  if (cameraIds.length === 0) return new Set()
+  const rows = await prisma.farmControlCameraBusinesses.findMany({ where: { cameraId: { in: cameraIds } }, select: { siteId: true } })
+  return new Set(rows.map(r => r.siteId).filter(Boolean))
 }

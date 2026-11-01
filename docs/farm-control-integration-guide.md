@@ -2,12 +2,23 @@
 
 **For third-party applications. Integration contract version 1 (complete).**
 
-Status: **ready to build against, revision 3, 2026-10-31.** This is the
+Status: **ready to build against, revision 4, 2026-11-01.** This is the
 whole of version 1: every feature the integration offers. Farm Control
 0.5.0-rc57 and later serve all of it except two-way audio (§1.2). It
 becomes final once FarmNet's own end-to-end checks with a test host pass;
 your FarmNet contact will tell you. A change after that becomes version 2,
 and version 1 keeps working.
+
+**New in revision 4** (additions only; nothing in revision 3 changed):
+**alerts**, for your own notifications. With the new feature `alerts`, `GET
+/alerts` answers the alerts this user would see in Farm Control about their
+cameras and sites, such as a camera with a problem, a site that cannot be
+reached, or devices waiting for approval. `?changedSince=` gives what opened
+or resolved since your last call (§7.11, the `Alert` object in §8, from
+rc65). **Your look** in the frames: `&theme=light|dark|auto` and your own
+colours (`&accent`, `&accentText`, `&bg`, `&panel`) in their addresses, and
+a `theme` message that changes them while a frame is open (§5.3, §6, from
+rc66).
 
 **New in revision 3** (additions and corrections; nothing that worked
 changes): `&capture=0` on the viewer and the player hides only the capture
@@ -58,6 +69,7 @@ is allowed. You decide what you build; everything below is supported.
 | Capture | Download clips; record live and take pictures in the viewer; protect footage from deletion | `capture` |
 | Configuration | Recording on or off; recording mode (continuous, motion) and schedule; how long recordings are kept; motion sensitivity and ignored areas; the camera's display name and notes | `configuration` |
 | Device approvals | The network devices waiting for approval at the user's sites: approve, block, revoke, reopen; by API or in the approvals panel | `deviceApprovals` |
+| Alerts | What Farm Control sees wrong for this user, such as a camera with a problem, a site that cannot be reached, or devices waiting for approval, opened and resolved by Farm Control, for your own notifications | `alerts` |
 | Two-way audio | Talking through a camera's speaker, in the viewer | `twoWayAudio` (§1.2) |
 
 **What a user can do is never more than they can do in Farm Control.** Each
@@ -372,6 +384,43 @@ strip.postMessage({ type: "previews.options", stillCameras: [12] }, FARM); // ca
 strip.postMessage({ type: "previews.options", stillCameras: [] }, FARM);   // all as the mode says
 ```
 
+### 5.3 Your look (from revision 4)
+
+The frames are drawn by Farm Control, so your stylesheet cannot reach
+into them. Tell them your look instead, in every frame's address: the
+strip, the viewer, the player and the approvals panel.
+
+| Option | Values | Default |
+|---|---|---|
+| `&theme=` | `light`, `dark` or `auto`: auto follows the operating system's light or dark setting | `auto` |
+| `&accent=` | Buttons, selected items and the recorded stretches of the time bar | Farm Control's green |
+| `&accentText=` | Text on accent-coloured buttons | white in light, dark in dark |
+| `&bg=` | The frame's background | Farm Control's, for the theme |
+| `&panel=` | Cards, lists and boxes inside the frame | Farm Control's, for the theme |
+
+- **Colours:** six hex digits **without `#`**, for example `2563eb`.
+  Anything else is ignored, so one wrong value never breaks a frame. A
+  colour left out keeps Farm Control's.
+- **Text colour:** set by the theme, so with `bg` and `panel` choose the
+  matching `theme` (a dark background with `theme=dark`).
+- **Unchanged:** the colours that carry a meaning stay Farm Control's: a
+  problem in red, motion events in yellow, protected footage in purple.
+
+**When your user switches theme while a frame is open**, send the frame
+`{type: "theme", theme, accent, accentText, bg, panel}`. It changes at
+once, without a reload.
+- Fields you leave out keep their value.
+- An empty string (`accent: ""`) gives Farm Control's colour back.
+- Send the same look to every open frame.
+
+```js
+// MBM dark, in the address:
+`${FARM}/embed/v1/previews?integration=${INTEGRATION}&theme=dark&accent=2563eb&accentText=ffffff&bg=111827&panel=1f2937`
+// The user switches to light; the frames follow at once:
+for (const f of document.querySelectorAll("iframe.farm"))
+  f.contentWindow.postMessage({ type: "theme", theme: "light", bg: "", panel: "" }, FARM);
+```
+
 ## 6. Messages between your page and the frames
 
 JSON objects `{type, ...}` by `postMessage`. Accept a message only when
@@ -400,6 +449,7 @@ To the frames:
 | `previews.set` | `cameraIds` (at most 4) | Show these cameras in the strip, in this order. Cameras the user may not watch live are left out and reported in the `previews` reply |
 | `previews.options` | `showNames` (true or false), `labels` (`{cameraId: text}`), `mode` (`live` or `pictures`), `stillCameras` (camera ids); any of them | Names on the strip's pictures on or off, your own names for cameras (§5.1), live video or still pictures, and single cameras as still pictures (§5.2); at once, without reloading |
 | `visibility` | `visible` | Your area with the frame is shown or hidden |
+| `theme` | `theme` (`light`, `dark`, `auto`), `accent`, `accentText`, `bg`, `panel` (six hex digits); any of them | Your look changed: the frame follows at once (§5.3, from revision 4) |
 | `close` | | End the frame's sessions at once (before removing it, and on sign-out) |
 
 A host page sketch:
@@ -467,7 +517,7 @@ one that does not exist.
 ### 7.2 Features
 
 `GET /features` → `{features {viewing, recordings, controls, capture,
-configuration, deviceApprovals, twoWayAudio}}`, each `on`, `off` (the farm
+configuration, deviceApprovals, alerts, twoWayAudio}}`, each `on`, `off` (the farm
 has not switched it on for your integration) or `unavailable` (not in this
 Farm Control release). What this user may do on each camera is in the
 camera's `may` (§8).
@@ -576,6 +626,36 @@ next to such a device.
 
 In the viewer frame only (the microphone is asked for there). No API call.
 
+### 7.11 Alerts (`alerts`, from revision 4)
+
+Farm Control opens an alert when it sees something wrong and resolves it
+by itself once it is right again; it looks every 30 seconds. These are the
+alerts **this user** would see on Farm Control's Alerts page, at your
+integration's sites only, so you can pass them on in your own notifications.
+The server's own alerts (its disk, its certificate, its recorder) are never
+given.
+
+| Call | Answer |
+|---|---|
+| `GET /alerts` | `{alerts: [Alert], next, now}`: the open alerts, newest first |
+| `GET /alerts?changedSince=2026-11-01T10:00:00Z` | Every alert that opened, came back or resolved at or after that time, open or resolved |
+| `GET /alerts?state=resolved&before=&limit=` | The resolved ones, newest first; for the next page pass `next` as `before` (0: no more) |
+
+**Keeping your notifications up to date**, from your server:
+1. Sign the user in (§4.4) and call `GET /alerts` once. Keep `now` from the
+   answer: it is Farm Control's own clock, so yours may differ.
+2. About once a minute, call `GET /alerts?changedSince=<the now you kept>`
+   and keep the new `now`.
+   - `state` **open**, not seen before: notify.
+   - `state` **resolved**: clear or update your notification.
+3. The time you pass is included, so an alert may come twice. Recognise it
+   by `id` and `changedAt`. None is missed.
+
+Your server may sign in any linked user at any time to do this (§4.4),
+also while that user is not using your application. Each alert has an `id`
+that stays the same when it comes back soon after it resolved (`times`
+counts how often).
+
 ## 8. Objects
 
 **Site:** `{id, name, timeZone}`.
@@ -613,6 +693,44 @@ discoveryUntil, onFarmDevices, vendorClass, stateReason, fingerprint}`.
 `fingerprint` is true when the device sent a usable network ID. When it is
 false, the device is approved only on Farm Control's Approvals screen
 (§7.9).
+
+**Alert** (§7.11, revision 4):
+
+```json
+{
+  "id": 41, "kind": "camera.problem", "level": "bad", "state": "open",
+  "message": "Yard east (Home farm): The camera refused the login.",
+  "siteId": 3, "siteName": "Home farm",
+  "subject": { "kind": "camera", "id": 12 },
+  "openedAt": "2026-11-01T10:02:30Z", "lastSeenAt": "2026-11-01T10:20:00Z",
+  "changedAt": "2026-11-01T10:02:30Z", "resolvedAt": null,
+  "times": 1, "parentId": null
+}
+```
+
+- **`kind`:**
+  - `camera.problem`: a camera with a problem, or not heard from;
+  - `site.unreachable`: nothing arrives from the site; its cameras may be
+    fine;
+  - `site.node-silent`: the site's gateway node is silent, but video still
+    arrives;
+  - `node.failing`;
+  - `site.approvals`: devices waiting for approval;
+  - `site.fingerprints`: approved devices held back by the network ID check.
+
+  More kinds may be added: show the `message` of a kind you do not know.
+- **`level`:** `bad` means something is broken; `warn` means it needs a
+  look.
+- **`state`:** `open` or `resolved`.
+- **`subject`:** what it is about, a `camera`, `site` or `node`, with its
+  id.
+- **`message`:** a sentence for people, never an address or a password.
+- **`parentId`:** a camera at a site that cannot be reached is grouped
+  under the site's alert, so you can notify about the site once rather
+  than about each camera.
+- Each user sees only what they may see in Farm Control: a camera's
+  alerts if they may see the camera, devices waiting if they may approve
+  devices.
 
 ## 9. Errors and window states
 
@@ -724,7 +842,9 @@ on the farm's side or yours.
 | Frames | `/embed/v1/previews?integration=&cameras=&names=&mode=`, `/embed/v1/modal?integration=&camera=&capture=`, `/embed/v1/player?integration=&camera=&mode=&controls=&capture=&quality=`, `/embed/v1/approvals?integration=` |
 | API base | `/api/integration/v1`, `Authorization: Bearer <token>` |
 | Assertion | JWT EdDSA, `kid`; `iss`, `aud`, `sub`, `perm`, `iat`, `exp` (≤ 60 s), `jti`, `name` |
-| Features | viewing, recordings, controls, capture, configuration, deviceApprovals, twoWayAudio |
-| Messages in | `assertion`, `previews.set`, `previews.options`, `visibility`, `close` |
+| Features | viewing, recordings, controls, capture, configuration, deviceApprovals, alerts, twoWayAudio |
+| Alerts | `GET /alerts`, `?changedSince=` with the last answer's `now`, `?state=resolved` (§7.11) |
+| Look (every frame) | `&theme=light\|dark\|auto&accent=&accentText=&bg=&panel=` (six hex digits, no #); the `theme` message (§5.3) |
+| Messages in | `assertion`, `previews.set`, `previews.options`, `visibility`, `theme`, `close` |
 | Messages out | `ready`, `assertion.needed`, `camera.open`, `modal.closed`, `state`, `previews`, `session.ended`, `resize`, `device.changed` |
 | Never | camera addresses, passwords, stream addresses; adding or removing cameras; access rules; users |

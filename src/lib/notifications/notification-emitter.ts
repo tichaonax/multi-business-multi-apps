@@ -13,6 +13,7 @@ import { prisma } from '@/lib/prisma'
 import { emitToUser } from '@/lib/customer-display/socket-server'
 
 export type NotificationType =
+  | 'FARM_CAMERA_ALERT' // MBM-332
   | 'PAYMENT_SUBMITTED'
   | 'PAYMENT_APPROVED'
   | 'PAYMENT_REJECTED'

@@ -73,8 +73,10 @@ export async function GET(request: NextRequest) {
               requestedAt: u.farm_control_user_link.requestedAt,
               lastSessionAt: u.farm_control_user_link.lastSessionAt,
               lastRefusedAt: u.farm_control_user_link.lastRefusedAt,
+              alertsCheckedAt: u.farm_control_user_link.alertsCheckedAt, // MBM-332
+              alertsError: u.farm_control_user_link.alertsError,
             }
-          : { status: 'NOT_REQUESTED', farmControlName: null, requestedAt: null, lastSessionAt: null, lastRefusedAt: null },
+          : { status: 'NOT_REQUESTED', farmControlName: null, requestedAt: null, lastSessionAt: null, lastRefusedAt: null, alertsCheckedAt: null, alertsError: null },
         viewAllBusinesses: !!u.farm_control_user_link?.viewAllBusinesses,
         captureAllBusinesses: !!u.farm_control_user_link?.viewAllBusinesses && !!u.farm_control_user_link?.captureAllBusinesses,
       }

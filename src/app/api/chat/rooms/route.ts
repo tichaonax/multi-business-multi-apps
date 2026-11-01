@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
-import { getOrCreateDirectRoom, createGroupRoom } from '@/lib/chat/rooms'
+import { getOrCreateDirectRoom, createGroupRoom, systemRoomVisibleTo } from '@/lib/chat/rooms'
 
 /** GET /api/chat/rooms — the current user's DM/group conversations, most recent first. */
 export async function GET() {
@@ -40,7 +40,7 @@ export async function GET() {
       const room = p.chat_rooms!
       const [lastMessage, unreadCount] = await Promise.all([
         prisma.chatMessages.findFirst({
-          where: { roomId: room.id, parentId: null, deletedAt: null },
+          where: { roomId: room.id, parentId: null, deletedAt: null, ...systemRoomVisibleTo(user.id) },
           orderBy: { createdAt: 'desc' },
           select: { message: true, createdAt: true, userId: true },
         }),
@@ -50,6 +50,7 @@ export async function GET() {
             parentId: null,
             deletedAt: null,
             userId: { not: user.id },
+            ...systemRoomVisibleTo(user.id),
             ...(p.lastReadAt ? { createdAt: { gt: p.lastReadAt } } : {}),
           },
         }),

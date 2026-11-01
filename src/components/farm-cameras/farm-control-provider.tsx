@@ -22,6 +22,9 @@ export interface FarmCameraPreferences {
   showNamesOnStrip: boolean
   showStripOnPos: boolean
   cameraLabels: Record<string, { name?: string; showName?: boolean }>
+  /** MBM-332: camera alerts in the bell / the Farm Camera Alerts chat */
+  alertsBell: boolean
+  alertsChat: boolean
 }
 
 export interface FarmControlMe {

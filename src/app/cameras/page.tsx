@@ -63,6 +63,16 @@ export default function CamerasPage() {
   useEffect(() => { if (cameras) loadPictures(cameras) }, [cameras]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => { Object.values(pictureUrls.current).forEach(u => URL.revokeObjectURL(u)) }, [])
 
+  // MBM-332: a camera alert links to /cameras?open=<id>: open that camera large once
+  const openedFromLink = useRef(false)
+  useEffect(() => {
+    if (!ready || !views || openedFromLink.current) return
+    const id = new URLSearchParams(window.location.search).get('open')
+    if (!id || !(farm?.me?.cameraIds || []).includes(id)) return
+    openedFromLink.current = true
+    views.open([id])
+  }, [ready, allowedKey]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Personal names being edited
   useEffect(() => {
     const n: Record<string, string> = {}
@@ -164,6 +174,18 @@ export default function CamerasPage() {
               {modeSelect(prefs.posStripMode, m => save({ posStripMode: m }))}
             </div>
             <p className="text-xs text-secondary">Still pictures use far less of the farm&apos;s connection: a good choice for a till that stays open all day.</p>
+          </div>
+          <div className="border-t border-gray-200 dark:border-gray-700 pt-3 space-y-2">
+            <span className="text-sm font-medium text-primary">Camera alerts</span>
+            <label className="flex items-center gap-2 text-sm text-primary">
+              <input type="checkbox" checked={prefs.alertsBell} onChange={e => save({ alertsBell: e.target.checked })} />
+              In notifications (🔔 Farm Cameras)
+            </label>
+            <label className="flex items-center gap-2 text-sm text-primary">
+              <input type="checkbox" checked={prefs.alertsChat} onChange={e => save({ alertsChat: e.target.checked })} />
+              In the Farm Camera Alerts chat
+            </label>
+            <p className="text-xs text-secondary">A camera that stops, a site that can&apos;t be reached, devices waiting for approval: for the cameras you may watch.</p>
           </div>
         </div>
 

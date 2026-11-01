@@ -8,9 +8,26 @@ import { prisma } from '@/lib/prisma'
 
 export const GENERAL_ROOM_NAME = 'General'
 export const SYSTEM_ALERTS_ROOM_NAME = 'System Alerts'
+/** MBM-332: read-only room for Farm Control camera alerts (singleton index in its migration) */
+export const FARM_CAMERA_ALERTS_ROOM_NAME = 'Farm Camera Alerts'
 
 // A message can only be edited by its sender, only while it's still their
 // most recent message in the room, and only within this window of sending.
+/**
+ * MBM-332 — in read-only system rooms, a message with recipients is seen only
+ * by them (Farm Camera Alerts lines go to the people each alert applies to).
+ * Messages without recipients (licensing digests) stay visible to every
+ * member. DM/group rooms are unaffected: their @mention rows don't hide
+ * anything. Use inside a chatMessages `where` (AND).
+ */
+export const systemRoomVisibleTo = (userId: string) => ({
+  OR: [
+    { chat_rooms: { type: { not: 'system' } } },
+    { chat_message_recipients: { none: {} } },
+    { chat_message_recipients: { some: { userId } } },
+  ],
+})
+
 export const EDIT_WINDOW_MS = 15 * 60 * 1000
 
 
@@ -60,19 +77,25 @@ export async function getGeneralRoom() {
  * Membership only ever grows here — a user who loses canManageVehicles/admin
  * keeps read access to past alerts rather than being silently evicted. */
 export async function getOrCreateSystemAlertsRoom(participantUserIds: string[]) {
+  return getOrCreateSystemRoom(SYSTEM_ALERTS_ROOM_NAME, participantUserIds)
+}
+
+/** Any named read-only system room (System Alerts, MBM-332's Farm Camera
+ * Alerts), each with its own singleton unique index by name. */
+export async function getOrCreateSystemRoom(name: string, participantUserIds: string[]) {
   let room = await prisma.chatRooms.findFirst({
-    where: { name: SYSTEM_ALERTS_ROOM_NAME, type: 'system' },
+    where: { name, type: 'system' },
     orderBy: { createdAt: 'asc' },
   })
   if (!room) {
     try {
       room = await prisma.chatRooms.create({
-        data: { name: SYSTEM_ALERTS_ROOM_NAME, type: 'system' },
+        data: { name, type: 'system' },
       })
     } catch (err: any) {
       if (err?.code === 'P2002') {
         room = await prisma.chatRooms.findFirst({
-          where: { name: SYSTEM_ALERTS_ROOM_NAME, type: 'system' },
+          where: { name, type: 'system' },
           orderBy: { createdAt: 'asc' },
         })
       } else {

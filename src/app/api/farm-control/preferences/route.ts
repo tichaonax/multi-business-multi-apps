@@ -23,7 +23,7 @@ export async function PUT(request: NextRequest) {
     if (ids.length > 4) return NextResponse.json({ error: 'At most 4 cameras in the strip' }, { status: 400 })
     data.stripCameraIds = ids
   }
-  for (const k of ['stripVisible', 'showNamesOnStrip', 'showStripOnPos']) {
+  for (const k of ['stripVisible', 'showNamesOnStrip', 'showStripOnPos', 'alertsBell', 'alertsChat']) {
     if (typeof body[k] === 'boolean') data[k] = body[k]
   }
   for (const k of ['stripMode', 'posStripMode']) {

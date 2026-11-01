@@ -3979,6 +3979,7 @@ model Users {
   restaurant_expense_transactions_voided                          RestaurantExpenseTransactions[]   @relation("RestaurantExpenseTxnVoider")
   farm_control_user_link                                          FarmControlUserLinks?
   farm_camera_user_preferences                                    FarmCameraUserPreferences?
+  farm_control_alert_deliveries                                   FarmControlAlertDeliveries[]
 
   @@map("users")
 }
@@ -9166,6 +9167,10 @@ model FarmControlIntegrations {
   publicKeyPem   String   @default("")
   allowedOrigins String[] @default([]) // reference only: the origins registered with FarmNet
   maxLargeViews  Int      @default(2) // Farm Control's viewers + players per user (2, or 3 if the farm raised it)
+  // MBM-332: the alerts poller's last run, for the admin screen
+  alertsLastRunAt DateTime?
+  alertsLastError String?
+  alertsUsers     Int       @default(0) // people checked on the last run
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -9204,6 +9209,10 @@ model FarmControlUserLinks {
   // view / capture in every business with camera access, without per-business grants
   viewAllBusinesses    Boolean @default(false)
   captureAllBusinesses Boolean @default(false)
+  // MBM-332: Farm Control's own clock from the last GET /alerts (`changedSince`), and how it went
+  alertsCursor    DateTime?
+  alertsCheckedAt DateTime?
+  alertsError     String?
   updatedAt       DateTime  @updatedAt
 
   users Users @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -9222,9 +9231,42 @@ model FarmCameraUserPreferences {
   showNamesOnStrip Boolean  @default(true)
   showStripOnPos   Boolean  @default(false)
   cameraLabels     Json     @default("{}") // { cameraId: { name, showName } }
+  alertsBell       Boolean  @default(true) // MBM-332: camera alerts in the notification bell
+  alertsChat       Boolean  @default(true) // MBM-332: camera alerts in the Farm Camera Alerts chat
   updatedAt        DateTime @updatedAt
 
   users Users @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("farm_camera_user_preferences")
+}
+
+// MBM-332: what each user was told about each Farm Control alert (dedupe by
+// alertId + changedAt, resolve, the 10-minute "back again" rule). Transient:
+// not backed up.
+model FarmControlAlertDeliveries {
+  id            String    @id @default(uuid())
+  userId        String
+  alertId       String
+  parentAlertId String?
+  kind          String
+  level         String // bad | warn
+  state         String // open | resolved
+  message       String
+  siteName      String?
+  subjectKind   String?
+  subjectId     String?
+  openedAt      DateTime?
+  changedAt     DateTime
+  resolvedAt    DateTime?
+  times         Int       @default(1)
+  chatMessageId String? // the chat line for the latest event, shared by everyone it applies to
+  notifiedAt    DateTime  @default(now()) // when this user was last told it opened
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  users Users @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, alertId])
+  @@index([alertId])
+  @@map("farm_control_alert_deliveries")
 }

@@ -1802,6 +1802,7 @@ function formatBusinessTypeLabel(businessType: string): string {
 // unmatched types fall into "Other". Not collapsible by design — this is
 // visual segmentation only, not hiding anything.
 const NOTIF_SEGMENTS: { key: string; label: string; icon: string; types: string[] }[] = [
+  { key: 'farm-cameras', label: 'Farm Cameras', icon: '📷', types: ['FARM_CAMERA_ALERT'] },
   { key: 'vehicle', label: 'Vehicle & Licensing', icon: '🚗', types: ['VEHICLE_LICENSE_EXPIRING', 'VEHICLE_LICENSE_OVERDUE'] },
   { key: 'payments', label: 'Payments', icon: '💰', types: ['PAYMENT_SUBMITTED', 'PAYMENT_APPROVED', 'PAYMENT_REJECTED', 'PAYMENT_PAID', 'BATCH_READY', 'PAYMENTS_REVERSED_TO_PETTY_CASH', 'PAYMENT_RETURN_REQUESTED', 'PAYMENT_RETURN_CONFIRMED'] },
   { key: 'withdrawals', label: 'Withdrawals', icon: '🏦', types: ['WITHDRAWAL_SUBMITTED', 'WITHDRAWAL_ADMIN_APPROVED', 'WITHDRAWAL_DENIED_LENDER', 'WITHDRAWAL_DENIED_ADMIN', 'WITHDRAWAL_PAID', 'WITHDRAWAL_CASHIER_ALERT'] },

@@ -30,6 +30,10 @@ interface Config {
   allowedOrigins: string[]
   maxLargeViews: number
   hasPrivateKey: boolean
+  // MBM-332: the alerts poller's last run
+  alertsLastRunAt?: string | null
+  alertsLastError?: string | null
+  alertsUsers?: number
 }
 
 interface BusinessRow {
@@ -55,7 +59,7 @@ interface UserRow {
   role: string
   viewBusinesses: { id: string; name: string }[]
   captureBusinesses: { id: string; name: string }[]
-  link: { status: string; farmControlName: string | null; requestedAt: string | null; lastSessionAt: string | null; lastRefusedAt: string | null }
+  link: { status: string; farmControlName: string | null; requestedAt: string | null; lastSessionAt: string | null; lastRefusedAt: string | null; alertsCheckedAt?: string | null; alertsError?: string | null }
   viewAllBusinesses: boolean
   captureAllBusinesses: boolean
 }
@@ -72,6 +76,27 @@ async function call<T = any>(url: string, method = 'GET', body?: unknown): Promi
   const d = await r.json().catch(() => ({}))
   if (!r.ok) throw new Error(d.error || `Request failed (${r.status})`)
   return d.data as T
+}
+
+/** MBM-332 — how the server's alerts check is going (it runs every minute) */
+function AlertsStatus({ config, alertsOn }: { config: Config; alertsOn?: string }) {
+  const ago = (d: string) => {
+    const min = Math.round((Date.now() - new Date(d).getTime()) / 60_000)
+    return min < 1 ? 'just now' : min < 60 ? `${min} min ago` : new Date(d).toLocaleString()
+  }
+  return (
+    <div className="border-t border-gray-200 dark:border-gray-700 pt-3 text-sm">
+      <span className="font-medium text-primary">Camera alerts: </span>
+      {alertsOn === 'off' || alertsOn === 'unavailable' ? (
+        <span className="text-secondary">{alertsOn === 'off' ? 'switched off for this integration in Farm Control' : 'not in this Farm Control release'}</span>
+      ) : !config.alertsLastRunAt ? (
+        <span className="text-secondary">not checked yet (this server checks every minute while the connection is on)</span>
+      ) : (
+        <span className="text-secondary">checked {ago(config.alertsLastRunAt)} for {config.alertsUsers ?? 0} {config.alertsUsers === 1 ? 'person' : 'people'}</span>
+      )}
+      {config.alertsLastError && <p className="text-red-600 dark:text-red-400 mt-1">{config.alertsLastError}</p>}
+    </div>
+  )
 }
 
 function FarmNote({ children }: { children: React.ReactNode }) {
@@ -333,6 +358,7 @@ MBM address: ${thisOrigin}`, 'Key id, public key and MBM address')}>Copy all for
             )}
           </div>
         )}
+        <AlertsStatus config={config} alertsOn={farm?.features?.alerts} />
       </div>
 
       <FarmNote>linking MBM users to Farm Control people, which cameras each person may watch, record or control, recording limits, sites in the integration, and the live-view limits.</FarmNote>
@@ -662,6 +688,9 @@ Farm Control id (sub): ${u.id}`)
                       {u.link.status === 'REFUSED' && when(u.link.lastRefusedAt)}
                       {u.link.status === 'REQUESTED' && when(u.link.requestedAt)}
                     </div>
+                    {u.link.status === 'LINKED' && (u.link.alertsError
+                      ? <div className="text-xs text-red-600 dark:text-red-400 mt-1" title={u.link.alertsError}>Alerts: {u.link.alertsError}</div>
+                      : u.link.alertsCheckedAt && <div className="text-xs text-secondary mt-1">Alerts checked {when(u.link.alertsCheckedAt)}</div>)}
                   </td>
                   <td className="p-3 whitespace-nowrap">
                     {u.link.status !== 'NOT_REQUESTED' && <button className="text-red-600 dark:text-red-400 hover:underline text-xs" onClick={() => removeId(u)}>Remove id</button>}

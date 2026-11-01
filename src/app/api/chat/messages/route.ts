@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { emitToRoom, emitToUsers } from '@/lib/customer-display/socket-server'
 import { emitNotification } from '@/lib/notifications/notification-emitter'
-import { getGeneralRoom, shapeMessage, REACTION_SELECT } from '@/lib/chat/rooms'
+import { getGeneralRoom, shapeMessage, REACTION_SELECT, systemRoomVisibleTo } from '@/lib/chat/rooms'
 
 // MBM-315 — history is loaded ~one screen at a time (sliding window) instead
 // of "the whole last 30 days". Keyset paging on (createdAt, id): stable while
@@ -119,7 +119,7 @@ export async function GET(request: NextRequest) {
         return prisma.chatMessages.deleteMany({ where: { roomId, createdAt: { lt: cutoff } } })
       }).catch(() => {})
 
-      base = { roomId, parentId: null, chat_message_dismissals: { none: { userId: user.id } } }
+      base = { roomId, parentId: null, chat_message_dismissals: { none: { userId: user.id } }, AND: [systemRoomVisibleTo(user.id)] }
     }
 
     // The hub's Team Chat unread badges (private-to-me vs. broadcast) are

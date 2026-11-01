@@ -19,6 +19,7 @@ import { startBusinessTargetRecalculationScheduler } from './src/lib/business-ta
 import { startComboRequestExpiryScheduler } from './src/lib/expense-account/combo-request-expiry-scheduler'
 import { startReceiptReminderScheduler } from './src/lib/expense-account/receipt-reminder-scheduler'
 import { startVehicleLicenseReminderScheduler } from './src/lib/vehicles/license-reminder-scheduler'
+import { startFarmAlertsScheduler } from './src/lib/farm-control/alerts-poller'
 import { startOverdueLoanScheduler } from './src/lib/loans/overdue-loan-scheduler'
 import { startRestaurantExpenseReminderScheduler } from './src/lib/restaurant-expense-reminder-scheduler'
 import { startBackgroundJobs } from './src/lib/background-jobs'
@@ -108,6 +109,9 @@ app.prepare().then(() => {
 
   // MBM-304: overdue/expiring vehicle & driver license reminders.
   startVehicleLicenseReminderScheduler()
+
+  // MBM-332: Farm Control camera alerts → bell + Farm Camera Alerts chat.
+  startFarmAlertsScheduler()
 
   // MBM-312: overdue inter-business/expense-account loan repayments.
   startOverdueLoanScheduler()

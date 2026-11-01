@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
-import { getGeneralRoom } from '@/lib/chat/rooms'
+import { getGeneralRoom, systemRoomVisibleTo } from '@/lib/chat/rooms'
 
 /**
  * GET /api/chat/search?q=... — search message content across every
@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
               { chat_message_recipients: { some: { userId: user.id } } },
             ],
           },
-          ...(myRoomIds.length > 0 ? [{ roomId: { in: myRoomIds } }] : []),
+          ...(myRoomIds.length > 0 ? [{ roomId: { in: myRoomIds }, ...systemRoomVisibleTo(user.id) }] : []),
         ],
       },
       orderBy: { createdAt: 'desc' },

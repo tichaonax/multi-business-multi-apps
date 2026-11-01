@@ -196,7 +196,9 @@ function StripFrame({
 /**
  * The strip's cameras large, under the header. Each is a one-camera preview
  * frame, still pictures (every 10 s) unless swapped to live; switched with
- * `previews.options` mode, without a reload.
+ * `previews.options` mode, without a reload. "✎ Names" shows, until Done,
+ * the names-on-strip switch and, per camera, the user's own name and whether
+ * it shows; otherwise the panel stays clean.
  */
 function LargerCameras({
   ids,
@@ -211,20 +213,60 @@ function LargerCameras({
   onOpen: (id: string) => void
   onClose: () => void
 }) {
+  const farm = useFarmControl()
   const views = useFarmCameraViews()
+  const [editing, setEditing] = useState(false)
+  const prefs = farm?.me?.preferences
+  const labels = prefs?.cameraLabels || {}
+
+  // Saves one camera's name / show-name; the rest of the user's names stay
+  const saveLabel = async (id: string, patch: { name?: string; showName?: boolean }) => {
+    if (!farm) return
+    const next: Record<string, { name: string; showName: boolean }> = {}
+    for (const [k, v] of Object.entries(labels)) next[k] = { name: v?.name || '', showName: v?.showName !== false }
+    const cur = next[id] || { name: '', showName: true }
+    next[id] = { name: (patch.name ?? cur.name).trim().slice(0, 40), showName: patch.showName ?? cur.showName }
+    if (!next[id].name && next[id].showName) delete next[id]
+    await farm.savePreferences({ cameraLabels: next })
+  }
+
+  const link = 'hover:text-blue-600 dark:hover:text-white'
   return (
-    <div className="absolute left-0 right-0 top-full z-40 bg-gray-900 border-b border-gray-700 shadow-xl px-3 py-2">
+    <div className="absolute left-0 right-0 top-full z-[5] bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 shadow-xl px-3 py-2">
       <div className="max-w-7xl mx-auto">
-        <div className="flex items-center justify-between text-xs text-gray-300 mb-1.5">
-          <span>Click a camera in the strip to play it live here; click a picture to open it with recordings, Record and Take picture.</span>
-          <span className="flex items-center gap-3 shrink-0 ml-3">
-            <Link href="/cameras" className="hover:text-white" onClick={onClose}>Camera settings</Link>
-            <button className="hover:text-white" onClick={onClose}>✕ Close</button>
+        <div className="flex items-center justify-between gap-3 text-xs text-gray-600 dark:text-gray-300 mb-1.5">
+          {editing ? (
+            <label className="flex items-center gap-1.5 text-gray-900 dark:text-white">
+              <input type="checkbox" checked={!!prefs?.showNamesOnStrip} onChange={e => farm?.savePreferences({ showNamesOnStrip: e.target.checked })} />
+              Names on the strip
+            </label>
+          ) : (
+            <span className="truncate">Click a camera in the strip to play it live here; click a picture to open it with recordings, Record and Take picture.</span>
+          )}
+          <span className="flex items-center gap-3 shrink-0">
+            <button className={editing ? 'px-2 py-0.5 rounded bg-blue-600 text-white hover:bg-blue-700' : link} onClick={() => setEditing(e => !e)}>
+              {editing ? 'Done' : '✎ Names'}
+            </button>
+            <Link href="/cameras" className={link} onClick={onClose}>Camera settings</Link>
+            <button className={link} onClick={onClose}>✕ Close</button>
           </span>
         </div>
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-2">
           {ids.map(id => (
-            <LargerCamera key={id} id={id} live={liveBelow.includes(id)} name={views?.cameraName(id) || id} onSwap={() => onSwap(id)} onOpen={() => onOpen(id)} />
+            <LargerCamera
+              key={id}
+              id={id}
+              live={liveBelow.includes(id)}
+              name={views?.cameraName(id) || id}
+              ownName={labels[id]?.name || ''}
+              farmName={views?.farmName(id)}
+              showName={labels[id]?.showName !== false}
+              editing={editing}
+              onRename={name => saveLabel(id, { name })}
+              onShowName={showName => saveLabel(id, { showName })}
+              onSwap={() => onSwap(id)}
+              onOpen={() => onOpen(id)}
+            />
           ))}
         </div>
       </div>
@@ -232,26 +274,76 @@ function LargerCameras({
   )
 }
 
-function LargerCamera({ id, live, name, onSwap, onOpen }: { id: string; live: boolean; name: string; onSwap: () => void; onOpen: () => void }) {
+function LargerCamera({
+  id,
+  live,
+  name,
+  ownName,
+  farmName,
+  showName,
+  editing,
+  onRename,
+  onShowName,
+  onSwap,
+  onOpen,
+}: {
+  id: string
+  live: boolean
+  name: string
+  ownName: string
+  farmName?: string
+  showName: boolean
+  editing: boolean
+  onRename: (name: string) => void
+  onShowName: (show: boolean) => void
+  onSwap: () => void
+  onOpen: () => void
+}) {
   const farm = useFarmControl()
   const frame = useRef<HTMLIFrameElement | null>(null)
   const [src] = useState(() => farm?.frameSrc('previews', { cameras: id, names: '0', mode: live ? undefined : 'pictures' }))
+  const [draft, setDraft] = useState(ownName)
   const first = useRef(true)
+
+  useEffect(() => { setDraft(ownName) }, [ownName, editing])
 
   useEffect(() => {
     if (first.current) { first.current = false; return }
     farm?.send(frame.current, { type: 'previews.options', mode: live ? 'live' : 'pictures' })
   }, [live]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const commit = () => { if (draft.trim() !== ownName) onRename(draft) }
+
   if (!src) return null
   return (
-    <div className="bg-black rounded overflow-hidden border border-gray-700">
-      <div className="flex items-center gap-2 px-2 py-0.5 bg-gray-800 text-white text-xs">
-        <span className="font-semibold truncate">{name}</span>
-        <button onClick={onSwap} className={`ml-auto px-1.5 rounded ${live ? 'bg-red-600' : 'bg-gray-700 hover:bg-gray-600'}`} title={live ? 'Back to still pictures' : 'Play live here'}>
-          {live ? '● Live' : 'Still · 10 s'}
-        </button>
-        <button onClick={onOpen} className="px-1.5 rounded bg-gray-700 hover:bg-gray-600" title="Open with recordings, Record and Take picture">⤢ Open</button>
+    <div className="bg-black rounded overflow-hidden border border-gray-200 dark:border-gray-700">
+      <div className="flex items-center gap-2 px-2 py-0.5 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white text-xs min-h-[24px]">
+        {editing ? (
+          <>
+            <input
+              className="flex-1 min-w-0 px-1.5 py-0.5 rounded bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white text-xs"
+              value={draft}
+              maxLength={40}
+              placeholder={farmName || `Camera ${id}`}
+              title="Your name for this camera (empty: Farm Control's name)"
+              onChange={e => setDraft(e.target.value)}
+              onBlur={commit}
+              onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+            />
+            <label className="flex items-center gap-1 shrink-0" title="Show the name above this picture">
+              <input type="checkbox" checked={showName} onChange={e => onShowName(e.target.checked)} />
+              Show name
+            </label>
+          </>
+        ) : (
+          <>
+            {showName && <span className="font-semibold truncate">{name}</span>}
+            <button onClick={onSwap} className={`ml-auto px-1.5 rounded ${live ? 'bg-red-600 text-white' : 'bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600'}`} title={live ? 'Back to still pictures' : 'Play live here'}>
+              {live ? '● Live' : 'Still · 10 s'}
+            </button>
+            <button onClick={onOpen} className="px-1.5 rounded bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600" title="Open with recordings, Record and Take picture">⤢ Open</button>
+          </>
+        )}
       </div>
       <div className="relative aspect-video">
         <FarmFrame

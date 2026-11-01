@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
-import { getGeneralRoom } from '@/lib/chat/rooms'
+import { getGeneralRoom, systemRoomVisibleTo } from '@/lib/chat/rooms'
 
 /**
  * GET /api/chat/messages/search-in-room?roomId=...&q=... — every matching
@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
               ],
               chat_message_dismissals: { none: { userId: user.id } },
             }
-          : {}),
+          : systemRoomVisibleTo(user.id)),
       },
       orderBy: { createdAt: 'desc' },
       take: 100,

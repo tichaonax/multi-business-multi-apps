@@ -23,6 +23,8 @@ interface FarmCameraViewsValue {
   isOpen: boolean
   /** The user's name for a camera, else Farm Control's, else its id */
   cameraName: (cameraId: string) => string
+  /** Farm Control's own name for a camera, when a frame has told us */
+  farmName: (cameraId: string) => string | undefined
   /** Farm Control's names, from the frames' `previews` messages */
   rememberNames: (cameras: unknown) => void
 }
@@ -58,6 +60,8 @@ export function FarmCameraViewsProvider({ children }: { children: React.ReactNod
     [labels, names]
   )
 
+  const farmName = useCallback((id: string) => names[id], [names])
+
   const rememberNames = useCallback((cameras: unknown) => {
     if (!Array.isArray(cameras)) return
     setNames(prev => {
@@ -89,8 +93,8 @@ export function FarmCameraViewsProvider({ children }: { children: React.ReactNod
   }, [allowed, farm?.status])
 
   const value = useMemo<FarmCameraViewsValue>(
-    () => ({ open, isOpen: openIds.length > 0, cameraName, rememberNames }),
-    [open, openIds.length, cameraName, rememberNames]
+    () => ({ open, isOpen: openIds.length > 0, cameraName, farmName, rememberNames }),
+    [open, openIds.length, cameraName, farmName, rememberNames]
   )
 
   return (
@@ -133,25 +137,25 @@ function FarmCameraModal({
   if (!farm || typeof document === 'undefined') return null
 
   return createPortal(
-    <div className="fixed inset-0 z-[70] bg-gray-950 flex flex-col p-2 sm:p-3" role="dialog" aria-label="Farm cameras">
-      <div className="flex items-center justify-between text-white mb-2 px-1">
-        <div className="text-sm font-semibold">📷 Farm cameras <span className="font-normal text-gray-400">· {openIds.length} of {max} open</span></div>
-        <button onClick={closeAll} className="px-3 py-1 rounded bg-gray-800 hover:bg-gray-700 text-sm" title="Close (Esc)">✕ Close</button>
+    <div className="fixed inset-0 z-[70] bg-gray-100 dark:bg-gray-950 flex flex-col p-2 sm:p-3" role="dialog" aria-label="Farm cameras">
+      <div className="flex items-center justify-between text-gray-900 dark:text-white mb-2 px-1">
+        <div className="text-sm font-semibold">📷 Farm cameras <span className="font-normal text-gray-500 dark:text-gray-400">· {openIds.length} of {max} open</span></div>
+        <button onClick={closeAll} className="px-3 py-1 rounded bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-sm" title="Close (Esc)">✕ Close</button>
       </div>
       <div className={`grid gap-2 flex-1 min-h-0 ${openIds.length > 1 ? 'grid-cols-1 xl:grid-cols-2' : 'grid-cols-1'}`}>
         {openIds.map(id => {
           const problem = PROBLEMS[states[id] || '']
           const src = farm.frameSrc('modal', { camera: id, capture: canCapture.has(id) ? undefined : '0' })
           return (
-            <div key={id} className="flex flex-col min-h-[320px] rounded-lg overflow-hidden border border-gray-800 bg-gray-900">
-              <div className="flex items-center gap-2 px-2 py-1 bg-gray-900 text-white text-sm border-b border-gray-800">
+            <div key={id} className="flex flex-col min-h-[320px] rounded-lg overflow-hidden border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
+              <div className="flex items-center gap-2 px-2 py-1 bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm border-b border-gray-200 dark:border-gray-800">
                 <span className="font-semibold truncate">{cameraName(id)}</span>
-                {problem && <span className="text-xs text-amber-300 truncate">{problem}</span>}
-                <button onClick={() => closeOne(id)} className="ml-auto px-2 py-0.5 rounded text-xs bg-gray-800 hover:bg-red-700" title="Close this camera">✕</button>
+                {problem && <span className="text-xs text-amber-600 dark:text-amber-300 truncate">{problem}</span>}
+                <button onClick={() => closeOne(id)} className="ml-auto px-2 py-0.5 rounded text-xs bg-gray-200 dark:bg-gray-800 hover:bg-red-600 hover:text-white" title="Close this camera">✕</button>
               </div>
               <div className="relative flex-1 min-h-0">
                 {src && (
-                  <FarmFrame key={src} src={src} title={cameraName(id)} className="absolute inset-0 w-full h-full bg-gray-900" onMessage={onFrameMessage(id)} />
+                  <FarmFrame key={src} src={src} title={cameraName(id)} className="absolute inset-0 w-full h-full bg-white dark:bg-gray-900" onMessage={onFrameMessage(id)} />
                 )}
               </div>
             </div>
