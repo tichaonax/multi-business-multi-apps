@@ -1971,7 +1971,7 @@ export function FloatingChat() {
                 onClick={() => setChatSettings(prev => ({ ...prev, soundEnabled: !prev.soundEnabled }))}
                 className={`relative w-10 h-6 rounded-full shrink-0 transition-colors ${chatSettings.soundEnabled ? 'bg-indigo-600' : 'bg-gray-300 dark:bg-gray-600'}`}
               >
-                <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${chatSettings.soundEnabled ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                <span className={`absolute left-0 top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${chatSettings.soundEnabled ? 'translate-x-4' : 'translate-x-0.5'}`} />
               </button>
             </div>
 

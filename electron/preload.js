@@ -64,6 +64,9 @@ contextBridge.exposeInMainWorld('electron', {
 
     detectBaud: (comPort) => ipcRenderer.invoke('scale:detect-baud', comPort),
 
+    // Current connection status (v1.0.33+), for screens opened after it changed
+    getStatus: () => ipcRenderer.invoke('scale:get-status'),
+
     // Subscribe to live weight updates; returns cleanup function
     onWeight: (callback) => {
       const handler = (_event, data) => callback(data)

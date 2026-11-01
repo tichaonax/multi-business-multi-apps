@@ -303,7 +303,7 @@ export default function DisplaySettingsPage() {
                   onClick={() => canManage && setSettings(s => ({ ...s, enableSmartDisplay: !s.enableSmartDisplay }))}
                   className={`relative w-10 h-5 rounded-full transition-colors ${settings.enableSmartDisplay ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'} disabled:opacity-50 disabled:cursor-not-allowed`}
                 >
-                  <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${settings.enableSmartDisplay ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                  <span className={`absolute left-0 top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${settings.enableSmartDisplay ? 'translate-x-5' : 'translate-x-0.5'}`} />
                 </button>
               </label>
 
@@ -315,7 +315,7 @@ export default function DisplaySettingsPage() {
                   onClick={() => canManage && setSettings(s => ({ ...s, enableSplitLayout: !s.enableSplitLayout }))}
                   className={`relative w-10 h-5 rounded-full transition-colors ${settings.enableSplitLayout ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'} disabled:opacity-50 disabled:cursor-not-allowed`}
                 >
-                  <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${settings.enableSplitLayout ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                  <span className={`absolute left-0 top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${settings.enableSplitLayout ? 'translate-x-5' : 'translate-x-0.5'}`} />
                 </button>
               </label>
 

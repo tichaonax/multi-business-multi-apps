@@ -1,6 +1,6 @@
 {
   "name": "multi-business-pos-electron",
-  "version": "1.0.30",
+  "version": "1.0.33",
   "description": "Electron wrapper for Multi-Business POS with automatic dual-monitor support",
   "main": "main.js",
   "author": "Multi-Business POS",
@@ -22,8 +22,8 @@
   },
   "devDependencies": {
     "cross-env": "^7.0.3",
-    "electron": "^28.1.0",
-    "electron-builder": "^24.9.1"
+    "electron": "^45.2.1",
+    "electron-builder": "^26.18.1"
   },
   "build": {
     "appId": "com.multibusiness.pos",

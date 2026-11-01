@@ -63,6 +63,8 @@ export interface ElectronAPI {
     disconnect: () => Promise<{ ok: boolean }>
     tare: () => Promise<{ ok: boolean }>
     detectBaud: (comPort: string) => Promise<{ baudRate: number | null }>
+    /** Current status; desktop app v1.0.33+ only */
+    getStatus?: () => Promise<ScaleStatus>
     onWeight: (callback: (data: ScaleWeight) => void) => () => void
     onStatus: (callback: (data: ScaleStatus) => void) => () => void
   }

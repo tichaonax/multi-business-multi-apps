@@ -89,7 +89,11 @@ function processBuffer() {
   }
 }
 
+// The last status sent, so a screen opened later can ask for it (getStatus)
+let lastStatus = { status: 'disconnected', comPort: null }
+
 function emit(channel, data) {
+  if (channel === 'scale:status') lastStatus = data
   if (mainWindowRef && !mainWindowRef.isDestroyed()) {
     mainWindowRef.webContents.send(channel, data)
   }
@@ -370,4 +374,8 @@ function tare() {
   return true
 }
 
-module.exports = { init, listPorts, getSavedPort, getSavedBaudRate, connect, disconnect, disconnectAsync, tare, detectBaud }
+function getStatus() {
+  return lastStatus
+}
+
+module.exports = { init, listPorts, getSavedPort, getSavedBaudRate, connect, disconnect, disconnectAsync, tare, detectBaud, getStatus }

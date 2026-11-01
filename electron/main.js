@@ -251,8 +251,13 @@ async function openServer(serverEntry) {
   // spinner and the app itself end up correctly sized, and it's re-read from
   // the registry each time so a mid-session Ctrl+/Ctrl- change also survives
   // a later reload.
-  mainWindow.webContents.on('did-finish-load', () => {
-    mainWindow.webContents.zoomFactor = registry.getZoomFactor() ?? autoZoomFactor
+  // `win`, not the global: on a server switch the global already points at
+  // the next window (or null) while this one's last events still arrive
+  // (Electron 45 crashed here: "Cannot read properties of null").
+  const win = mainWindow
+  win.webContents.on('did-finish-load', () => {
+    if (win.isDestroyed()) return
+    win.webContents.zoomFactor = registry.getZoomFactor() ?? autoZoomFactor
   })
 
   // Safety net: if anything ever un-maximizes the window (the title bar's
@@ -308,10 +313,11 @@ async function openServer(serverEntry) {
   // customer-facing display must never be zoomable or inspectable by
   // whoever's standing in front of it, and a menu-role accelerator would
   // apply to whatever window happens to be focused, not just this one.
-  mainWindow.webContents.on('before-input-event', (_event, input) => {
+  win.webContents.on('before-input-event', (_event, input) => {
+    if (win.isDestroyed()) return
     if (input.type !== 'keyDown') return
     if (input.key === 'F12' || (input.control && input.shift && input.key.toLowerCase() === 'i')) {
-      mainWindow.webContents.toggleDevTools()
+      win.webContents.toggleDevTools()
       return
     }
     if (!input.control) return
@@ -319,11 +325,11 @@ async function openServer(serverEntry) {
     // dials this in to match their browser on this specific display, it
     // should stick, not silently revert to the default on the next launch.
     if (input.key === '=' || input.key === '+') {
-      mainWindow.webContents.zoomFactor = Math.min(2.0, mainWindow.webContents.zoomFactor + 0.1)
-      registry.setZoomFactor(mainWindow.webContents.zoomFactor)
+      win.webContents.zoomFactor = Math.min(2.0, win.webContents.zoomFactor + 0.1)
+      registry.setZoomFactor(win.webContents.zoomFactor)
     } else if (input.key === '-') {
-      mainWindow.webContents.zoomFactor = Math.max(0.5, mainWindow.webContents.zoomFactor - 0.1)
-      registry.setZoomFactor(mainWindow.webContents.zoomFactor)
+      win.webContents.zoomFactor = Math.max(0.5, win.webContents.zoomFactor - 0.1)
+      registry.setZoomFactor(win.webContents.zoomFactor)
     } else if (input.key === '0') {
       // Resets to this display's auto-computed default (1/scaleFactor), not
       // Chromium's usual "1.0 = no zoom" -- 1.0 is the too-large size this
@@ -331,7 +337,7 @@ async function openServer(serverEntry) {
       // target here. Clears the persisted override too, so this goes back
       // to tracking the auto-computed value rather than pinning whatever
       // the reset happened to land on.
-      mainWindow.webContents.zoomFactor = autoZoomFactor
+      win.webContents.zoomFactor = autoZoomFactor
       registry.setZoomFactor(null)
     }
   })
@@ -342,9 +348,11 @@ async function openServer(serverEntry) {
   // whatever the page itself logs, including the real error behind Next.js's
   // generic "Application error" screen, straight into this app's existing
   // log files with zero extra setup needed on the machine reproducing it.
-  mainWindow.webContents.on('console-message', (_event, level, message, line, sourceId) => {
-    const levelName = ['LOG', 'WARN', 'ERROR'][level] || 'LOG'
-    console.log(`[Renderer:${levelName}] ${message} (${sourceId}:${line})`)
+  // Electron 35+ (MBM-331 upgrade): the details are on the event; `level` is
+  // 'info' | 'warning' | 'error' | 'debug'.
+  mainWindow.webContents.on('console-message', (event) => {
+    const levelName = { warning: 'WARN', error: 'ERROR' }[event.level] || 'LOG'
+    console.log(`[Renderer:${levelName}] ${event.message} (${event.sourceId}:${event.lineNumber})`)
   })
 
   // Show a local "Connecting…" spinner immediately — the loadURL() below can
@@ -361,7 +369,7 @@ async function openServer(serverEntry) {
     .loadFile(path.join(__dirname, 'renderer', 'loading.html'), { query: { label: serverEntry.label } })
     .catch(() => {})
     .then(() => {
-      mainWindow?.loadURL(`${serverEntry.url}/`)
+      if (!win.isDestroyed()) win.loadURL(`${serverEntry.url}/`)
     })
 
   mainWindow.on('close', (event) => {
@@ -717,6 +725,7 @@ ipcMain.handle('scale:disconnect', () => {
 })
 ipcMain.handle('scale:tare', () => ({ ok: scaleService.tare() }))
 ipcMain.handle('scale:detect-baud', (_event, comPort) => scaleService.detectBaud(comPort))
+ipcMain.handle('scale:get-status', () => scaleService.getStatus())
 
 // Each registered server gets its own persistent session partition
 // (webPreferences.partition, above), which means its own disk HTTP cache --

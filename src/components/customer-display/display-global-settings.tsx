@@ -86,7 +86,7 @@ export function DisplayGlobalSettings({ businessId }: Props) {
           onClick={() => toggle('enableSmartDisplay')}
           className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${settings.enableSmartDisplay ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'} disabled:opacity-50 disabled:cursor-not-allowed`}
         >
-          <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${settings.enableSmartDisplay ? 'translate-x-5' : 'translate-x-0.5'}`} />
+          <span className={`absolute left-0 top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${settings.enableSmartDisplay ? 'translate-x-5' : 'translate-x-0.5'}`} />
         </button>
       </label>
 
@@ -102,7 +102,7 @@ export function DisplayGlobalSettings({ businessId }: Props) {
           onClick={() => toggle('enableSplitLayout')}
           className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${settings.enableSplitLayout ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'} disabled:opacity-50 disabled:cursor-not-allowed`}
         >
-          <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${settings.enableSplitLayout ? 'translate-x-5' : 'translate-x-0.5'}`} />
+          <span className={`absolute left-0 top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${settings.enableSplitLayout ? 'translate-x-5' : 'translate-x-0.5'}`} />
         </button>
       </label>
 

@@ -736,6 +736,7 @@ export function UnifiedReceiptPreviewModal({
                   {showLocalSetup && !hasLocalPrinter && (
                     <LocalPrinterSetup
                       compact
+                      onCancel={() => setShowLocalSetup(false)}
                       onSetupComplete={(config) => {
                         setHasLocalPrinter(true)
                         setLocalPrinterName(config.name)

@@ -9,7 +9,7 @@
  */
 
 import { useState, useEffect } from 'react'
-import { Usb, Check, AlertCircle, Trash2, Printer } from 'lucide-react'
+import { Usb, Check, AlertCircle, Trash2, Printer, X } from 'lucide-react'
 import { QzTraySetup } from '@/components/printing/qz-tray-setup'
 import {
   isWebSerialSupported,
@@ -24,6 +24,8 @@ import {
 interface LocalPrinterSetupProps {
   onSetupComplete?: (config: LocalPrinterConfig) => void
   onDisconnect?: () => void
+  /** Shown as ✕ on the setup panel: close it without setting a printer up */
+  onCancel?: () => void
   compact?: boolean
 }
 
@@ -32,6 +34,7 @@ const BAUD_RATES = [9600, 19200, 38400, 57600, 115200]
 export function LocalPrinterSetup({
   onSetupComplete,
   onDisconnect,
+  onCancel,
   compact = false,
 }: LocalPrinterSetupProps) {
   const [supported, setSupported] = useState(false)
@@ -197,6 +200,11 @@ export function LocalPrinterSetup({
       <h4 className="text-sm font-medium text-primary mb-3 flex items-center gap-2">
         <Usb className="w-4 h-4" />
         {compact ? 'Setup Local USB Printer' : 'Web Serial (Chrome/Edge only)'}
+        {onCancel && (
+          <button type="button" onClick={onCancel} title="Close" aria-label="Close USB printer setup" className="ml-auto p-1 rounded text-secondary hover:text-primary hover:bg-gray-100 dark:hover:bg-gray-700">
+            <X className="w-4 h-4" />
+          </button>
+        )}
       </h4>
 
       <div className="space-y-3 mb-4">

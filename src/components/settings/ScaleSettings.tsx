@@ -33,6 +33,8 @@ export function ScaleSettings({ businessId, scaleEnabled = false, onToggleScale 
       if (saved) setSelectedPort(saved)
     })
     const unsubStatus = window.electron.scale.onStatus((s) => setStatus(s))
+    // Already connected before this screen opened? (desktop app v1.0.33+)
+    window.electron.scale.getStatus?.().then((s) => { if (s) setStatus(s) }).catch(() => {})
     const unsubWeight = window.electron.scale.onWeight((w) => setLastWeight(w))
     return () => { unsubStatus(); unsubWeight() }
   }, [])
@@ -148,7 +150,7 @@ export function ScaleSettings({ businessId, scaleEnabled = false, onToggleScale 
             onClick={() => onToggleScale(!scaleEnabled)}
             className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${scaleEnabled ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'}`}
           >
-            <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${scaleEnabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
+            <span className={`absolute left-0 top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${scaleEnabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
           </button>
         </div>
       )}
