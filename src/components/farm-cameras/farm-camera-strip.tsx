@@ -78,7 +78,14 @@ export function FarmCameraStrip({ placement }: { placement: 'inline' | 'row' }) 
 
   const mode: StripMode = onPos ? prefs.posStripMode : prefs.stripMode
   const labels: Record<string, string> = {}
-  for (const id of ids) labels[id] = prefs.cameraLabels?.[id]?.name || ''
+  // A camera whose name is hidden (Names mode in the larger cameras) shows no
+  // name on the strip either. Farm Control has names on/off only for the
+  // whole strip, so a hidden one gets an invisible label (zero-width space);
+  // an empty label gives Farm Control's name back (guide §5.1).
+  for (const id of ids) {
+    const l = prefs.cameraLabels?.[id]
+    labels[id] = l?.showName === false ? '​' : l?.name || ''
+  }
 
   const wrap = (content: React.ReactNode) =>
     placement === 'row' ? <div className="px-3 pb-1 flex justify-center">{content}</div> : <div className="flex-1 min-w-0 flex justify-center px-2">{content}</div>
