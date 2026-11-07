@@ -386,6 +386,16 @@ function RegisterR710DeviceContent() {
                 </>
               )}
             </button>
+            {formData.ipAddress && (
+              <a
+                href={`https://${formData.ipAddress}/admin/dashboard.jsp`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-2 block text-center text-sm text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                Open R710 admin page ↗
+              </a>
+            )}
           </div>
           )}
 

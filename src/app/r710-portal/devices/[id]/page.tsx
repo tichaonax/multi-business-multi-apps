@@ -726,6 +726,17 @@ function EditR710DeviceContent() {
             </label>
           </div>
 
+          {formData.ipAddress && (
+            <a
+              href={`https://${formData.ipAddress}/admin/dashboard.jsp`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block text-center text-sm text-blue-600 dark:text-blue-400 hover:underline"
+            >
+              Open R710 admin page ↗
+            </a>
+          )}
+
           {/* Test Connection Button */}
           {formData.adminPassword && (
             <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
