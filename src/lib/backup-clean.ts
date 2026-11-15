@@ -1705,6 +1705,10 @@ export async function createCleanBackup(
   businessData.comboPaymentRequestItems = comboRequestIds.length > 0
     ? await prisma.comboPaymentRequestItems.findMany({ where: { requestId: { in: comboRequestIds } } })
     : []
+  // MBM-333: every return-for-changes on those requests
+  businessData.comboPaymentRequestReturns = comboRequestIds.length > 0
+    ? await prisma.comboPaymentRequestReturns.findMany({ where: { requestId: { in: comboRequestIds } } })
+    : []
 
   // 57b. Restaurant deferred expenses (MBM-319) — recorded at purchase,
   // paid later via combo requests (lines link to comboPaymentRequestItems).
@@ -1988,7 +1992,8 @@ export async function createCleanBackup(
     // 6.51.0 (2026-10-31): MBM-331 farmControlCameraBusinesses,
     // farmControlUserLinks, farmCameraUserPreferences (farmControlIntegrations
     // is server-specific and not backed up).
-    schemaVersion: '6.51.0',
+    // 6.52.0 (2026-11-15): MBM-333 comboPaymentRequestReturns.
+    schemaVersion: '6.52.0',
     checksums: {
       businessData: businessDataChecksum,
       deviceData: deviceDataChecksum

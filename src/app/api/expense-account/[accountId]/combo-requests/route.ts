@@ -7,6 +7,7 @@ import { emitNotification } from '@/lib/notifications/notification-emitter'
 import { comboRequestApproverIds } from '@/lib/expense-account/combo-request-approvers'
 import { validateExpenseLinks, linkExpenseLineTx, ExpenseLinkError } from '@/lib/restaurant-expense-combo'
 import { refreshRestaurantExpenseNoticeForAccount } from '@/lib/restaurant-expense-notify'
+import { readComboLoanFields, loanComboProblems, comboSubmittedNotice } from '@/lib/expense-account/combo-business-loan'
 
 export async function GET(
   request: NextRequest,
@@ -48,6 +49,8 @@ export async function GET(
         creator: { select: { id: true, name: true } },
         approver: { select: { id: true, name: true } },
         returnedByUser: { select: { id: true, name: true } },
+        loanBusiness: { select: { id: true, name: true } }, // MBM-333
+        _count: { select: { returns: true } },              // MBM-333
         sections: {
           orderBy: { sortOrder: 'asc' },
           include: { items: { orderBy: { sortOrder: 'asc' } } },
@@ -111,6 +114,20 @@ export async function POST(
     const isSubmitting = status === 'SUBMITTED'
     const now = new Date()
 
+    // MBM-333: business-loan fields (target business + receiving account)
+    const loan = await readComboLoanFields(accountId, body)
+    if (loan.error) return NextResponse.json({ error: loan.error }, { status: 400 })
+    if (isSubmitting && loan.fields?.isBusinessLoan) {
+      const problems = loanComboProblems({
+        ...loan.fields, id: '', accountId, title, submittedAt: null, createdAt: now,
+        sections: sections.map((s: any) => ({
+          ...s, id: '',
+          items: (s.items || []).map((i: any) => ({ ...i, id: '', restaurantExpenseLineId: i.expenseLineId ?? null })),
+        })),
+      })
+      if (problems.length > 0) return NextResponse.json({ error: `This is a business loan — ${problems.join('; ')}.` }, { status: 400 })
+    }
+
     const comboRequest = await prisma.$transaction(async (tx) => {
       const req = await tx.comboPaymentRequests.create({
         data: {
@@ -121,6 +138,7 @@ export async function POST(
           requestedAmount,
           createdBy: user.id,
           submittedAt: isSubmitting ? now : null,
+          ...(loan.fields ?? {}),
         },
       })
 
@@ -183,11 +201,17 @@ export async function POST(
       try {
         const cashierIds = await comboRequestApproverIds(accountId, user.id) // MBM-326: admin fallback
         if (cashierIds.length > 0) {
+          const loanBusiness = loan.fields?.isBusinessLoan && loan.fields.loanBusinessId
+            ? await prisma.businesses.findUnique({ where: { id: loan.fields.loanBusinessId }, select: { name: true } })
+            : null
           await emitNotification({
             userIds: cashierIds,
-            type: 'COMBO_REQUEST_SUBMITTED',
-            title: 'New Combo Request',
-            message: `${user.name} submitted "${title.trim()}" — $${requestedAmount.toFixed(2)}`,
+            ...comboSubmittedNotice({
+              title: title.trim(),
+              submitterName: user.name ?? 'Someone',
+              amount: requestedAmount,
+              loanBusinessName: loan.fields?.isBusinessLoan ? (loanBusiness?.name ?? 'a business') : null,
+            }),
             linkUrl: `/expense-accounts/${accountId}/combo-requests/${comboRequest!.id}`,
           })
         }

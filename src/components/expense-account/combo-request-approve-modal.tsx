@@ -27,6 +27,9 @@ interface ComboRequestApproveModalProps {
   overrideAmount: number | null
   sections: ComboSection[]
   availableBalance: number
+  // MBM-333: set for a business-loan request — approved in full only
+  loanBusinessName?: string | null
+  loanAccountName?: string | null
 }
 
 const SECTION_LABELS: Record<string, string> = {
@@ -47,9 +50,12 @@ export function ComboRequestApproveModal({
   overrideAmount,
   sections,
   availableBalance,
+  loanBusinessName,
+  loanAccountName,
 }: ComboRequestApproveModalProps) {
   const toast = useToastContext()
-  const effectiveRequested = overrideAmount ?? requestedAmount
+  const isLoan = loanBusinessName !== undefined && loanBusinessName !== null
+  const effectiveRequested = isLoan ? requestedAmount : (overrideAmount ?? requestedAmount)
 
   const [approvedAmount, setApprovedAmount] = useState(String(effectiveRequested.toFixed(2)))
   const [approvalNote, setApprovalNote] = useState('')
@@ -57,10 +63,10 @@ export function ComboRequestApproveModal({
 
   useEffect(() => {
     if (isOpen) {
-      setApprovedAmount(String(Math.min(effectiveRequested, availableBalance).toFixed(2)))
+      setApprovedAmount(String((isLoan ? effectiveRequested : Math.min(effectiveRequested, availableBalance)).toFixed(2)))
       setApprovalNote('')
     }
-  }, [isOpen, effectiveRequested, availableBalance])
+  }, [isOpen, effectiveRequested, availableBalance, isLoan])
 
   if (!isOpen) return null
 
@@ -142,6 +148,19 @@ export function ComboRequestApproveModal({
             </div>
           </div>
 
+          {/* MBM-333: what approving a business loan does */}
+          {isLoan && (
+            <div className="border border-indigo-200 bg-indigo-50 rounded-lg p-3 text-xs text-indigo-900 space-y-1">
+              <p className="font-medium">🤝 Business loan to {loanBusinessName}</p>
+              <p>
+                Approving lends the full ${effectiveRequested.toFixed(2)} to {loanBusinessName}: it is taken from this account,
+                deposited into {loanAccountName ?? 'its expense account'} as a loan received, and set up there as one approved
+                payment per item. {loanBusinessName} owes it back to this account.
+              </p>
+              <p>A loan is approved in full. To approve less, close this and use <strong>Return for Edits</strong> instead.</p>
+            </div>
+          )}
+
           {/* Approved amount input */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Approved Amount *</label>
@@ -149,6 +168,7 @@ export function ComboRequestApproveModal({
               type="number"
               value={approvedAmount}
               onChange={e => setApprovedAmount(e.target.value)}
+              readOnly={isLoan}
               min="0.01"
               max={availableBalance}
               step="0.01"

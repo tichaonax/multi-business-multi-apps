@@ -15,6 +15,8 @@ interface ComboRequest {
   returnNote: string | null
   returnedByUser: { id: string; name: string } | null
   creator: { id: string; name: string }
+  isBusinessLoan?: boolean                          // MBM-333
+  loanBusiness?: { id: string; name: string } | null // MBM-333
 }
 
 const STATUS_BADGE: Record<string, { label: string; className: string }> = {
@@ -36,6 +38,7 @@ const EXPIRY_WARNABLE_STATUSES = new Set(['SUBMITTED', 'APPROVED', 'PARTIALLY_AP
 // client-side so the list can show a live countdown without extra API calls.
 function daysLeft(req: ComboRequest): number | null {
   if (!req.submittedAt || !EXPIRY_WARNABLE_STATUSES.has(req.status)) return null
+  if (req.isBusinessLoan && req.status !== 'SUBMITTED') return null // MBM-333: money already moved
   const deadline = new Date(req.submittedAt).getTime() + 30 * 24 * 60 * 60 * 1000
   const msLeft = deadline - Date.now()
   if (msLeft <= 0) return 0
@@ -177,6 +180,9 @@ export function ComboRequestsTab({ accountId }: ComboRequestsTabProps) {
               >
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{req.title}</p>
+                  {req.isBusinessLoan && (
+                    <p className="text-xs text-indigo-700 dark:text-indigo-300 mt-0.5">🤝 Business loan → {req.loanBusiness?.name ?? 'business'}</p>
+                  )}
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                     {req.creator.name}
                     {req.submittedAt && ` · ${fmtDate(req.submittedAt)}`}

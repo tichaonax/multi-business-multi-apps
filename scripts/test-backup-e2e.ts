@@ -61,7 +61,7 @@ const NEW_TABLE_KEYS = [
   // Payment Cancellation & Manager Override (MBM-192)
   'managerOverrideCodes', 'managerOverrideCodeHistory', 'managerOverrideLogs', 'orderCancellations',
   // Expense Account Access & Combo Requests (MBM-201)
-  'expenseAccountUserAccess', 'comboPaymentRequests', 'comboPaymentRequestSections', 'comboPaymentRequestItems',
+  'expenseAccountUserAccess', 'comboPaymentRequests', 'comboPaymentRequestSections', 'comboPaymentRequestItems', 'comboPaymentRequestReturns',
   // Vehicle Renewal Workflow & Issuing Authorities
   'vehicleRenewalReceipts', 'vehicleExemptions', 'issuingAuthorities',
   // Leave Policies (MBM-202/203)

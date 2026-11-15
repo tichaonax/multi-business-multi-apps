@@ -6,6 +6,8 @@ import { updateExpenseAccountBalanceTx } from '@/lib/expense-account-utils'
 import { emitNotification } from '@/lib/notifications/notification-emitter'
 import { isComboRequestExpired, expireComboRequestTx } from '@/lib/expense-account/combo-request-expiry'
 import { releaseExpenseLinesTx, approveExpenseLinesTx } from '@/lib/restaurant-expense-combo'
+import { approveComboAsBusinessLoanTx, loanComboProblems, uniqueLoanNumber } from '@/lib/expense-account/combo-business-loan'
+import { getLendingCashierUserIds } from '@/lib/loans/lending-cashiers'
 
 export async function POST(
   request: NextRequest,
@@ -78,6 +80,63 @@ export async function POST(
       return NextResponse.json({
         error: `Insufficient balance. Available: $${availableBalance.toFixed(2)}, Requested approval: $${approvedAmountNum.toFixed(2)}`,
       }, { status: 400 })
+    }
+
+    // MBM-333: business-loan combo — lend the total to the target business
+    // and pay the items out there (see combo-business-loan.ts)
+    if (comboRequest.isBusinessLoan) {
+      if (!permissions.canManageLending && user.role !== 'admin') {
+        return NextResponse.json({ error: 'This request is a business loan — approving it also needs the lending permission (canManageLending)' }, { status: 403 })
+      }
+      const itemsTotal = comboRequest.sections.flatMap(s => s.items).reduce((s, i) => s + Number(i.estimatedAmount ?? 0), 0)
+      if (Math.abs(approvedAmountNum - itemsTotal) > 0.005) {
+        return NextResponse.json({ error: `A business-loan request is approved in full ($${itemsTotal.toFixed(2)}, the total of its items). To approve less, return it for changes.` }, { status: 400 })
+      }
+      const problems = loanComboProblems(comboRequest)
+      if (problems.length > 0) {
+        return NextResponse.json({ error: `Can't approve this loan yet — ${problems.join('; ')}. Return it for changes.` }, { status: 400 })
+      }
+      const target = await prisma.expenseAccounts.findUnique({ where: { id: comboRequest.loanExpenseAccountId! }, select: { isActive: true, businessId: true } })
+      if (!target?.isActive || target.businessId !== comboRequest.loanBusinessId) {
+        return NextResponse.json({ error: "The loan's receiving account is no longer an active account of that business. Return the request for changes." }, { status: 400 })
+      }
+
+      const employee = await prisma.employees.findFirst({ where: { userId: user.id }, select: { id: true } })
+      const loanNumber = await uniqueLoanNumber()
+      const { loan } = await prisma.$transaction(tx => approveComboAsBusinessLoanTx(tx, comboRequest, {
+        userId: user.id,
+        approverEmployeeId: employee?.id ?? null,
+        amount: approvedAmountNum,
+        approvalNote: approvalNote?.trim() || null,
+        loanNumber,
+      }))
+
+      const business = await prisma.businesses.findUnique({ where: { id: comboRequest.loanBusinessId! }, select: { name: true } })
+      try {
+        await emitNotification({
+          userIds: [comboRequest.createdBy],
+          type: 'COMBO_REQUEST_APPROVED',
+          title: 'Combo Request Approved as a Loan',
+          message: `"${comboRequest.title}" was approved: $${approvedAmountNum.toFixed(2)} lent to ${business?.name ?? 'the business'} (${loan.loanNumber}) and set up there as ${comboRequest.sections.flatMap(s => s.items).length} payments`,
+          linkUrl: `/expense-accounts/${accountId}/combo-requests/${requestId}`,
+        })
+        const lenders = (await getLendingCashierUserIds()).filter(id => id !== user.id)
+        if (lenders.length > 0) {
+          await emitNotification({
+            userIds: lenders,
+            type: 'LOAN_REQUEST_APPROVED',
+            title: 'Loan disbursed from a combo request',
+            message: `${loan.loanNumber} — $${approvedAmountNum.toFixed(2)} to ${business?.name ?? 'business'} for "${comboRequest.title}"`,
+            linkUrl: `/expense-accounts/${comboRequest.loanExpenseAccountId}`,
+            metadata: { loanId: loan.id, loanNumber: loan.loanNumber },
+          })
+        }
+      } catch (notifErr) {
+        console.error('Notification error (non-blocking):', notifErr)
+      }
+
+      const fresh = await prisma.comboPaymentRequests.findUnique({ where: { id: requestId } })
+      return NextResponse.json({ success: true, data: fresh })
     }
 
     const isPartial = approvedAmountNum < effectiveRequestedAmount

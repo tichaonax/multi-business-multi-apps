@@ -10461,6 +10461,8 @@ Cashier confirms change received (SETTLED)
 
 If only some items are funded, the status will be **PARTIALLY APPROVED** and you can still mark approved items as paid.
 
+A request can also be marked as a **business loan**. Approving it lends the total to another business and sets up each item as a payment there. See [Business-Loan Requests](#business-loan-requests).
+
 ---
 
 ### Requester — Creating a Request
@@ -10487,6 +10489,8 @@ If only some items are funded, the status will be **PARTIALLY APPROVED** and you
    - **Item Notes** — any extra details
 
 > **✨ Suggest on combo items:** After typing a description, click **✨ Suggest** next to the Domain field. The system searches for matching expense categories and displays results in up to two sections — **matches within the selected domain** (if one is chosen) and **Other Categories** from across all domains. Selecting a result from either section fills in the Domain, Category, and Sub-category automatically. If no domain is selected, all results are shown as a flat list so you can discover the right classification from scratch.
+>
+> Up to 5 results show at first. If there are more, a **Load N more (M remaining)** button appears below the list. If nothing matches within the selected domain, the list says **No matches in [domain] — other categories:** and shows the other results, still with **Load more** when there are more to see.
 
 7. Repeat for all sections and items. The **Grand Total** at the bottom updates automatically.
 8. Click **Save Draft** at any time to save your work without submitting.
@@ -10511,6 +10515,15 @@ Locked items can't be edited (the amount is what was recorded), only removed wit
 
 When your request is complete:
 
+> **Submit stays disabled until the request is complete.** A **To submit:** line under the buttons lists what's missing (hover over the button to see the full list). You need:
+> - a request title;
+> - at least one item;
+> - a description and an amount above $0 on every filled-in item (blank rows are ignored);
+> - a name for any **Custom** section that has items;
+> - for a business loan: the business and account receiving the loan, and a payee on every item.
+>
+> Quantity, unit, category, notes and (for ordinary requests) payees are optional. **Save Draft** works at any time, even when the request is incomplete.
+
 1. Click **Submit Request**.
 2. The system saves the latest draft and opens a **Confirm Submission** panel at the bottom of the screen.
 3. The panel shows the **Estimated Total** calculated from all your items.
@@ -10518,6 +10531,13 @@ When your request is complete:
 5. Click **Confirm & Submit**.
 
 The request is sent to the cashier queue. You will receive a notification when it has been approved or returned.
+
+**Tracking your requests.** Your combo requests appear in your own pending list, the same way a single payment request does:
+- 🔔 bell → **📤 My Requests**, and the Pending Actions page → **🧺 My Combo Requests**.
+- **Awaiting cashier** — submitted and waiting for approval. Click it to open the request.
+- **↩ Returned for changes** — the cashier sent it back. The cashier's note is shown, and clicking it (**Make changes →**) opens the edit form.
+- Business-loan requests also show **🤝 Loan → [business]**.
+- A request leaves this list once it is approved. If you are also a cashier for that account, it appears in your **Combo Requests to Approve** list too.
 
 > **Note:** After submitting you can still edit the request while it is **SUBMITTED** (before the cashier approves or returns it). See [Editing a Submitted Request](#requester--admin--editing-a-submitted-request) below.
 
@@ -10545,6 +10565,11 @@ When a user submits a combo request, you receive a notification (💬 Notificati
 
 It also waits for you in **Pending Actions** (🔔 bell → **🧺 Combo Requests to Approve**, and the Pending Actions page → **Combo Requests Awaiting Approval**) until it is approved or returned. Each entry shows the requester, account, amount and days left before it expires, and **Review & approve →** opens it. Your own submitted requests are listed too, marked **Your request**, if you're allowed to approve them.
 
+> **How notifications look:**
+> - **Business loan** — the amount comes first: title **New Combo Request — Business Loan**, message **$28.00 · 🤝 loan to HXI Eats — [requester] submitted "[title]"**. In the approval lists the amount also leads, with a **🤝 Loan → [business]** badge.
+> - **Resubmitted after a return** — shown in **purple** with 🔁 and a count: **🔁 Combo Request Resubmitted (2nd time)** (with " — Business Loan" added for loans). In **Combo Requests to Approve** / **Combo Requests Awaiting Approval** the entry is purple with a **🔁 Resubmitted N×** badge instead of **Submitted**, so you can see at a glance it has already been back to the requester.
+> - Ordinary first-time submissions look as before (📋 **New Combo Request**).
+
 > **Who is notified:** cashiers with full access to that expense account, never the person who submitted. If nobody else has full access, the system's admins are notified instead, so a request is never submitted to no one.
 
 1. Open the request to review all sections and items.
@@ -10570,7 +10595,11 @@ If the request needs clarification or corrections before you can approve it:
 3. An inline panel opens. Type your feedback in the **Return Note** field (minimum 10 characters — be specific so the requester knows what to fix).
 4. Click **Confirm Return**.
 
-The request goes back to **DRAFT** status. The requester receives a notification and sees a yellow banner at the top of the request showing your feedback.
+The request goes back to **DRAFT** status. The requester receives a notification and sees a yellow banner showing your feedback, both on the request and on its edit form.
+
+**Every return is kept.** If you return the same request more than once, each note is saved with who returned it and when. The request shows the latest note as **↩️ Returned for changes (2 times)**, and the older ones under **Earlier returns**. The history stays on the request after it is resubmitted and approved, so anyone can see what was asked and when it was answered.
+
+> **Need to approve less than a business-loan request asks for?** Loans are approved in full only. Return the request and say what to remove or reduce. See [Business-Loan Requests](#business-loan-requests) below.
 
 ---
 
@@ -10578,9 +10607,72 @@ The request goes back to **DRAFT** status. The requester receives a notification
 
 When a cashier returns your request:
 
-1. Open the request — you will see a yellow banner: **"↩ Returned for edits by [Cashier Name]"** with the cashier's note.
-2. Make the requested changes — you can edit the title, notes, sections, and items freely while the request is in DRAFT.
-3. When ready, click **Submit Request** again (same confirmation panel as the first submission).
+1. Open the request (or click the notification). A yellow **↩️ Returned for changes** banner shows the cashier's note, who returned it and when.
+2. Click **✎ Edit**. The same banner is shown at the top of the edit form, so you can read it while you work.
+3. Make the requested changes. While the request is in DRAFT you can freely:
+   - add or remove sections and items;
+   - reduce (or change) item amounts;
+   - change payees;
+   - edit the title and notes;
+   - change the business-loan settings.
+4. When ready, click **Submit Request** again (same confirmation panel as the first submission).
+
+Once you resubmit, the banner turns grey and reads **Was returned for changes … resubmitted [date]**. If the request was returned more than once, open **Earlier returns** to see the previous notes.
+
+---
+
+### Business-Loan Requests
+
+Use a business-loan request when the money for the items is **lent to another business** instead of spent from this account. It works with any expense account, including a personal or family (non-business) account. For example, a family account pays for a shop's stock, and the shop owes the money back.
+
+#### What happens when it is approved
+
+Approval does all of this in one step. Either everything happens, or nothing does.
+
+| Step | Where | What you see |
+|---|---|---|
+| 1. Money out | **This account** | A **🤝 Loan for combo request** payment for the full total |
+| 2. The loan | **This account → Lent out tab** | A business loan (e.g. **OL-2026-123456**) for the full total, owed by the other business |
+| 3. Money in | **The business's expense account** | A **🤝 Loan received** deposit for the full total |
+| 4. The items | **The business's expense account** | One **approved** payment per item, with the item's amount, payee and category |
+
+The loan only records the debt; it holds no money. The money is counted once on each side. This account goes down by the total. The business's account goes up by the total, then down again as the item payments. So nothing is counted twice, and every expense stays itemised.
+
+#### Requester — creating a business-loan request
+
+1. Create the request as usual (see [Creating a Request](#requester--creating-a-request)).
+2. Tick **🤝 This is a business loan**.
+3. Choose the **Business receiving the loan**. This account's own business isn't listed.
+4. Choose **Its expense account that receives the money**. The business's main account is picked for you; change it if needed.
+5. Add the sections and items. **Every item needs an amount and a payee** (the item's own payee, or the section's), because each item becomes its own payment at that business.
+6. Click **Submit Request**. A loan is requested in full, so the confirmation panel doesn't offer the amount override.
+
+The request shows **🤝 Business loan → [business]** in the list, and a **Business loan** panel on the request explains what approval will do.
+
+> **Recorded restaurant expenses can't go into a loan request.** They are confirmed paid through the request's own **Mark Paid**, which a loan request doesn't use. Put them in an ordinary request.
+
+#### Cashier — approving a business-loan request
+
+1. Open the request and click **Approve Request**.
+2. The approval panel explains the loan, and the **Approved Amount is fixed at the full total**. To approve less, close the panel and use **↩ Return for Edits**, saying what to remove or reduce.
+3. Click **Confirm Approval**.
+
+You need both the usual combo-approval permission **and** the lending permission (**Manage lending**). Without the lending permission, the request shows *"🤝 Approving this loan needs the lending permission"* instead of the Approve button.
+
+The requester is notified (*"approved as a loan to …"*), and so are the users who manage lending.
+
+#### After approval — paying the items
+
+- The request becomes **APPROVED** and shows the **Business loan** panel:
+  - the loan number, its status and how much is still owed;
+  - the deposit at the business;
+  - each item with its payment status (*approved* / *paid*);
+  - a link to open the business's account.
+- **The items are paid from the business's account, not from the request.** **Mark Paid** and **🧾 Add Receipt** don't appear on a loan request. Open the business's expense account and use **✓ Mark as Paid** and the receipt badge on each item's payment, the same as any other approved payment.
+- **Repayments** are recorded on the loan in this account's **Lent out** tab, the same as any business loan (see the lending section).
+- A loan request is **not auto-expired** once approved, because the money has already moved.
+
+> **Insufficient cash on hand?** **Mark as Paid** at the business checks that business's cash on hand. If the loan money was handed over as cash, make sure it is counted into that business's cash first.
 
 ---
 
@@ -10701,6 +10793,8 @@ A combo request that isn't fully paid within **30 days of submission** automatic
 | **CANCELLED** | Request voided before completion. |
 | **EXPIRED** | Not paid within 30 days of submission. Any approved funds were returned to the account. Must be resubmitted. |
 
+> **Business-loan requests** stay **APPROVED** after approval. Their items are paid as separate payments at the business that received the loan (see [Business-Loan Requests](#business-loan-requests)).
+
 ---
 
 ### Permissions
@@ -10710,6 +10804,7 @@ A combo request that isn't fully paid within **30 days of submission** automatic
 | Create & edit requests | Request creator (DRAFT and SUBMITTED status); Admin |
 | Submit | Request creator; Admin |
 | Approve / Return for Edits | Cashiers with expense payment permissions; Admin |
+| Approve a **business-loan** request | Cashiers with expense payment **and** lending (Manage lending) permissions; Admin |
 | Mark items as paid | Request creator; Admin |
 | Add / submit receipts | Request creator; Admin |
 | Approve receipts (edit or delete any receipt during review) | Cashiers with expense payment permissions; Admin |
@@ -10724,9 +10819,12 @@ A combo request that isn't fully paid within **30 days of submission** automatic
 ### Troubleshooting
 
 **Submit button is greyed out:**
-- The title field must not be empty.
-- At least one item with a description is required.
+- Read the **To submit:** line under the buttons (or hover over the button) — it lists exactly what is missing.
+- Common causes: no title, an item without an amount or description, an unnamed Custom section, or (for a business loan) no target business/account or an item without a payee.
 - Save a draft first if you need to come back to it.
+
+**My submitted combo request isn't in my list:**
+- Look under 🔔 → **📤 My Requests** or Pending Actions → **🧺 My Combo Requests**. Only requests awaiting the cashier or returned to you are listed; approved, paid and cancelled requests are on the account's **Combo Requests** tab.
 
 **"Only DRAFT requests can be edited" error:**
 - The request has already been submitted. Ask the cashier to return it if changes are needed.
@@ -10734,6 +10832,16 @@ A combo request that isn't fully paid within **30 days of submission** automatic
 **Mark Paid button not visible on an item:**
 - The item was approved for $0 (Not Funded) and cannot be marked as paid.
 - The request is not in APPROVED, PARTIALLY APPROVED, or PARTIALLY PAID status.
+- It is a business-loan request: pay the item from the receiving business's expense account instead.
+
+**"This is a business loan — … has no amount / has no payee":**
+- Every item in a loan request needs an amount and a payee. Fill them in (or give the section a payee) and submit again.
+
+**"A business-loan request is approved in full":**
+- Loans can't be partially approved. Return the request for edits and ask for the items to be reduced or removed.
+
+**No business to choose when ticking "This is a business loan":**
+- Only active businesses with an active expense account are listed, and this account's own business is left out.
 
 **"Return note must be at least 10 characters" error:**
 - Cashiers must enter a meaningful explanation when returning a request so the requester knows what to fix.

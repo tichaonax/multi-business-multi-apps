@@ -670,6 +670,7 @@ model Businesses {
   manager_override_logs                                                    ManagerOverrideLog[]              @relation("BusinessOverrideLogs")
   order_cancellations                                                      OrderCancellation[]               @relation("BusinessOrderCancellations")
   combo_section_payee                                                      ComboPaymentRequestSections[]     @relation("ComboSectionPayeeBusiness")
+  combo_loan_requests                                                      ComboPaymentRequests[]            @relation("ComboLoanBusiness")
   combo_item_payee                                                         ComboPaymentRequestItems[]        @relation("ComboItemPayeeBusiness")
   leave_policies_umbrella                                                  LeavePolicies[]                   @relation("LeavePolicyUmbrella")
   leave_policies_business                                                  LeavePolicies[]                   @relation("LeavePolicyBusiness")
@@ -1709,6 +1710,7 @@ model ExpenseAccounts {
   petty_cash_transactions         PettyCashTransaction[]          @relation("PettyCashTransactionExpense")
   businessLoan                    BusinessLoan?                   @relation("LoanExpenseAccount")
   combo_requests                  ComboPaymentRequests[]          @relation("ExpenseAccountComboRequests")
+  combo_loan_requests             ComboPaymentRequests[]          @relation("ComboLoanTargetAccount")
   restaurant_expense_transactions RestaurantExpenseTransactions[]
   user_accesses                   ExpenseAccountUserAccess[]      @relation("ExpenseAccountUserAccesses")
 
@@ -1891,6 +1893,7 @@ model ExpenseAccountPayments {
   expense_payment_receipts          ExpensePaymentReceipts[]
   receipt_review                    ExpensePaymentReceiptReviews?
   combo_request                     ComboPaymentRequests?            @relation("ComboLinkedPayment")
+  combo_item_generated              ComboPaymentRequestItems?        @relation("ComboItemGeneratedPayment")
   vehicle_service_contractor_payout VehicleServiceContractorPayouts?
   vehicle_expenses                  VehicleExpenses[]                @relation("VehicleExpensePayment")
   vehicle_maintenance_records       VehicleMaintenanceRecords[]      @relation("VehicleMaintenancePayment")
@@ -2219,6 +2222,7 @@ model AccountOutgoingLoans {
   creator                Users                         @relation("OutgoingLoanCreator", fields: [createdBy], references: [id])
   repayments             AccountOutgoingLoanPayments[]
   disbursement_deposits  ExpenseAccountDeposits[]      @relation("LoanDisbursementDeposits")
+  combo_request          ComboPaymentRequests?         @relation("ComboOutgoingLoan")
 
   @@index([expenseAccountId])
   @@index([payrollAccountId])
@@ -3953,6 +3957,7 @@ model Users {
   combo_requests_created                                          ComboPaymentRequests[]            @relation("ComboRequestCreator")
   combo_requests_approved                                         ComboPaymentRequests[]            @relation("ComboRequestApprover")
   combo_requests_returned                                         ComboPaymentRequests[]            @relation("ComboRequestReturnedBy")
+  combo_request_returns                                           ComboPaymentRequestReturns[]      @relation("ComboReturnHistoryBy")
   combo_requests_settled                                          ComboPaymentRequests[]            @relation("ComboRequestSettler")
   combo_section_payee                                             ComboPaymentRequestSections[]     @relation("ComboSectionPayeeUser")
   combo_item_payee                                                ComboPaymentRequestItems[]        @relation("ComboItemPayeeUser")
@@ -8258,41 +8263,52 @@ enum ComboPaymentRequestSectionType {
 }
 
 model ComboPaymentRequests {
-  id                String                    @id @default(uuid())
-  accountId         String
-  title             String
-  status            ComboPaymentRequestStatus @default(DRAFT)
-  requestedAmount   Decimal                   @default(0) @db.Decimal(12, 2)
-  overrideAmount    Decimal?                  @db.Decimal(12, 2)
-  approvedAmount    Decimal?                  @db.Decimal(12, 2)
-  approvalNote      String?
-  notes             String?
-  createdBy         String
-  submittedAt       DateTime?
-  approvedBy        String?
-  approvedAt        DateTime?
-  paidAt            DateTime?
-  cancelledAt       DateTime?
-  expiredAt         DateTime?
-  linkedPaymentId   String?                   @unique @map("linked_payment_id")
-  returnNote        String?
-  returnedAt        DateTime?
-  returnedBy        String?
-  settleRequestedAt DateTime?                 @map("settle_requested_at")
-  settleConfirmedAt DateTime?                 @map("settle_confirmed_at")
-  settledBy         String?                   @map("settled_by")
-  settleNote        String?                   @map("settle_note")
-  createdAt         DateTime                  @default(now())
-  updatedAt         DateTime                  @default(now()) @updatedAt
+  id                   String                    @id @default(uuid())
+  accountId            String
+  title                String
+  status               ComboPaymentRequestStatus @default(DRAFT)
+  requestedAmount      Decimal                   @default(0) @db.Decimal(12, 2)
+  overrideAmount       Decimal?                  @db.Decimal(12, 2)
+  approvedAmount       Decimal?                  @db.Decimal(12, 2)
+  approvalNote         String?
+  notes                String?
+  createdBy            String
+  submittedAt          DateTime?
+  approvedBy           String?
+  approvedAt           DateTime?
+  paidAt               DateTime?
+  cancelledAt          DateTime?
+  expiredAt            DateTime?
+  linkedPaymentId      String?                   @unique @map("linked_payment_id")
+  returnNote           String?
+  returnedAt           DateTime?
+  returnedBy           String?
+  settleRequestedAt    DateTime?                 @map("settle_requested_at")
+  settleConfirmedAt    DateTime?                 @map("settle_confirmed_at")
+  settledBy            String?                   @map("settled_by")
+  settleNote           String?                   @map("settle_note")
+  // MBM-333: business-loan combo — on approval the total is lent to
+  // loanBusinessId (AccountOutgoingLoans), deposited into
+  // loanExpenseAccountId and paid out there as one payment per item
+  isBusinessLoan       Boolean                   @default(false)
+  loanBusinessId       String?
+  loanExpenseAccountId String?
+  outgoingLoanId       String?                   @unique
+  createdAt            DateTime                  @default(now())
+  updatedAt            DateTime                  @default(now()) @updatedAt
 
-  expenseAccount ExpenseAccounts               @relation("ExpenseAccountComboRequests", fields: [accountId], references: [id], onDelete: Cascade)
-  creator        Users                         @relation("ComboRequestCreator", fields: [createdBy], references: [id])
-  approver       Users?                        @relation("ComboRequestApprover", fields: [approvedBy], references: [id])
-  returnedByUser Users?                        @relation("ComboRequestReturnedBy", fields: [returnedBy], references: [id])
-  settler        Users?                        @relation("ComboRequestSettler", fields: [settledBy], references: [id])
-  linkedPayment  ExpenseAccountPayments?       @relation("ComboLinkedPayment", fields: [linkedPaymentId], references: [id])
-  sections       ComboPaymentRequestSections[]
-  items          ComboPaymentRequestItems[]
+  expenseAccount     ExpenseAccounts               @relation("ExpenseAccountComboRequests", fields: [accountId], references: [id], onDelete: Cascade)
+  creator            Users                         @relation("ComboRequestCreator", fields: [createdBy], references: [id])
+  approver           Users?                        @relation("ComboRequestApprover", fields: [approvedBy], references: [id])
+  returnedByUser     Users?                        @relation("ComboRequestReturnedBy", fields: [returnedBy], references: [id])
+  settler            Users?                        @relation("ComboRequestSettler", fields: [settledBy], references: [id])
+  linkedPayment      ExpenseAccountPayments?       @relation("ComboLinkedPayment", fields: [linkedPaymentId], references: [id])
+  loanBusiness       Businesses?                   @relation("ComboLoanBusiness", fields: [loanBusinessId], references: [id])
+  loanExpenseAccount ExpenseAccounts?              @relation("ComboLoanTargetAccount", fields: [loanExpenseAccountId], references: [id])
+  outgoingLoan       AccountOutgoingLoans?         @relation("ComboOutgoingLoan", fields: [outgoingLoanId], references: [id])
+  returns            ComboPaymentRequestReturns[]
+  sections           ComboPaymentRequestSections[]
+  items              ComboPaymentRequestItems[]
 
   @@index([accountId, status])
   @@index([createdBy])
@@ -8360,6 +8376,9 @@ model ComboPaymentRequestItems {
   // on a partial payment — the sales report uses it to avoid counting the
   // same expense twice (on purchase date and again when paid).
   restaurantExpenseLineId String?
+  // MBM-333: business-loan combo — the payment created for this item on the
+  // target business's expense account when the combo was approved
+  generatedPaymentId      String?   @unique
   sortOrder               Int       @default(0)
   createdAt               DateTime  @default(now())
   updatedAt               DateTime  @default(now()) @updatedAt
@@ -8376,10 +8395,28 @@ model ComboPaymentRequestItems {
   receipts                ExpensePaymentReceipts[]     @relation("ReceiptComboItem")
   // MBM-319: the recorded restaurant expense line this item pays, if any
   restaurant_expense_line RestaurantExpenseLines?      @relation("RestaurantExpenseLineComboItem")
+  generatedPayment        ExpenseAccountPayments?      @relation("ComboItemGeneratedPayment", fields: [generatedPaymentId], references: [id])
 
   @@index([requestId])
   @@index([sectionId])
   @@map("combo_payment_request_items")
+}
+
+// MBM-333: every time a cashier returned a combo request for changes
+model ComboPaymentRequestReturns {
+  id            String    @id @default(uuid())
+  requestId     String
+  note          String
+  returnedBy    String
+  returnedAt    DateTime  @default(now())
+  resubmittedAt DateTime?
+  createdAt     DateTime  @default(now())
+
+  request        ComboPaymentRequests @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  returnedByUser Users                @relation("ComboReturnHistoryBy", fields: [returnedBy], references: [id])
+
+  @@index([requestId])
+  @@map("combo_payment_request_returns")
 }
 
 model ExpenseAccountUserAccess {
@@ -9158,21 +9195,21 @@ model RestaurantExpenseLines {
 // MBM-331 — Farm Control camera integration. One integration per MBM server
 // (one row); the signing private key lives in a file on the server, never here.
 model FarmControlIntegrations {
-  id             String   @id @default(uuid())
-  isEnabled      Boolean  @default(false)
-  baseUrl        String   @default("") // Farm Control address, e.g. https://farm-server.tailXXXX.ts.net:8443
-  integrationId  String   @default("") // `iss` in assertions, `integration` in frame addresses
-  audience       String   @default("") // `aud` in assertions
-  keyId          String   @default("") // `kid` of the active signing key
-  publicKeyPem   String   @default("")
-  allowedOrigins String[] @default([]) // reference only: the origins registered with FarmNet
-  maxLargeViews  Int      @default(2) // Farm Control's viewers + players per user (2, or 3 if the farm raised it)
+  id              String    @id @default(uuid())
+  isEnabled       Boolean   @default(false)
+  baseUrl         String    @default("") // Farm Control address, e.g. https://farm-server.tailXXXX.ts.net:8443
+  integrationId   String    @default("") // `iss` in assertions, `integration` in frame addresses
+  audience        String    @default("") // `aud` in assertions
+  keyId           String    @default("") // `kid` of the active signing key
+  publicKeyPem    String    @default("")
+  allowedOrigins  String[]  @default([]) // reference only: the origins registered with FarmNet
+  maxLargeViews   Int       @default(2) // Farm Control's viewers + players per user (2, or 3 if the farm raised it)
   // MBM-332: the alerts poller's last run, for the admin screen
   alertsLastRunAt DateTime?
   alertsLastError String?
   alertsUsers     Int       @default(0) // people checked on the last run
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   @@map("farm_control_integrations")
 }
@@ -9198,22 +9235,22 @@ model FarmControlCameraBusinesses {
 // Link status of an MBM user to a Farm Control identity (the linking itself is
 // done by FarmNet in Farm Control).
 model FarmControlUserLinks {
-  id              String    @id @default(uuid())
-  userId          String    @unique
-  status          String    @default("NOT_REQUESTED") // NOT_REQUESTED | REQUESTED | LINKED | REFUSED
-  farmControlName String?
-  requestedAt     DateTime?
-  lastSessionAt   DateTime?
-  lastRefusedAt   DateTime?
+  id                   String    @id @default(uuid())
+  userId               String    @unique
+  status               String    @default("NOT_REQUESTED") // NOT_REQUESTED | REQUESTED | LINKED | REFUSED
+  farmControlName      String?
+  requestedAt          DateTime?
+  lastSessionAt        DateTime?
+  lastRefusedAt        DateTime?
   // Set by a camera admin on the Farm Cameras screen (never automatic, D3):
   // view / capture in every business with camera access, without per-business grants
-  viewAllBusinesses    Boolean @default(false)
-  captureAllBusinesses Boolean @default(false)
+  viewAllBusinesses    Boolean   @default(false)
+  captureAllBusinesses Boolean   @default(false)
   // MBM-332: Farm Control's own clock from the last GET /alerts (`changedSince`), and how it went
-  alertsCursor    DateTime?
-  alertsCheckedAt DateTime?
-  alertsError     String?
-  updatedAt       DateTime  @updatedAt
+  alertsCursor         DateTime?
+  alertsCheckedAt      DateTime?
+  alertsError          String?
+  updatedAt            DateTime  @updatedAt
 
   users Users @relation(fields: [userId], references: [id], onDelete: Cascade)
 

@@ -28,7 +28,9 @@ export interface PendingActionsData {
   pendingEcocashConversions: { id: string; amount: number; notes: string | null; requestedAt: string; requester: { id: string; name: string } | null; business: { id: string; name: string } | null }[]
   personalPaymentRequests: { id: string; amount: number; notes: string | null; paymentChannel: string; priority: string; accountName: string; creatorName: string | null; payeeName: string | null; categoryName: string | null }[]
   // MBM-326: submitted combo requests awaiting cashier approval
-  pendingComboRequests?: { id: string; accountId: string; title: string; amount: number; submittedAt: string | null; requesterName: string; accountName: string; businessName: string | null; isMine: boolean }[]
+  pendingComboRequests?: { id: string; accountId: string; title: string; amount: number; submittedAt: string | null; requesterName: string; accountName: string; businessName: string | null; isMine: boolean; loanBusinessName?: string | null; resubmitCount?: number }[]
+  // MBM-333: the requester's own combo requests — awaiting the cashier, or returned for changes
+  myComboRequests?: { id: string; accountId: string; title: string; amount: number; state: 'AWAITING_CASHIER' | 'RETURNED'; submittedAt: string | null; returnNote: string | null; returnedAt: string | null; loanBusinessName: string | null; accountName: string; businessName: string | null }[]
 }
 
 // Module-level promise cache — deduplicates concurrent fetches (e.g. bell + dashboard badge mounting together)

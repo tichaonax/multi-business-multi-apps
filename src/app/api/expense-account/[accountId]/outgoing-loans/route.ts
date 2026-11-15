@@ -4,12 +4,7 @@ import { getServerUser } from '@/lib/get-server-user'
 import { getEffectivePermissions } from '@/lib/permission-utils'
 import { emitNotification } from '@/lib/notifications/notification-emitter'
 import { getLendingCashierUserIds } from '@/lib/loans/lending-cashiers'
-
-function generateLoanNumber(): string {
-  const year = new Date().getFullYear()
-  const random = Math.floor(Math.random() * 900000) + 100000
-  return `OL-${year}-${random}`
-}
+import { generateLoanNumber } from '@/lib/expense-account/combo-business-loan'
 
 /**
  * GET /api/expense-account/[accountId]/outgoing-loans

@@ -41,6 +41,11 @@ export async function PATCH(
       return NextResponse.json({ error: `This request expired on ${expired.expiredAt?.toDateString()} — it was not paid within 30 days of submission and can no longer be paid.` }, { status: 400 })
     }
 
+    // MBM-333: a loan combo's items are paid as their own payments at the loan business
+    if (comboRequest.isBusinessLoan) {
+      return NextResponse.json({ error: "This request was a business loan — pay its items from the loan business's expense account, where each item has its own approved payment" }, { status: 400 })
+    }
+
     if (!['APPROVED', 'PARTIALLY_APPROVED', 'PARTIALLY_PAID'].includes(comboRequest.status)) {
       return NextResponse.json({ error: 'Items can only be marked paid on approved requests' }, { status: 400 })
     }

@@ -214,6 +214,7 @@ export default function PendingActionsPage() {
   const [pendingPettyCashReturns, setPendingPettyCashReturns] = useState<PendingPettyCashReturn[]>([])
   const [pendingEcocashConversions, setPendingEcocashConversions] = useState<PendingEcocashConversion[]>([])
   const [pendingComboRequests, setPendingComboRequests] = useState<NonNullable<PendingActionsData['pendingComboRequests']>>([]) // MBM-326
+  const [myComboRequests, setMyComboRequests] = useState<NonNullable<PendingActionsData['myComboRequests']>>([]) // MBM-333
   const [withdrawalRequests, setWithdrawalRequests] = useState<any[]>([])
   const [withdrawalActionState, setWithdrawalActionState] = useState<Record<string, boolean>>({})
   const [withdrawalDenyModal, setWithdrawalDenyModal] = useState<{ requestId: string; loanId: string; amount: number; deniedByRole: 'ADMIN' | 'CASHIER' } | null>(null)
@@ -283,6 +284,7 @@ export default function PendingActionsPage() {
         setPersonalPaymentRequests(json.personalPaymentRequests || [])
         setPendingEcocashConversions(json.pendingEcocashConversions || [])
         setPendingComboRequests(json.pendingComboRequests || [])
+        setMyComboRequests(json.myComboRequests || [])
         setPendingReturnConfirmations(json.pendingReturnConfirmations || [])
         setPendingPettyCashReturns(json.pendingPettyCashReturns || [])
       }
@@ -1065,6 +1067,51 @@ export default function PendingActionsPage() {
               </div>
             )})()}
 
+            {/* MBM-333: my combo requests — awaiting the cashier, or returned to me for changes */}
+            {(() => { const _ps = pageSearch.toLowerCase().trim(); const items = _ps ? myComboRequests.filter(i => matchesAmountSearch(i.amount, _ps) || [i.title, i.accountName, i.businessName ?? undefined, i.loanBusinessName ?? undefined, i.returnNote ?? undefined].some(v => v?.toLowerCase().includes(_ps))) : myComboRequests; return items.length > 0 && (
+              <div>
+                <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                  <span>🧺</span> My Combo Requests
+                  <span className="bg-blue-500 text-white text-xs font-bold rounded-full px-1.5 py-0.5">
+                    {items.length}
+                  </span>
+                </h2>
+                <div className="space-y-3">
+                  {items.map(item => (
+                    <div key={item.id} className={`bg-white dark:bg-gray-800 border rounded-lg p-4 flex flex-col sm:flex-row sm:items-center gap-4 ${item.state === 'RETURNED' ? 'border-amber-400 dark:border-amber-600' : 'border-blue-300 dark:border-blue-700'}`}>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-semibold text-gray-900 dark:text-white">{item.title}</span>
+                          {item.state === 'RETURNED' ? (
+                            <span className="bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 text-xs font-medium px-2 py-0.5 rounded">↩ Returned for changes</span>
+                          ) : (
+                            <span className="bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 text-xs font-medium px-2 py-0.5 rounded">Awaiting cashier</span>
+                          )}
+                          {item.loanBusinessName && (
+                            <span className="bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 text-xs font-medium px-2 py-0.5 rounded">🤝 Loan → {item.loanBusinessName}</span>
+                          )}
+                          <span className="bg-emerald-500 text-white text-xs font-bold px-2 py-0.5 rounded">${item.amount.toFixed(2)}</span>
+                        </div>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                          {item.accountName}{item.businessName ? ` (${item.businessName})` : ''}
+                          {item.state === 'AWAITING_CASHIER' && item.submittedAt && ` · submitted ${new Date(item.submittedAt).toLocaleDateString()}`}
+                        </p>
+                        {item.state === 'RETURNED' && item.returnNote && (
+                          <p className="text-sm text-amber-700 dark:text-amber-400 italic mt-1">&ldquo;{item.returnNote}&rdquo;</p>
+                        )}
+                      </div>
+                      <Link
+                        href={item.state === 'RETURNED' ? `/expense-accounts/${item.accountId}/combo-requests/${item.id}/edit` : `/expense-accounts/${item.accountId}/combo-requests/${item.id}`}
+                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded transition-colors shrink-0"
+                      >
+                        {item.state === 'RETURNED' ? 'Make changes →' : 'View'}
+                      </Link>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )})()}
+
             {/* My Pending Payment Requests — own QUEUED payments awaiting cashier batching */}
             {(() => { const _ps = pageSearch.toLowerCase().trim(); const items = _ps ? myPendingPayments.filter(i => matchesAmountSearch((i as any).totalAmount, _ps) || [i.accountName, i.business?.name].some(v => v?.toLowerCase().includes(_ps))) : myPendingPayments; return items.length > 0 && (
               <div>
@@ -1227,11 +1274,17 @@ export default function PendingActionsPage() {
                   {items.map(item => {
                     const daysLeft = item.submittedAt ? Math.max(0, Math.ceil((new Date(item.submittedAt).getTime() + 30 * 86400000 - Date.now()) / 86400000)) : null
                     return (
-                    <div key={item.id} className="bg-white dark:bg-gray-800 border border-orange-300 dark:border-orange-700 rounded-lg p-4 flex flex-col sm:flex-row sm:items-center gap-4">
+                    <div key={item.id} className={`rounded-lg p-4 flex flex-col sm:flex-row sm:items-center gap-4 border ${item.resubmitCount ? 'bg-purple-50 dark:bg-purple-900/20 border-purple-400 dark:border-purple-600' : 'bg-white dark:bg-gray-800 border-orange-300 dark:border-orange-700'}`}>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
+                          {item.loanBusinessName && <span className="bg-emerald-500 text-white text-xs font-bold px-2 py-0.5 rounded">${item.amount.toFixed(2)}</span>}
                           <span className="font-semibold text-gray-900 dark:text-white">{item.title}</span>
-                          <span className="bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300 text-xs font-medium px-2 py-0.5 rounded">Submitted</span>
+                          {item.resubmitCount ? (
+                            <span className="bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300 text-xs font-medium px-2 py-0.5 rounded">🔁 Resubmitted {item.resubmitCount}×</span>
+                          ) : (
+                            <span className="bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300 text-xs font-medium px-2 py-0.5 rounded">Submitted</span>
+                          )}
+                          {item.loanBusinessName && <span className="bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 text-xs font-medium px-2 py-0.5 rounded">🤝 Loan → {item.loanBusinessName}</span>}
                           {item.isMine && <span className="bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 text-xs font-medium px-2 py-0.5 rounded">Your request</span>}
                         </div>
                         <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">

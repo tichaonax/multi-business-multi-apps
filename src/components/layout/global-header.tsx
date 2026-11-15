@@ -991,6 +991,7 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                             const myApprovedPayments = ((pendingActions as any).myApprovedPayments ?? []).filter((r: any) => !bellSearch || matchesAmountSearch(r.amount, bellSearch) || [r.businessName, r.categoryName, r.payeeName, r.notes].some((v: string | undefined) => v?.toLowerCase().includes(bellSearch.toLowerCase())))
                             const myApprovedPettyCash = ((pendingActions as any).myApprovedPettyCash ?? []).filter((r: any) => !bellSearch || matchesAmountSearch(r.approvedAmount, bellSearch) || [r.business?.name, r.purpose].some((v: string | undefined) => v?.toLowerCase().includes(bellSearch.toLowerCase())))
                             const returnConfirmations = ((pendingActions as any).pendingReturnConfirmations ?? []).filter((r: any) => !bellSearch || matchesAmountSearch(r.returnRequestedAmount, bellSearch) || [r.requesterName, r.accountName, r.businessName, r.notes, r.returnNote].some((v: string | undefined) => v?.toLowerCase().includes(bellSearch.toLowerCase())))
+                            const myComboRequests = (pendingActions.myComboRequests ?? []).filter((c) => !bellSearch || matchesAmountSearch(c.amount, bellSearch) || [c.title, c.accountName, c.businessName ?? undefined, c.loanBusinessName ?? undefined].some((v: string | undefined) => v?.toLowerCase().includes(bellSearch.toLowerCase())))
                             const comboRequests = (pendingActions.pendingComboRequests ?? []).filter((c) => !bellSearch || matchesAmountSearch(c.amount, bellSearch) || [c.title, c.requesterName, c.accountName, c.businessName ?? undefined].some((v: string | undefined) => v?.toLowerCase().includes(bellSearch.toLowerCase())))
                             const pettyCashReturns = ((pendingActions as any).pendingPettyCashReturns ?? []).filter((r: any) => !bellSearch || matchesAmountSearch(r.remainingBalance, bellSearch) || [r.requesterName, r.purpose, r.businessName].some((v: string | undefined) => v?.toLowerCase().includes(bellSearch.toLowerCase())))
 
@@ -1189,13 +1190,17 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                                 {isPendingExpanded('combo') && (
                                   <div className="divide-y divide-border">
                                     {comboRequests.map((c) => (
-                                      <Link key={c.id} href={`/expense-accounts/${c.accountId}/combo-requests/${c.id}`} onClick={() => setShowBellPreview(false)} className="flex items-start gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 text-xs">
-                                        <span className="mt-0.5 shrink-0">🧺</span>
+                                      <Link key={c.id} href={`/expense-accounts/${c.accountId}/combo-requests/${c.id}`} onClick={() => setShowBellPreview(false)} className={`flex items-start gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 text-xs ${c.resubmitCount ? 'bg-purple-50/70 dark:bg-purple-900/20 border-l-2 border-purple-500' : ''}`}>
+                                        <span className="mt-0.5 shrink-0">{c.resubmitCount ? '🔁' : '🧺'}</span>
                                         <div className="min-w-0">
-                                          <p className="font-medium text-primary truncate">{c.title}</p>
+                                          <p className="font-medium text-primary truncate">
+                                            {c.loanBusinessName && <span className="text-orange-500 dark:text-orange-400 font-semibold">${c.amount.toFixed(2)} · 🤝 </span>}
+                                            {c.title}
+                                          </p>
+                                          {!!c.resubmitCount && <p className="text-purple-700 dark:text-purple-300 font-medium">Resubmitted {c.resubmitCount}×</p>}
                                           <p className="text-secondary truncate">
-                                            {c.isMine ? 'Your request' : c.requesterName} · {c.businessName ?? c.accountName}
-                                            {' · '}<span className="text-orange-500 dark:text-orange-400 font-semibold">${c.amount.toFixed(2)}</span>
+                                            {c.isMine ? 'Your request' : c.requesterName} · {c.loanBusinessName ? `loan to ${c.loanBusinessName}` : (c.businessName ?? c.accountName)}
+                                            {!c.loanBusinessName && <>{' · '}<span className="text-orange-500 dark:text-orange-400 font-semibold">${c.amount.toFixed(2)}</span></>}
                                           </p>
                                         </div>
                                       </Link>
@@ -1263,9 +1268,26 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                                   </div>
                                 )}
 
-                                {renderPendingHeader('myrequests', '📤', 'My Requests', myPendingPayments.length)}
+                                {renderPendingHeader('myrequests', '📤', 'My Requests', myPendingPayments.length + myComboRequests.length)}
                                 {isPendingExpanded('myrequests') && (
                                   <div className="divide-y divide-border">
+                                    {/* MBM-333: my combo requests in progress */}
+                                    {myComboRequests.map((c) => (
+                                      <Link key={c.id} href={c.state === 'RETURNED' ? `/expense-accounts/${c.accountId}/combo-requests/${c.id}/edit` : `/expense-accounts/${c.accountId}/combo-requests/${c.id}`} onClick={() => setShowBellPreview(false)} className={`flex items-start gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 text-xs ${c.state === 'RETURNED' ? 'border-l-2 border-amber-400' : ''}`}>
+                                        <span className="mt-0.5 shrink-0">{c.state === 'RETURNED' ? '↩️' : '🧺'}</span>
+                                        <div className="min-w-0">
+                                          <p className="font-medium text-primary truncate">Combo — {c.title}</p>
+                                          <p className="text-secondary truncate">
+                                            {c.state === 'RETURNED'
+                                              ? <span className="text-amber-600 dark:text-amber-400 font-medium">returned for changes</span>
+                                              : <span className="text-amber-500 dark:text-amber-400 font-medium">awaiting cashier</span>}
+                                            {c.loanBusinessName ? <span> · 🤝 loan → {c.loanBusinessName}</span> : <span> · {c.businessName ?? c.accountName}</span>}
+                                            {' · '}<span className="text-orange-500 dark:text-orange-400 font-semibold">${c.amount.toFixed(2)}</span>
+                                          </p>
+                                          {c.state === 'RETURNED' && c.returnNote && <p className="text-secondary italic truncate">&ldquo;{c.returnNote}&rdquo;</p>}
+                                        </div>
+                                      </Link>
+                                    ))}
                                     {myPendingPayments.map((r: any) => (
                                       <Link key={r.id} href={`/expense-accounts/${r.id}`} onClick={() => setShowBellPreview(false)} className="flex items-start gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 text-xs">
                                         <span className="mt-0.5 shrink-0">📤</span>
@@ -1509,15 +1531,17 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                                 className={`flex items-start gap-2 px-3 py-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 text-xs border-b border-border ${
                                   isUrgent
                                     ? 'bg-red-50/60 dark:bg-red-900/15 border-l-2 border-red-400'
+                                    // MBM-333: a resubmission after a return stands out
+                                    : n.type === 'COMBO_REQUEST_RESUBMITTED' ? 'bg-purple-50/70 dark:bg-purple-900/20 border-l-2 border-purple-500'
                                     : !n.isRead ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''
                                 }`}
                                 onClick={() => { markRead(n.id); setShowNotifPanel(false); if (n.linkUrl) window.location.href = n.linkUrl }}
                               >
                                 <span className="mt-0.5 shrink-0 text-base">
-                                  {isUrgent ? '🚨' : n.type === 'PAYMENT_APPROVED' ? '✅' : n.type === 'PAYMENT_REJECTED' ? '↩️' : n.type === 'PAYMENT_SUBMITTED' ? '📋' : n.type === 'PAYMENT_PAID' ? '💰' : n.type === 'PETTY_CASH_SUBMITTED' ? '💸' : n.type === 'PETTY_CASH_APPROVED' ? '🪙' : n.type === 'PETTY_CASH_REJECTED' ? '❌' : n.type === 'CHAT_MESSAGE' ? '💬' : n.type === 'LOW_STOCK' ? '📦' : n.type === 'COMBO_REQUEST_SUBMITTED' ? '📋' : n.type === 'COMBO_REQUEST_APPROVED' ? '✅' : n.type === 'COMBO_REQUEST_PARTIALLY_APPROVED' ? '⚠️' : n.type === 'COMBO_REQUEST_CANCELLED' ? '❌' : n.type === 'COMBO_REQUEST_PAID' ? '💯' : n.type === 'JOB_BILLED_AWAITING_PAYMENT' ? '🧾' : n.type === 'JOB_START_ESCALATION' ? '⏰' : '🔔'}
+                                  {isUrgent ? '🚨' : n.type === 'PAYMENT_APPROVED' ? '✅' : n.type === 'PAYMENT_REJECTED' ? '↩️' : n.type === 'PAYMENT_SUBMITTED' ? '📋' : n.type === 'PAYMENT_PAID' ? '💰' : n.type === 'PETTY_CASH_SUBMITTED' ? '💸' : n.type === 'PETTY_CASH_APPROVED' ? '🪙' : n.type === 'PETTY_CASH_REJECTED' ? '❌' : n.type === 'CHAT_MESSAGE' ? '💬' : n.type === 'LOW_STOCK' ? '📦' : n.type === 'COMBO_REQUEST_SUBMITTED' ? '📋' : n.type === 'COMBO_REQUEST_RESUBMITTED' ? '🔁' : n.type === 'COMBO_REQUEST_APPROVED' ? '✅' : n.type === 'COMBO_REQUEST_PARTIALLY_APPROVED' ? '⚠️' : n.type === 'COMBO_REQUEST_CANCELLED' ? '❌' : n.type === 'COMBO_REQUEST_PAID' ? '💯' : n.type === 'JOB_BILLED_AWAITING_PAYMENT' ? '🧾' : n.type === 'JOB_START_ESCALATION' ? '⏰' : '🔔'}
                                 </span>
                                 <div className="min-w-0 flex-1">
-                                  <p className={`font-medium truncate ${isUrgent ? 'text-red-700 dark:text-red-300' : !n.isRead ? 'text-blue-700 dark:text-blue-300' : 'text-primary'}`}>{n.title}</p>
+                                  <p className={`font-medium truncate ${isUrgent ? 'text-red-700 dark:text-red-300' : n.type === 'COMBO_REQUEST_RESUBMITTED' ? 'text-purple-700 dark:text-purple-300' : !n.isRead ? 'text-blue-700 dark:text-blue-300' : 'text-primary'}`}>{n.title}</p>
                                   <p className="text-secondary line-clamp-2">{n.message}</p>
                                   {showBadges && (
                                     <div className="flex items-center gap-1 mt-1 flex-wrap">
@@ -1807,7 +1831,7 @@ const NOTIF_SEGMENTS: { key: string; label: string; icon: string; types: string[
   { key: 'payments', label: 'Payments', icon: '💰', types: ['PAYMENT_SUBMITTED', 'PAYMENT_APPROVED', 'PAYMENT_REJECTED', 'PAYMENT_PAID', 'BATCH_READY', 'PAYMENTS_REVERSED_TO_PETTY_CASH', 'PAYMENT_RETURN_REQUESTED', 'PAYMENT_RETURN_CONFIRMED'] },
   { key: 'withdrawals', label: 'Withdrawals', icon: '🏦', types: ['WITHDRAWAL_SUBMITTED', 'WITHDRAWAL_ADMIN_APPROVED', 'WITHDRAWAL_DENIED_LENDER', 'WITHDRAWAL_DENIED_ADMIN', 'WITHDRAWAL_PAID', 'WITHDRAWAL_CASHIER_ALERT'] },
   { key: 'pettycash', label: 'Petty Cash', icon: '💸', types: ['PETTY_CASH_SUBMITTED', 'PETTY_CASH_APPROVED', 'PETTY_CASH_REJECTED', 'PETTY_CASH_SETTLE_REQUESTED', 'CASH_ALLOC_RECONCILED'] },
-  { key: 'combo', label: 'Combo Requests', icon: '📋', types: ['COMBO_REQUEST_SUBMITTED', 'COMBO_REQUEST_APPROVED', 'COMBO_REQUEST_PARTIALLY_APPROVED', 'COMBO_REQUEST_CANCELLED', 'COMBO_REQUEST_PAID', 'COMBO_REQUEST_RETURNED', 'COMBO_REQUEST_SETTLE_REQUESTED', 'COMBO_REQUEST_SETTLED', 'COMBO_REQUEST_EXPIRING', 'COMBO_REQUEST_EXPIRED'] },
+  { key: 'combo', label: 'Combo Requests', icon: '📋', types: ['COMBO_REQUEST_SUBMITTED', 'COMBO_REQUEST_RESUBMITTED', 'COMBO_REQUEST_APPROVED', 'COMBO_REQUEST_PARTIALLY_APPROVED', 'COMBO_REQUEST_CANCELLED', 'COMBO_REQUEST_PAID', 'COMBO_REQUEST_RETURNED', 'COMBO_REQUEST_SETTLE_REQUESTED', 'COMBO_REQUEST_SETTLED', 'COMBO_REQUEST_EXPIRING', 'COMBO_REQUEST_EXPIRED'] },
   { key: 'receipts', label: 'Receipts', icon: '🧾', types: ['RECEIPT_REMINDER', 'RECEIPT_ESCALATION'] },
   { key: 'restaurant-expenses', label: 'Restaurant Expenses', icon: '🍽️', types: ['RESTAURANT_EXPENSES_PENDING'] },
   { key: 'jobs', label: 'Jobs', icon: '🛠️', types: ['JOB_BILLED_AWAITING_PAYMENT', 'JOB_START_ESCALATION'] },

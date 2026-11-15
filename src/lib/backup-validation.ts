@@ -337,6 +337,7 @@ const SKIP_BUSINESS_SCOPING = new Set([
   'comboPaymentRequests',        // accountId FK, no businessId
   'comboPaymentRequestSections', // requestId child, no businessId
   'comboPaymentRequestItems',    // requestId child, no businessId
+  'comboPaymentRequestReturns',  // MBM-333: requestId child, no businessId
   'restaurantExpenseLines',      // MBM-319: transactionId child, no businessId
   // Vehicle renewal workflow tables — scoped by vehicleId, not businessId
   'vehicleRenewalReceipts',      // vehicleId FK, no businessId column

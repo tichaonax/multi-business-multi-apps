@@ -29,6 +29,7 @@ export type NotificationType =
   | 'INVENTORY_ZERO_OUT'
   | 'LOW_STOCK'
   | 'COMBO_REQUEST_SUBMITTED'
+  | 'COMBO_REQUEST_RESUBMITTED' // MBM-333: submitted again after a return for changes
   | 'COMBO_REQUEST_APPROVED'
   | 'COMBO_REQUEST_PARTIALLY_APPROVED'
   | 'COMBO_REQUEST_CANCELLED'

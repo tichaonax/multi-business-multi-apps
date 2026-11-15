@@ -11,6 +11,7 @@ import { ComboVoucherModal } from './combo-voucher-modal'
 import { ViewReceiptsModal } from './view-receipts-modal'
 import { ComboItemPaidTo, type ComboItemReceiptPayment } from './combo-item-paid-to'
 import { payeeHistoryHref } from '@/lib/expense-account/payee-history-link'
+import { ReturnHistory, type ReturnEntry } from './combo-request-return-history'
 
 interface PayeeRef { type: string; id: string; name: string }
 
@@ -60,6 +61,7 @@ interface ComboItem {
   payeeBusiness?: { id: string; name: string } | null
   payeeSupplier?: { id: string; name: string } | null
   receiptPayments?: ComboItemReceiptPayment[] // MBM-330
+  generatedPayment?: { id: string; status: string; amount: number; paidAt: string | null; expenseAccountId: string } | null // MBM-333
 }
 
 interface ComboSection {
@@ -93,6 +95,16 @@ interface ComboRequest {
   returnedByUser: { id: string; name: string } | null
   returnNote: string | null
   returnedAt: string | null
+  returns: ReturnEntry[] // MBM-333
+  // MBM-333: business-loan combo
+  isBusinessLoan: boolean
+  loanBusiness: { id: string; name: string } | null
+  loanExpenseAccount: { id: string; accountName: string; accountNumber: string } | null
+  outgoingLoan: {
+    id: string; loanNumber: string; status: string; principalAmount: number; remainingBalance: number
+    disbursement_deposits: Array<{ id: string; amount: number; depositDate: string; expenseAccountId: string }>
+  } | null
+  canApproveLoan: boolean
   sections: ComboSection[]
   // Server-computed action permissions
   canApprove: boolean
@@ -200,6 +212,19 @@ export function ComboRequestDetail({ accountId, requestId }: ComboRequestDetailP
           returnNote: req.returnNote ?? null,
           returnedAt: req.returnedAt ?? null,
           returnedByUser: req.returnedByUser ?? null,
+          returns: req.returns ?? [],
+          isBusinessLoan: !!req.isBusinessLoan,
+          loanBusiness: req.loanBusiness ?? null,
+          loanExpenseAccount: req.loanExpenseAccount ?? null,
+          outgoingLoan: req.outgoingLoan
+            ? {
+                ...req.outgoingLoan,
+                principalAmount: Number(req.outgoingLoan.principalAmount),
+                remainingBalance: Number(req.outgoingLoan.remainingBalance),
+                disbursement_deposits: (req.outgoingLoan.disbursement_deposits ?? []).map((d: any) => ({ ...d, amount: Number(d.amount) })),
+              }
+            : null,
+          canApproveLoan: req.canApproveLoan ?? true,
           settleRequestedAt: req.settleRequestedAt ?? null,
           settleConfirmedAt: req.settleConfirmedAt ?? null,
           settler: req.settler ?? null,
@@ -441,7 +466,8 @@ export function ComboRequestDetail({ accountId, requestId }: ComboRequestDetailP
   const canSubmit = isCreator && request.status === 'DRAFT'
   const canApprove = request.canApprove
   const canCancel = isCreator && ['DRAFT', 'SUBMITTED'].includes(request.status)
-  const canMarkPaid = isCreator && ['APPROVED', 'PARTIALLY_APPROVED', 'PARTIALLY_PAID'].includes(request.status)
+  // MBM-333: a loan combo's items are paid as their own payments at the loan business
+  const canMarkPaid = isCreator && !request.isBusinessLoan && ['APPROVED', 'PARTIALLY_APPROVED', 'PARTIALLY_PAID'].includes(request.status)
   const canReturn = request.canReturn
   const canRequestSettle = request.canRequestSettle
   const canConfirmSettle = request.canConfirmSettle
@@ -482,8 +508,10 @@ export function ComboRequestDetail({ accountId, requestId }: ComboRequestDetailP
 
       {/* Header card */}
       <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-6 space-y-4">
-        {/* Return note banner — shown to requester when their draft was returned */}
-        {request.returnNote && request.status === 'DRAFT' && (
+        {/* MBM-333: every return for changes, kept after resubmitting */}
+        {request.returns.length > 0 ? (
+          <ReturnHistory returns={request.returns} />
+        ) : request.returnNote && request.status === 'DRAFT' && (
           <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg px-4 py-3 text-sm">
             <p className="font-medium text-yellow-800 dark:text-yellow-300">
               ↩ Returned for edits{request.returnedByUser ? ` by ${request.returnedByUser.name}` : ''}
@@ -491,6 +519,9 @@ export function ComboRequestDetail({ accountId, requestId }: ComboRequestDetailP
             <p className="mt-1 text-yellow-700 dark:text-yellow-400 italic">&ldquo;{request.returnNote}&rdquo;</p>
           </div>
         )}
+
+        {/* MBM-333: business loan */}
+        {request.isBusinessLoan && <BusinessLoanPanel request={request} />}
 
         {/* Expired banner */}
         {request.status === 'EXPIRED' && (
@@ -630,7 +661,12 @@ export function ComboRequestDetail({ accountId, requestId }: ComboRequestDetailP
               {!dataReady ? 'Loading...' : 'Submit Request'}
             </button>
           )}
-          {canApprove && (
+          {canApprove && !request.canApproveLoan && (
+            <span className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400" title="Business loans also need the lending permission">
+              🤝 Approving this loan needs the lending permission
+            </span>
+          )}
+          {canApprove && request.canApproveLoan && (
             <button
               onClick={() => setShowApproveModal(true)}
               className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors"
@@ -1027,6 +1063,8 @@ export function ComboRequestDetail({ accountId, requestId }: ComboRequestDetailP
           overrideAmount={request.overrideAmount}
           sections={request.sections}
           availableBalance={availableBalance}
+          loanBusinessName={request.isBusinessLoan ? (request.loanBusiness?.name ?? 'the business') : undefined}
+          loanAccountName={request.loanExpenseAccount?.accountName ?? null}
         />
       )}
 
@@ -1153,6 +1191,67 @@ export function ComboRequestDetail({ accountId, requestId }: ComboRequestDetailP
           onClose={() => setShowReceipts(false)}
           onReceiptsChanged={loadRequest}
         />
+      )}
+    </div>
+  )
+}
+
+// MBM-333: business-loan combo — where the money goes, and (once approved)
+// the loan, the deposit and each item's payment at the loan business
+function BusinessLoanPanel({ request }: { request: ComboRequest }) {
+  const business = request.loanBusiness?.name ?? 'the business'
+  const account = request.loanExpenseAccount
+  const loan = request.outgoingLoan
+  const items = request.sections.flatMap(s => s.items)
+  const deposit = loan?.disbursement_deposits[0]
+  const paid = items.filter(i => i.generatedPayment?.status === 'PAID').length
+
+  return (
+    <div className="bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded-lg px-4 py-3 text-sm space-y-2">
+      <p className="font-medium text-indigo-900 dark:text-indigo-200">
+        🤝 Business loan to {business}
+        {account && <span className="font-normal text-indigo-700 dark:text-indigo-300"> · into {account.accountName} ({account.accountNumber})</span>}
+      </p>
+      {!loan ? (
+        <p className="text-xs text-indigo-800 dark:text-indigo-300">
+          When approved, the full total is lent to {business}, deposited into {account?.accountName ?? 'its expense account'}, and set up
+          there as one approved payment per item. {business} then owes it back to this account.
+        </p>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+            <div className="bg-white dark:bg-gray-800 rounded-md px-3 py-2">
+              <div className="text-gray-500 dark:text-gray-400">Loan</div>
+              <div className="font-semibold text-gray-900 dark:text-gray-100">{loan.loanNumber} · {loan.status.replace(/_/g, ' ').toLowerCase()}</div>
+              <div className="text-gray-600 dark:text-gray-300">{fmt(loan.remainingBalance)} of {fmt(loan.principalAmount)} still owed</div>
+            </div>
+            <div className="bg-white dark:bg-gray-800 rounded-md px-3 py-2">
+              <div className="text-gray-500 dark:text-gray-400">Deposited at {business}</div>
+              <div className="font-semibold text-gray-900 dark:text-gray-100">{deposit ? fmt(deposit.amount) : '—'}</div>
+              <div className="text-gray-600 dark:text-gray-300">{deposit ? fmtDate(deposit.depositDate) : ''}</div>
+            </div>
+            <div className="bg-white dark:bg-gray-800 rounded-md px-3 py-2">
+              <div className="text-gray-500 dark:text-gray-400">Item payments</div>
+              <div className="font-semibold text-gray-900 dark:text-gray-100">{paid} of {items.length} paid</div>
+              {account && (
+                <a href={`/expense-accounts/${account.id}`} className="text-indigo-700 dark:text-indigo-300 hover:underline">Open {account.accountName} →</a>
+              )}
+            </div>
+          </div>
+          <ul className="text-xs divide-y divide-indigo-100 dark:divide-indigo-800">
+            {items.map(i => (
+              <li key={i.id} className="flex items-center justify-between gap-2 py-1">
+                <span className="text-gray-800 dark:text-gray-200 truncate">{i.description}</span>
+                <span className="shrink-0 text-gray-600 dark:text-gray-300">
+                  {i.generatedPayment ? `${fmt(Number(i.generatedPayment.amount))} · ${i.generatedPayment.status.toLowerCase()}` : '—'}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="text-xs text-indigo-800 dark:text-indigo-300">
+            Pay these items and add their receipts from {account?.accountName ?? `${business}'s account`}. Repayments are recorded on the loan, under this account&apos;s Lent out tab.
+          </p>
+        </>
       )}
     </div>
   )

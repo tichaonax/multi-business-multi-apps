@@ -18,6 +18,8 @@ export async function GET(request: NextRequest) {
 
     const q = request.nextUrl.searchParams.get('q')?.trim() ?? ''
     const filterDomainId = request.nextUrl.searchParams.get('domainId')?.trim() || null
+    // MBM-333: callers with a "Load more" list ask for more than the default 5
+    const limit = Math.min(Math.max(Number(request.nextUrl.searchParams.get('limit')) || 5, 1), 50)
 
     if (q.length < 2) {
       return NextResponse.json({ suggestions: [] })
@@ -180,7 +182,7 @@ export async function GET(request: NextRequest) {
       if (seen.has(key)) return false
       seen.add(key)
       return true
-    }).slice(0, 5)
+    }).slice(0, limit)
 
     return NextResponse.json({ suggestions: top })
   } catch (error) {

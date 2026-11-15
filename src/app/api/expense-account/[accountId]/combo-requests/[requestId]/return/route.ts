@@ -38,15 +38,22 @@ export async function POST(
       return NextResponse.json({ error: 'Return note must be at least 10 characters' }, { status: 400 })
     }
 
-    const updated = await prisma.comboPaymentRequests.update({
-      where: { id: requestId },
-      data: {
-        status: 'DRAFT',
-        returnNote: note,
-        returnedAt: new Date(),
-        returnedBy: user.id,
-      },
-    })
+    const now = new Date()
+    const [updated] = await prisma.$transaction([
+      prisma.comboPaymentRequests.update({
+        where: { id: requestId },
+        data: {
+          status: 'DRAFT',
+          returnNote: note,
+          returnedAt: now,
+          returnedBy: user.id,
+        },
+      }),
+      // MBM-333: keep every return, not just the latest
+      prisma.comboPaymentRequestReturns.create({
+        data: { requestId, note, returnedBy: user.id, returnedAt: now },
+      }),
+    ])
 
     // Notify requester (non-blocking)
     try {

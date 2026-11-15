@@ -6,6 +6,7 @@ import { canUserViewAccount } from '@/lib/expense-account-access'
 import { validateExpenseLinks, linkExpenseLineTx, releaseExpenseLinesTx, ExpenseLinkError } from '@/lib/restaurant-expense-combo'
 import { refreshRestaurantExpenseNoticeForAccount } from '@/lib/restaurant-expense-notify'
 import { comboItemReceiptedAmount, comboItemTargetAmount, isComboItemAccountedFor } from '@/lib/expense-account/combo-item-reconciliation'
+import { readComboLoanFields } from '@/lib/expense-account/combo-business-loan'
 
 async function getComboRequest(requestId: string, accountId: string) {
   return prisma.comboPaymentRequests.findFirst({
@@ -16,6 +17,16 @@ async function getComboRequest(requestId: string, accountId: string) {
       returnedByUser: { select: { id: true, name: true } },
       settler:        { select: { id: true, name: true } },
       linkedPayment:  { select: { id: true, status: true, amount: true } },
+      // MBM-333: return history + business-loan links
+      returns: { orderBy: { returnedAt: 'asc' }, include: { returnedByUser: { select: { id: true, name: true } } } },
+      loanBusiness: { select: { id: true, name: true } },
+      loanExpenseAccount: { select: { id: true, accountName: true, accountNumber: true } },
+      outgoingLoan: {
+        select: {
+          id: true, loanNumber: true, status: true, principalAmount: true, remainingBalance: true,
+          disbursement_deposits: { select: { id: true, amount: true, depositDate: true, expenseAccountId: true } },
+        },
+      },
       sections: {
         orderBy: { sortOrder: 'asc' },
         include: {
@@ -49,6 +60,8 @@ async function getComboRequest(requestId: string, accountId: string) {
               },
               // MBM-319: recorded restaurant expense this item pays (locked in the edit form)
               restaurant_expense_line: { select: { id: true, transaction: { select: { reference: true, purchasedAt: true } } } },
+              // MBM-333: the payment made for this item at the loan business
+              generatedPayment: { select: { id: true, status: true, amount: true, paidAt: true, expenseAccountId: true } },
             },
           },
         },
@@ -89,6 +102,8 @@ export async function GET(
     // Compute action permissions server-side (client session doesn't carry full permissions)
     const isCashier = permissions.canMakeExpensePayments || user.role === 'admin'
     const canApprove = isCashier && comboRequest.status === 'SUBMITTED'
+    // MBM-333: a business-loan request also needs the lending permission
+    const canApproveLoan = !comboRequest.isBusinessLoan || permissions.canManageLending || user.role === 'admin'
     const canReturn = isCashier && comboRequest.status === 'SUBMITTED' && comboRequest.createdBy !== user.id
 
     // Settle workflow permissions
@@ -141,7 +156,7 @@ export async function GET(
       data: {
         ...comboRequest,
         sections: sectionsWithReconciliation,
-        canApprove, canReturn, canRequestSettle, canConfirmSettle, remainingBalance, canEditRequest,
+        canApprove, canApproveLoan, canReturn, canRequestSettle, canConfirmSettle, remainingBalance, canEditRequest,
       },
     })
   } catch (error) {
@@ -173,6 +188,10 @@ export async function PATCH(
 
     const body = await request.json()
     const { title, notes, sections } = body
+
+    // MBM-333: business-loan fields (target business + receiving account)
+    const loan = await readComboLoanFields(accountId, body)
+    if (loan.error) return NextResponse.json({ error: loan.error }, { status: 400 })
 
     // Recalculate requestedAmount from updated items
     let requestedAmount: number = Number(existing.requestedAmount)
@@ -246,6 +265,8 @@ export async function PATCH(
         data: {
           ...(title !== undefined ? { title: title.trim() } : {}),
           ...(notes !== undefined ? { notes: notes?.trim() || null } : {}),
+          ...(loan.fields ?? {}),
+          ...(loan.fields?.isBusinessLoan ? { overrideAmount: null } : {}),
           requestedAmount,
         },
         include: {

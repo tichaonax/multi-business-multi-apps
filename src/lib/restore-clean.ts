@@ -205,6 +205,7 @@ export const RESTORE_ORDER = [
   'comboPaymentRequests',       // depends on expenseAccounts + users + expenseAccountPayments (MBM-197)
   'comboPaymentRequestSections', // depends on comboPaymentRequests + persons + users + employees + businesses + businessSuppliers
   'comboPaymentRequestItems',   // depends on comboPaymentRequests + comboPaymentRequestSections + expenseCategories + expenseSubcategories
+  'comboPaymentRequestReturns', // MBM-333: depends on comboPaymentRequests + users
   'restaurantExpenseItems',     // MBM-319: depends on businesses + expenseCategories + expenseSubcategories + users (@@unique businessId+nameKey)
   'restaurantExpenseTransactions', // MBM-319: depends on businesses + expenseAccounts + users (@unique reference)
   'restaurantExpenseLines',     // MBM-319: depends on restaurantExpenseTransactions + restaurantExpenseItems + comboPaymentRequestItems
@@ -493,7 +494,8 @@ const SELF_REFERENTIAL_TABLES: Record<string, string[]> = {
   'vehicleServiceJobs': ['reworkOfJobId'],  // References vehicleServiceJobs.id (MBM-262)
   'images': ['thumbnailImageId'],  // References images.id — a full-size image's thumbnail is itself another Images row (MBM-297 Phase C)
   'chatMessages': ['parentId'],  // A thread reply references its own parent chatMessages row (MBM-210/301)
-  'vehicleLicenses': ['supersedesLicenseId']  // A renewal references the exact license row it replaces (MBM-306)
+  'vehicleLicenses': ['supersedesLicenseId'],  // A renewal references the exact license row it replaces (MBM-306)
+  'comboPaymentRequests': ['outgoingLoanId']  // MBM-333: the loan (accountOutgoingLoans) is restored later in RESTORE_ORDER
 }
 
 /**

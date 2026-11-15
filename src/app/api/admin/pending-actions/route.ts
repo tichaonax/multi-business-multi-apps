@@ -461,6 +461,8 @@ export async function GET() {
           },
           select: {
             id: true, accountId: true, title: true, requestedAmount: true, overrideAmount: true, submittedAt: true, createdBy: true,
+            isBusinessLoan: true, loanBusiness: { select: { name: true } }, // MBM-333
+            _count: { select: { returns: { where: { resubmittedAt: { not: null } } } } }, // MBM-333: times resubmitted
             creator: { select: { name: true } },
             expenseAccount: { select: { accountName: true, business: { select: { name: true } } } },
           },
@@ -477,9 +479,44 @@ export async function GET() {
           accountName: r.expenseAccount?.accountName ?? '—',
           businessName: r.expenseAccount?.business?.name ?? null,
           isMine: r.createdBy === user.id,
+          loanBusinessName: r.isBusinessLoan ? r.loanBusiness?.name ?? null : null,
+          resubmitCount: r._count.returns,
         }))
       }
     }
+
+    // MBM-333: the requester's own combo requests that are still in progress —
+    // waiting for the cashier, or returned to them for changes
+    const myComboRows = await prisma.comboPaymentRequests.findMany({
+      where: {
+        createdBy: user.id,
+        OR: [
+          { status: 'SUBMITTED' },
+          { status: 'DRAFT', returns: { some: { resubmittedAt: null } } },
+        ],
+      },
+      select: {
+        id: true, accountId: true, title: true, status: true, requestedAmount: true, overrideAmount: true,
+        submittedAt: true, returnNote: true, returnedAt: true, isBusinessLoan: true,
+        loanBusiness: { select: { name: true } },
+        expenseAccount: { select: { accountName: true, business: { select: { name: true } } } },
+      },
+      orderBy: { updatedAt: 'desc' },
+      take: 50,
+    })
+    const myComboRequests = myComboRows.map(r => ({
+      id: r.id,
+      accountId: r.accountId,
+      title: r.title,
+      amount: Number(r.overrideAmount ?? r.requestedAmount),
+      state: r.status === 'SUBMITTED' ? 'AWAITING_CASHIER' as const : 'RETURNED' as const,
+      submittedAt: r.submittedAt?.toISOString() ?? null,
+      returnNote: r.status === 'DRAFT' ? r.returnNote : null,
+      returnedAt: r.status === 'DRAFT' ? r.returnedAt?.toISOString() ?? null : null,
+      loanBusinessName: r.isBusinessLoan ? r.loanBusiness?.name ?? null : null,
+      accountName: r.expenseAccount?.accountName ?? '—',
+      businessName: r.expenseAccount?.business?.name ?? null,
+    }))
 
     // Pending bulk stock (stock-take) drafts — drafts started by the current user that are still DRAFT
     const stockTakeDraftRows = await prisma.stockTakeDrafts.findMany({
@@ -691,7 +728,9 @@ export async function GET() {
       pendingStockTakeDrafts.length +
       (personalPaymentRequests as unknown[]).length +
       (pendingEcocashConversions as unknown[]).length +
-      pendingComboRequests.length
+      pendingComboRequests.length +
+      // own requests already in the approver list above are counted once
+      myComboRequests.filter(c => !(pendingComboRequests as { id: string }[]).some(p => p.id === c.id)).length
 
     return NextResponse.json({
       loanLockRequests,
@@ -712,6 +751,7 @@ export async function GET() {
       personalPaymentRequests,
       pendingEcocashConversions,
       pendingComboRequests,
+      myComboRequests,
       canApprovePettyCash,
       canRequestPettyCash,
       canApproveCashAlloc: canApproveCashAllocation,

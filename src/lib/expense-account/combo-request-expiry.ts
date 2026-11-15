@@ -10,10 +10,14 @@ export const COMBO_REQUEST_EXPIRY_DAYS = 30
 // the request is left for manual handling (cancel/settle) instead.
 const EXPIRABLE_STATUSES = new Set(['SUBMITTED', 'APPROVED', 'PARTIALLY_APPROVED'])
 
-type ExpiryCheckable = { status: string; submittedAt: Date | null }
+type ExpiryCheckable = { status: string; submittedAt: Date | null; isBusinessLoan?: boolean }
+
+// MBM-333: once a business-loan request is approved the money has already
+// moved (loan, deposit, item payments at the loan business) — never expire it
+const loanAlreadyMoved = (r: ExpiryCheckable) => !!r.isBusinessLoan && r.status !== 'SUBMITTED'
 
 export function isComboRequestExpired(request: ExpiryCheckable, now: Date = new Date()): boolean {
-  if (!request.submittedAt || !EXPIRABLE_STATUSES.has(request.status)) return false
+  if (!request.submittedAt || !EXPIRABLE_STATUSES.has(request.status) || loanAlreadyMoved(request)) return false
   const deadline = request.submittedAt.getTime() + COMBO_REQUEST_EXPIRY_DAYS * 24 * 60 * 60 * 1000
   return now.getTime() >= deadline
 }
@@ -21,7 +25,7 @@ export function isComboRequestExpired(request: ExpiryCheckable, now: Date = new 
 // Null when not applicable (DRAFT, no submittedAt, already past the
 // expirable statuses, or already expired).
 export function daysRemaining(request: ExpiryCheckable, now: Date = new Date()): number | null {
-  if (!request.submittedAt || !EXPIRABLE_STATUSES.has(request.status)) return null
+  if (!request.submittedAt || !EXPIRABLE_STATUSES.has(request.status) || loanAlreadyMoved(request)) return null
   const deadline = request.submittedAt.getTime() + COMBO_REQUEST_EXPIRY_DAYS * 24 * 60 * 60 * 1000
   const msLeft = deadline - now.getTime()
   if (msLeft <= 0) return 0

@@ -44,7 +44,7 @@ export async function sweepComboRequestExpiry(): Promise<{ expired: number; warn
       status: { in: ['SUBMITTED', 'APPROVED', 'PARTIALLY_APPROVED'] },
       submittedAt: { not: null },
     },
-    select: { id: true, accountId: true, title: true, status: true, submittedAt: true, linkedPaymentId: true, createdBy: true },
+    select: { id: true, accountId: true, title: true, status: true, submittedAt: true, linkedPaymentId: true, createdBy: true, isBusinessLoan: true },
   })
 
   let expired = 0

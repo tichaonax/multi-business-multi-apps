@@ -49,6 +49,9 @@ interface Suggestion {
   _group: 'targeted' | 'global'
 }
 
+const SUGGEST_PAGE = 5
+const SUGGEST_MAX = 50
+
 // Generic searchable dropdown used at each hierarchy level
 function SearchSelect({
   value,
@@ -137,6 +140,8 @@ export function ItemCategorySelector({
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
   const [loadingSuggest, setLoadingSuggest] = useState(false)
   const [showSuggestions, setShowSuggestions] = useState(false)
+  // MBM-333: show 5 at a time, "Load more" for the rest (as the stock screens)
+  const [suggestVisible, setSuggestVisible] = useState(SUGGEST_PAGE)
 
   // Fetch categories under selected domain
   useEffect(() => {
@@ -170,12 +175,13 @@ export function ItemCategorySelector({
     setLoadingSuggest(true)
     setShowSuggestions(true)
     setSuggestions([])
+    setSuggestVisible(SUGGEST_PAGE)
     try {
       if (domainId) {
         // Fire targeted + global in parallel; de-dupe global against targeted
         const [r1, r2] = await Promise.all([
-          fetch(`/api/expense-categories/suggest?q=${encodeURIComponent(q)}&domainId=${encodeURIComponent(domainId)}`, { credentials: 'include' }),
-          fetch(`/api/expense-categories/suggest?q=${encodeURIComponent(q)}`, { credentials: 'include' }),
+          fetch(`/api/expense-categories/suggest?q=${encodeURIComponent(q)}&domainId=${encodeURIComponent(domainId)}&limit=${SUGGEST_MAX}`, { credentials: 'include' }),
+          fetch(`/api/expense-categories/suggest?q=${encodeURIComponent(q)}&limit=${SUGGEST_MAX}`, { credentials: 'include' }),
         ])
         const [d1, d2] = await Promise.all([r1.json(), r2.json()])
         const targeted = (d1.suggestions ?? []).map((s: any) => ({ ...s, _group: 'targeted' as const }))
@@ -185,7 +191,7 @@ export function ItemCategorySelector({
           .map((s: any) => ({ ...s, _group: 'global' as const }))
         setSuggestions([...targeted, ...global])
       } else {
-        const res = await fetch(`/api/expense-categories/suggest?q=${encodeURIComponent(q)}`, { credentials: 'include' })
+        const res = await fetch(`/api/expense-categories/suggest?q=${encodeURIComponent(q)}&limit=${SUGGEST_MAX}`, { credentials: 'include' })
         const data = await res.json()
         setSuggestions((data.suggestions ?? []).map((s: any) => ({ ...s, _group: 'global' as const })))
       }
@@ -203,8 +209,11 @@ export function ItemCategorySelector({
   }
 
   const canSuggest = description.trim().length >= 2
-  const targetedSugs = suggestions.filter(s => s._group === 'targeted')
-  const globalSugs = suggestions.filter(s => s._group === 'global')
+  // Targeted first, then the rest; only the first suggestVisible are shown
+  const shown = suggestions.slice(0, suggestVisible)
+  const targetedSugs = shown.filter(s => s._group === 'targeted')
+  const globalSugs = shown.filter(s => s._group === 'global')
+  const remaining = suggestions.length - shown.length
   const domainLabel = domains.find(d => d.id === domainId)?.label ?? 'In Domain'
 
   return (
@@ -249,6 +258,9 @@ export function ItemCategorySelector({
                   <span className="text-xs font-semibold text-purple-600 dark:text-purple-400">{domainLabel}</span>
                 </div>
               )}
+              {!!domainId && targetedSugs.length === 0 && suggestions.every(s => s._group === 'global') && (
+                <div className="px-3 py-1.5 text-xs text-gray-500 dark:text-gray-400">No matches in {domainLabel} — other categories:</div>
+              )}
               {targetedSugs.map((s, idx) => (
                 <button key={`t-${s.subcategoryId}-${idx}`} type="button" onClick={() => applySuggestion(s)}
                   className="w-full px-3 py-2 text-left hover:bg-purple-100 dark:hover:bg-purple-800/30 transition-colors">
@@ -279,6 +291,15 @@ export function ItemCategorySelector({
                   </div>
                 </button>
               ))}
+              {remaining > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setSuggestVisible(c => c + SUGGEST_PAGE)}
+                  className="w-full px-3 py-1.5 text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 text-center"
+                >
+                  Load {Math.min(SUGGEST_PAGE, remaining)} more ({remaining} remaining)
+                </button>
+              )}
             </div>
           )}
         </div>

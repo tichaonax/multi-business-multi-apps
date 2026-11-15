@@ -6,6 +6,7 @@ import { useToastContext } from '@/components/ui/toast'
 import { ComboRequestSection, ComboSection, SectionType } from './combo-request-section'
 import { ComboItem, Domain } from './combo-request-item-row'
 import { RecordedExpensesPanel } from '@/components/restaurant/expenses/recorded-expenses-panel'
+import { ReturnHistory, ReturnEntry } from './combo-request-return-history'
 
 interface ComboRequestFormProps {
   accountId: string
@@ -75,6 +76,8 @@ function newSection(type: SectionType = 'GROCERY'): ComboSection {
   }
 }
 
+interface LoanTarget { id: string; name: string; accounts: Array<{ id: string; accountName: string; accountNumber: string }> }
+
 function serializeSections(sections: ComboSection[]) {
   return sections.map((s, sIdx) => ({
     sectionType: s.sectionType,
@@ -127,6 +130,27 @@ export function ComboRequestForm({ accountId, requestId }: ComboRequestFormProps
   const [showConfirmPanel, setShowConfirmPanel] = useState(false)
   const [confirmOverride, setConfirmOverride] = useState('')
   const [confirming, setConfirming] = useState(false)
+  // MBM-333: cashier's return-for-changes history, shown while editing
+  const [returns, setReturns] = useState<ReturnEntry[]>([])
+  // MBM-333: business-loan combo
+  const [isBusinessLoan, setIsBusinessLoan] = useState(false)
+  const [loanBusinessId, setLoanBusinessId] = useState('')
+  const [loanExpenseAccountId, setLoanExpenseAccountId] = useState('')
+  const [loanTargets, setLoanTargets] = useState<LoanTarget[] | null>(null)
+
+  useEffect(() => {
+    if (!isBusinessLoan || loanTargets) return
+    fetch(`/api/expense-account/${accountId}/combo-requests/loan-targets`, { credentials: 'include' })
+      .then(r => r.json())
+      .then(d => setLoanTargets(d?.data ?? []))
+      .catch(() => setLoanTargets([]))
+  }, [isBusinessLoan, loanTargets, accountId])
+
+  const loanBusiness = loanTargets?.find(b => b.id === loanBusinessId) ?? null
+  const loanAccount = loanBusiness?.accounts.find(a => a.id === loanExpenseAccountId) ?? null
+  const loanPayload = isBusinessLoan
+    ? { isBusinessLoan: true, loanBusinessId: loanBusinessId || null, loanExpenseAccountId: loanExpenseAccountId || null }
+    : { isBusinessLoan: false }
 
   useEffect(() => {
     fetch('/api/expense-account/payees', { credentials: 'include' })
@@ -164,6 +188,10 @@ export function ComboRequestForm({ accountId, requestId }: ComboRequestFormProps
         setDraftStatus(req.status || 'DRAFT')
         setTitle(req.title || '')
         setNotes(req.notes || '')
+        setReturns(req.returns ?? [])
+        setIsBusinessLoan(!!req.isBusinessLoan)
+        setLoanBusinessId(req.loanBusinessId || '')
+        setLoanExpenseAccountId(req.loanExpenseAccountId || '')
         setSections(req.sections.map((s: any) => {
           const sPayeeId = getPayeeId(s)
           const sPayeeName = resolvePayeeName(s)
@@ -212,10 +240,34 @@ export function ComboRequestForm({ accountId, requestId }: ComboRequestFormProps
     }, 0)
   }, 0)
 
+  // MBM-333: everything Submit needs (Save Draft stays allowed while incomplete).
+  // Blank rows are ignored; quantity, unit, category, notes and (for an
+  // ordinary request) payees are optional.
+  const submitProblems: string[] = []
+  if (!title.trim()) submitProblems.push('Add a request title')
+  if (isBusinessLoan && (!loanBusinessId || !loanExpenseAccountId)) submitProblems.push('Choose the business receiving the loan and its account')
+  let filledItems = 0
+  sections.forEach((s, sIdx) => {
+    const where = `Section ${sIdx + 1}${s.sectionName.trim() ? ` (${s.sectionName.trim()})` : ''}`
+    const rows = s.items.filter(i => i.description.trim() || i.estimatedAmount.trim())
+    if (s.sectionType === 'CUSTOM' && rows.length > 0 && !s.sectionName.trim()) submitProblems.push(`${where}: give the custom section a name`)
+    rows.forEach((i, iIdx) => {
+      filledItems++
+      const label = i.description.trim() ? `"${i.description.trim()}"` : `${where}, item ${iIdx + 1}`
+      if (!i.description.trim()) submitProblems.push(`${label}: add a description`)
+      const amt = parseFloat(i.estimatedAmount)
+      if (isNaN(amt) || amt <= 0) submitProblems.push(`${label}: add an amount`)
+      if (isBusinessLoan && !i.payee && !s.payee) submitProblems.push(`${label}: add a payee (needed for a loan)`)
+      if (isBusinessLoan && i.expenseLineId) submitProblems.push(`${label}: recorded restaurant expenses can't go in a loan`)
+    })
+  })
+  if (filledItems === 0) submitProblems.push('Add at least one item')
+
   function validate(): string | null {
     if (!title.trim()) return 'Title is required'
     const hasItems = sections.some(s => s.items.some(i => i.description.trim()))
     if (!hasItems) return 'At least one item with a description is required'
+    if (isBusinessLoan && (!loanBusinessId || !loanExpenseAccountId)) return 'Choose the business the loan goes to and its receiving account'
     return null
   }
 
@@ -229,6 +281,7 @@ export function ComboRequestForm({ accountId, requestId }: ComboRequestFormProps
         title: title.trim(),
         notes: notes.trim() || null,
         sections: serializeSections(sections),
+        ...loanPayload,
         ...(draftStatus !== 'SUBMITTED' ? { status: 'DRAFT' } : {}),
       }
 
@@ -268,12 +321,15 @@ export function ComboRequestForm({ accountId, requestId }: ComboRequestFormProps
     const error = validate()
     if (error) { toast.error(error); return }
 
+    if (submitProblems.length > 0) { toast.error(submitProblems[0]); return }
+
     setSubmitting(true)
     try {
       const payload = {
         title: title.trim(),
         notes: notes.trim() || null,
         sections: serializeSections(sections),
+        ...loanPayload,
         status: 'DRAFT',
       }
 
@@ -318,7 +374,7 @@ export function ComboRequestForm({ accountId, requestId }: ComboRequestFormProps
     try {
       const override = parseFloat(confirmOverride)
       const body: Record<string, unknown> = {}
-      if (!isNaN(override) && override > 0 && Math.abs(override - grandTotal) > 0.001) {
+      if (!isBusinessLoan && !isNaN(override) && override > 0 && Math.abs(override - grandTotal) > 0.001) {
         body.overrideAmount = override
       }
 
@@ -404,6 +460,9 @@ export function ComboRequestForm({ accountId, requestId }: ComboRequestFormProps
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Bundle multiple expense items into a single payment request.</p>
       </div>
 
+      {/* MBM-333: what the cashier asked to change */}
+      {returns.length > 0 && <ReturnHistory returns={returns} />}
+
       {/* Title */}
       <div>
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Request Title *</label>
@@ -414,6 +473,64 @@ export function ComboRequestForm({ accountId, requestId }: ComboRequestFormProps
           placeholder="e.g. Monthly household expenses — May 2026"
           className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
+      </div>
+
+      {/* MBM-333: business loan */}
+      <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 space-y-3">
+        <label className="flex items-center gap-2 text-sm font-medium text-gray-800 dark:text-gray-200 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={isBusinessLoan}
+            onChange={e => setIsBusinessLoan(e.target.checked)}
+            className="h-4 w-4"
+          />
+          🤝 This is a business loan
+        </label>
+        {isBusinessLoan && (
+          <>
+            {loanTargets === null ? (
+              <p className="text-xs text-gray-500 dark:text-gray-400">Loading businesses…</p>
+            ) : loanTargets.length === 0 ? (
+              <p className="text-xs text-red-600 dark:text-red-400">No other business with an active expense account to lend to.</p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Business receiving the loan *</label>
+                  <select
+                    value={loanBusinessId}
+                    onChange={e => {
+                      const b = loanTargets.find(t => t.id === e.target.value)
+                      setLoanBusinessId(e.target.value)
+                      setLoanExpenseAccountId(b?.accounts[0]?.id ?? '')
+                    }}
+                    className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                  >
+                    <option value="">Choose a business…</option>
+                    {loanTargets.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Its expense account that receives the money *</label>
+                  <select
+                    value={loanExpenseAccountId}
+                    onChange={e => setLoanExpenseAccountId(e.target.value)}
+                    disabled={!loanBusiness}
+                    className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 disabled:opacity-50"
+                  >
+                    {!loanBusiness && <option value="">Choose the business first</option>}
+                    {loanBusiness?.accounts.map(a => <option key={a.id} value={a.id}>{a.accountName} ({a.accountNumber})</option>)}
+                  </select>
+                </div>
+              </div>
+            )}
+            <p className="text-xs text-gray-600 dark:text-gray-400">
+              When approved, the full total is lent to <strong>{loanBusiness?.name ?? 'the business'}</strong>: deposited into{' '}
+              <strong>{loanAccount?.accountName ?? 'its account'}</strong>, then set up there as one approved payment per item below
+              (same amount and payee). {loanBusiness?.name ?? 'The business'} owes the loan back to this account.
+              Every item needs an amount and a payee.
+            </p>
+          </>
+        )}
       </div>
 
       {/* Sections */}
@@ -490,8 +607,8 @@ export function ComboRequestForm({ accountId, requestId }: ComboRequestFormProps
               <button
                 type="button"
                 onClick={handleSaveAndShowConfirm}
-                disabled={saving || submitting || confirming || loadingDomains || loadingPayees}
-                title={(loadingDomains || loadingPayees) ? 'Waiting for data to load...' : undefined}
+                disabled={saving || submitting || confirming || loadingDomains || loadingPayees || submitProblems.length > 0}
+                title={(loadingDomains || loadingPayees) ? 'Waiting for data to load...' : submitProblems.length > 0 ? submitProblems.join('\n') : undefined}
                 className="px-5 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {submitting ? 'Saving...' : (loadingDomains || loadingPayees) ? 'Loading...' : 'Submit Request'}
@@ -500,6 +617,15 @@ export function ComboRequestForm({ accountId, requestId }: ComboRequestFormProps
           </div>
         </div>
 
+        {/* MBM-333: why Submit is disabled */}
+        {draftStatus !== 'SUBMITTED' && submitProblems.length > 0 && (
+          <div className="mt-2 text-xs text-amber-700 dark:text-amber-400">
+            <span className="font-medium">To submit:</span>{' '}
+            {submitProblems.slice(0, 3).join(' · ')}
+            {submitProblems.length > 3 && ` · and ${submitProblems.length - 3} more`}
+          </div>
+        )}
+
         {/* Confirm submit panel */}
         {showConfirmPanel && (
           <div className="mt-3 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg space-y-3">
@@ -507,6 +633,9 @@ export function ComboRequestForm({ accountId, requestId }: ComboRequestFormProps
             <p className="text-xs text-blue-700 dark:text-blue-400">
               Estimated total: <strong>${grandTotal.toFixed(2)}</strong>. Adjust the amount below if exact costs aren&apos;t fully known yet.
             </p>
+            {isBusinessLoan ? (
+              <p className="text-xs text-blue-700 dark:text-blue-400">🤝 Business loan to {loanBusiness?.name ?? 'the business'} — lent in full, so the amount can&apos;t be overridden.</p>
+            ) : (
             <div>
               <label className="block text-xs font-medium text-blue-700 dark:text-blue-400 mb-1">Requested amount (optional override)</label>
               <input
@@ -518,6 +647,7 @@ export function ComboRequestForm({ accountId, requestId }: ComboRequestFormProps
                 className="w-48 border border-blue-300 dark:border-blue-700 rounded-md px-3 py-1.5 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
+            )}
             <div className="flex gap-2">
               <button
                 type="button"
