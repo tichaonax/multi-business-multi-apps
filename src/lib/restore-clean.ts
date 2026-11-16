@@ -784,6 +784,9 @@ export async function restoreCleanBackup(
     onProgress?: (model: string, processed: number, total: number) => void
     onError?: (model: string, recordId: string | undefined, error: string) => void
     batchSize?: number // Number of records to process in each batch
+    // MBM-334: when this returns true the restore stops before the next record
+    // (records already written stay — there is no rollback)
+    shouldStop?: () => boolean
   } = {}
 ): Promise<{
   success: boolean
@@ -800,7 +803,7 @@ export async function restoreCleanBackup(
   deviceMismatch?: boolean
   skippedDeviceData?: boolean
 }> {
-  const { onProgress, onError, batchSize = 100 } = options
+  const { onProgress, onError, batchSize = 100, shouldStop } = options
 
   /**
    * Retry any DB operation that fails with "Unknown argument `field`".
@@ -1154,6 +1157,8 @@ export async function restoreCleanBackup(
         })
 
         for (let i = 0; i < cleanedBatch.length; i++) {
+          // MBM-334: checked outside the per-record try so a stop isn't swallowed
+          if (shouldStop?.()) throw new Error('RESTORE_STOPPED_BY_USER')
           const record = cleanedBatch[i]
           const globalIndex = batchStart + i
           let recordId = record.id

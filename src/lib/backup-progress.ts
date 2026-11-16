@@ -194,3 +194,44 @@ export function getProgress(id: string) {
   }
   return res
 }
+
+// ---------------------------------------------------------------------------
+// MBM-334: stopping a running backup / restore. The request is kept in memory
+// and as a marker file (like the progress itself) so it is seen even if the
+// stop request lands on a different server worker. The running job checks it
+// through isCancelRequested(), which reads the file at most every 500ms.
+// ---------------------------------------------------------------------------
+export class OperationCancelledError extends Error {
+  constructor() { super('Stopped by the user'); this.name = 'OperationCancelledError' }
+}
+
+const _cancelled = new Set<string>()
+const _cancelCheckedAt = new Map<string, number>()
+const cancelFile = (id: string) => path.join(_progressDir, `cancel-${id}`)
+
+export function requestCancel(id: string) {
+  _cancelled.add(id)
+  try { fs.writeFileSync(cancelFile(id), new Date().toISOString(), { encoding: 'utf-8' }) } catch { /* memory flag still set */ }
+}
+
+export function isCancelRequested(id: string): boolean {
+  if (_cancelled.has(id)) return true
+  const now = Date.now()
+  if (now - (_cancelCheckedAt.get(id) ?? 0) < 500) return false
+  _cancelCheckedAt.set(id, now)
+  try {
+    if (fs.existsSync(cancelFile(id))) { _cancelled.add(id); return true }
+  } catch { /* ignore */ }
+  return false
+}
+
+/** Throws OperationCancelledError when a stop was requested for this job. */
+export function throwIfCancelled(id: string) {
+  if (isCancelRequested(id)) throw new OperationCancelledError()
+}
+
+export function clearCancel(id: string) {
+  _cancelled.delete(id)
+  _cancelCheckedAt.delete(id)
+  try { if (fs.existsSync(cancelFile(id))) fs.unlinkSync(cancelFile(id)) } catch { /* ignore */ }
+}

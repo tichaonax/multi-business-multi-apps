@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useConfirm, useAlert } from '@/components/ui/confirm-modal'
+import { useToastContext } from '@/components/ui/toast'
 import { Button } from '@/components/ui/button';
 import {
   Download,
@@ -172,6 +174,60 @@ export function DataBackup({ canRestore = true }: DataBackupProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const confirm = useConfirm()
   const customAlert = useAlert()
+  const toast = useToastContext()
+  // MBM-334: the whole app is locked while any of these run; only Stop works
+  const validateAbortRef = useRef<AbortController | null>(null);
+  const [stopping, setStopping] = useState(false);
+  const [startingOp, setStartingOp] = useState<'backup' | 'restore'>('backup');
+  const busyOperation: 'backup' | 'restore' | 'validate' | null =
+    validating ? 'validate'
+    : (backupProgressId || downloadingBackupFile) ? 'backup'
+    : restoreProgressId ? 'restore'
+    : loading ? startingOp
+    : null;
+  // Stop needs the server job's id (validation is stopped in the browser)
+  const canStop = !stopping && !downloadingBackupFile && (
+    busyOperation === 'validate' || !!backupProgressId || !!restoreProgressId
+  );
+
+  useEffect(() => {
+    if (!busyOperation) { setStopping(false); return }
+    // Closing or reloading the tab while it runs asks first
+    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = '' }
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [busyOperation]);
+
+  const handleStop = async () => {
+    if (busyOperation === 'validate') {
+      setStopping(true)
+      validateAbortRef.current?.abort()
+      return
+    }
+    const id = backupProgressId ?? restoreProgressId
+    if (!id) return
+    if (restoreProgressId) {
+      const ok = await confirm({
+        title: 'Stop the restore?',
+        description: 'The restore stops after the current record. Records restored so far stay in the database — there is no undo. Run the restore again with the same file to finish it.',
+        confirmText: 'Stop restore',
+        cancelText: 'Keep restoring',
+      })
+      if (!ok) return
+    }
+    setStopping(true)
+    try {
+      const res = await fetch(`/api/backup/progress?id=${encodeURIComponent(id)}`, { method: 'POST' })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        toast.error(data.error || 'Could not stop it')
+        setStopping(false)
+      }
+    } catch {
+      toast.error('Could not stop it')
+      setStopping(false)
+    }
+  };
 
   // Load demo and real businesses on component mount
   useEffect(() => {
@@ -266,6 +322,7 @@ export function DataBackup({ canRestore = true }: DataBackupProps) {
 
   const handleBackup = async () => {
     try {
+      setStartingOp('backup');
       setLoading(true);
 
       const params = new URLSearchParams();
@@ -379,6 +436,16 @@ export function DataBackup({ canRestore = true }: DataBackupProps) {
               setBackupProgressId(null);
               setLoading(false);
             }
+          } else if (model === 'cancelled') {
+            // MBM-334: stopped by the user — the partial file was deleted
+            if (backupPollingRef.current) {
+              window.clearInterval(backupPollingRef.current);
+              backupPollingRef.current = null;
+            }
+            setBackupProgress(null);
+            setBackupProgressId(null);
+            setLoading(false);
+            toast.push('Backup stopped — no file was saved', { type: 'warning' });
           } else if (model === 'error') {
             if (backupPollingRef.current) {
               window.clearInterval(backupPollingRef.current);
@@ -465,6 +532,7 @@ export function DataBackup({ canRestore = true }: DataBackupProps) {
     if (!ok) return
 
     try {
+      setStartingOp('restore');
       setLoading(true);
 
       // Check if file is compressed
@@ -596,6 +664,7 @@ export function DataBackup({ canRestore = true }: DataBackupProps) {
     try {
       setValidating(true);
       setValidationResult(null);
+      validateAbortRef.current = new AbortController();
 
       // Check if file is compressed
       const isCompressed = restoreFile.name.endsWith('.gz') || restoreFile.name.endsWith('.json.gz');
@@ -615,6 +684,7 @@ export function DataBackup({ canRestore = true }: DataBackupProps) {
           'Content-Type': isCompressed ? 'application/gzip' : 'application/json',
         },
         body: restoreFile,
+        signal: validateAbortRef.current.signal,
       });
 
       if (!response.ok) {
@@ -639,12 +709,17 @@ export function DataBackup({ canRestore = true }: DataBackupProps) {
         description: result.message || 'Validation complete. See details below.'
       });
     } catch (error: any) {
+      if (error?.name === 'AbortError') {
+        toast.push('Validation stopped', { type: 'warning' });
+        return;
+      }
       console.error('[Validate] Error:', error);
       await customAlert({
         title: 'Validation Failed',
         description: error.message || 'Failed to validate backup file.'
       });
     } finally {
+      validateAbortRef.current = null;
       setValidating(false);
     }
   };
@@ -720,6 +795,20 @@ export function DataBackup({ canRestore = true }: DataBackupProps) {
 
           // Stop polling if model indicates completion or error
           const model = data?.progress?.model;
+          if (model === 'cancelled') {
+            // MBM-334: stopped by the user part-way
+            if (pollingRef.current) {
+              window.clearInterval(pollingRef.current);
+              pollingRef.current = null;
+            }
+            setRestoreProgressId(null);
+            customAlert({
+              title: '⏹ Restore Stopped',
+              description: 'The restore was stopped. Records restored before the stop were kept. Run the restore again with the same file to finish it.\n\nClick OK to reload the application.',
+              onOK: () => { window.location.reload() },
+            });
+            return;
+          }
           const isComplete = model === 'completed' ||
                            (data?.progress?.total && data?.progress?.processed &&
                             data.progress.processed >= data.progress.total);
@@ -829,8 +918,63 @@ export function DataBackup({ canRestore = true }: DataBackupProps) {
     },
   ];
 
+  const busyLabel = busyOperation === 'validate' ? 'Validating backup'
+    : busyOperation === 'restore' ? 'Restoring backup'
+    : downloadingBackupFile ? 'Downloading backup file'
+    : 'Creating backup';
+  const busyProgress = busyOperation === 'restore' ? restoreProgress : busyOperation === 'backup' ? backupProgress : null;
+  const busyModel: string | undefined = busyProgress?.model;
+  const busyCounts = busyModel ? busyProgress?.counts?.[busyModel] : undefined;
+
   return (
     <div className="space-y-8">
+      {/* MBM-334: lock the whole app (header, sidebar, page) while it runs */}
+      {busyOperation && typeof document !== 'undefined' && createPortal(
+        <div
+          className="fixed inset-0 z-[99990] flex items-center justify-center bg-slate-900 p-4"
+          role="alertdialog"
+          aria-modal="true"
+          aria-label={busyLabel}
+        >
+          <div className="w-full max-w-md rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-6 shadow-xl text-center space-y-4">
+            <Loader2 className="h-10 w-10 animate-spin text-blue-600 mx-auto" />
+            <div>
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{busyLabel}…</h3>
+              <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+                The app is locked until this finishes. Please don&apos;t close or reload this tab.
+              </p>
+            </div>
+            {busyModel && !['starting', 'creating', 'restoring'].includes(busyModel) && (
+              <p className="text-xs font-mono text-slate-600 dark:text-slate-300">
+                {busyModel}{busyCounts?.total ? ` — ${busyCounts.processed ?? 0}/${busyCounts.total}` : ''}
+              </p>
+            )}
+            {busyOperation === 'restore' && (restoreProgress?.total ?? 0) > 0 && (
+              <div className="w-full h-2 rounded bg-slate-200 dark:bg-slate-700 overflow-hidden">
+                <div
+                  className="h-2 bg-blue-600 transition-all"
+                  style={{ width: `${Math.min(100, Math.round(100 * Object.values(restoreProgress?.counts ?? {}).reduce((s: number, c: any) => s + (c?.processed ?? 0), 0) / restoreProgress.total))}%` }}
+                />
+              </div>
+            )}
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleStop}
+              disabled={!canStop}
+              title={!canStop && !stopping ? 'Stop becomes available once the job has started on the server' : undefined}
+            >
+              {stopping ? 'Stopping…' : busyOperation === 'validate' ? 'Stop validation' : busyOperation === 'restore' ? 'Stop restore' : 'Stop backup'}
+            </Button>
+            {!canStop && !stopping && (
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                {downloadingBackupFile ? 'The backup is finished; the file is downloading.' : 'Preparing — Stop is available in a moment.'}
+              </p>
+            )}
+          </div>
+        </div>,
+        document.body
+      )}
       {/* Backup Section */}
       <div className="space-y-6">
         <div>

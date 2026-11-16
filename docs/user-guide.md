@@ -12241,6 +12241,18 @@ The system has a built-in backup and restore engine that covers every table in t
 
 Navigate to **Admin → Data Management** to access all backup and restore functions.
 
+### The App Is Locked While a Backup, Restore or Validation Runs
+
+As soon as you start a backup, a restore or a validation, a dark screen covers the whole app: the header, the menu and the page. Nothing can be clicked until the job finishes. The screen shows what is running and the table it is working on (with a progress bar for a restore).
+
+- The only button that works is **Stop**:
+  - **Stop validation** — stops right away. Validation only reads, so nothing changes.
+  - **Stop backup** — stops before the next table is written. The partial file is deleted and nothing is downloaded. (A backup first gathers its data before writing; if you press Stop during that step it takes effect as soon as writing starts.)
+  - **Stop restore** — asks you to confirm, then stops after the current record. **Records already restored stay in the database (there is no undo).** Run the restore again with the same file to finish it. The app reloads after you click OK.
+- **Stop** is greyed out for the first few seconds, while the file is still uploading or the job is starting on the server, and while a finished backup file is downloading.
+- Closing or reloading the tab while a job runs asks you to confirm first.
+- The lock applies to the person who started the job. Other signed-in users are not locked out.
+
 ---
 
 ### Creating a Backup

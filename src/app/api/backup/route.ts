@@ -7,7 +7,7 @@ import { createGunzip } from 'zlib';
 import { prisma } from '@/lib/prisma';
 import { createCleanBackup, writeCleanBackupStream } from '@/lib/backup-clean';
 import { restoreCleanBackup, validateBackupData, RESTORE_ORDER } from '@/lib/restore-clean';
-import { createProgressId, updateProgress, getProgress } from '@/lib/backup-progress';
+import { createProgressId, updateProgress, getProgress, isCancelRequested, throwIfCancelled, clearCancel, OperationCancelledError } from '@/lib/backup-progress';
 import { compressBackup, decompressBackup, isGzipped } from '@/lib/backup-compression';
 import { parseJSONStream } from '@/lib/backup-stream-parse';
 import { getServerUser } from '@/lib/get-server-user'
@@ -113,6 +113,7 @@ export async function GET(request: NextRequest) {
           },
           outputPath,
           (p) => {
+            throwIfCancelled(progressId); // MBM-334: Stop → abandon the backup
             updateProgress(progressId, {
               model: p.table,
               counts: { [p.table]: { processed: p.processed, total: p.total } }
@@ -145,10 +146,22 @@ export async function GET(request: NextRequest) {
           },
         }).catch((err) => console.error('[backup] Failed to write audit log:', err));
       } catch (error: any) {
-        console.error('[backup] Streamed backup failed:', error);
-        updateProgress(progressId, { model: 'error', errors: [error.message || 'Unknown error'] });
+        if (error instanceof OperationCancelledError) {
+          // MBM-334: stopped by the user — not an error
+          console.log(`[backup] Backup stopped by user: progressId=${progressId}`);
+          updateProgress(progressId, { model: 'cancelled' });
+        } else {
+          console.error('[backup] Streamed backup failed:', error);
+          updateProgress(progressId, { model: 'error', errors: [error.message || 'Unknown error'] });
+        }
         // Clean up a partial file rather than leaving a corrupt .json.gz behind.
-        try { await fs.promises.unlink(outputPath); } catch { /* ignore */ }
+        // (retried once: the just-closed stream can still hold the file on Windows)
+        try { await fs.promises.unlink(outputPath); } catch {
+          await new Promise(r => setTimeout(r, 500));
+          try { await fs.promises.unlink(outputPath); } catch { /* ignore */ }
+        }
+      } finally {
+        clearCancel(progressId);
       }
     };
 
@@ -342,6 +355,7 @@ export async function POST(request: NextRequest) {
         updateProgress(progressId, { model: 'restoring' });
 
         const result = await restoreCleanBackup(prisma, backupData, {
+          shouldStop: () => isCancelRequested(progressId), // MBM-334
           onProgress: (model, processed, total) => {
             console.log(`[restore] ${model}: ${processed}/${total}`);
             // Only update the counts for this specific model
@@ -403,17 +417,24 @@ export async function POST(request: NextRequest) {
 
         return result;
       } catch (error: any) {
-        console.error('[restore] Restore job failed:', error);
-        updateProgress(progressId, {
-          model: 'error',
-          errors: [error.message || 'Unknown error']
-        });
+        const stopped = error?.message === 'RESTORE_STOPPED_BY_USER'; // MBM-334
+        if (stopped) {
+          console.log(`[restore] Restore stopped by user: progressId=${progressId}`);
+          updateProgress(progressId, { model: 'cancelled' });
+        } else {
+          console.error('[restore] Restore job failed:', error);
+          updateProgress(progressId, {
+            model: 'error',
+            errors: [error.message || 'Unknown error']
+          });
+        }
+        clearCancel(progressId);
         await createAuditLog({
           userId: user.id,
           action: 'BACKUP_RESTORED',
           entityType: 'Backup',
           entityId: progressId,
-          newValues: { success: false, error: error.message || 'Unknown error' },
+          newValues: { success: false, error: stopped ? 'Stopped by the user — records restored before the stop were kept' : (error.message || 'Unknown error') },
           metadata: {
             backupVersion: backupData.metadata?.version,
             backupTimestamp: backupData.metadata?.timestamp,

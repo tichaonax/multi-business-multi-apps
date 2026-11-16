@@ -2059,6 +2059,18 @@ export async function writeCleanBackupStream(
   const fileStream = fs.createWriteStream(outputPath)
   gzip.pipe(fileStream)
 
+  // MBM-334: onProgress throws when the user stops the backup — close the
+  // file first so the caller can delete the partial file (Windows locks it).
+  const report = (p: BackupStreamProgress) => {
+    try {
+      onProgress?.(p)
+    } catch (e) {
+      gzip.destroy()
+      fileStream.destroy()
+      throw e
+    }
+  }
+
   const write = (text: string) => {
     hash.update(text)
     gzip.write(text)
@@ -2076,7 +2088,7 @@ export async function writeCleanBackupStream(
     write(JSON.stringify(tableName) + ':' + JSON.stringify(rows))
     const count = Array.isArray(rows) ? rows.length : 0
     totalRecords += count
-    onProgress?.({ table: tableName, processed: count, total: count })
+    report({ table: tableName, processed: count, total: count })
   }
 
   // Images - fetched and written in paginated batches, never all in memory
@@ -2105,7 +2117,7 @@ export async function writeCleanBackupStream(
       imagesWritten++
     }
     totalRecords += batch.length
-    onProgress?.({ table: 'images', processed: imagesWritten, total: imageIdsNeeded.length })
+    report({ table: 'images', processed: imagesWritten, total: imageIdsNeeded.length })
   }
   write(']}') // close images array, close businessData object
 
