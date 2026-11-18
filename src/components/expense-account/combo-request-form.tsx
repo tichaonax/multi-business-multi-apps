@@ -124,7 +124,7 @@ function serializeSections(sections: ComboSection[]) {
 export function ComboRequestForm({ accountId, requestId }: ComboRequestFormProps) {
   const router = useRouter()
   const toast = useToastContext()
-  const { hasPermission, isSystemAdmin, isBusinessOwner, currentBusiness } = useBusinessPermissionsContext()
+  const { hasPermission, isSystemAdmin, isBusinessOwner, currentBusiness, businesses } = useBusinessPermissionsContext()
 
   // MBM-335: one item open at a time; create payees on the fly
   const [activeItemId, setActiveItemId] = useState<string | null>(null)
@@ -289,9 +289,17 @@ export function ComboRequestForm({ accountId, requestId }: ComboRequestFormProps
     toast.push(`Payee "${payee.name}" created and selected`)
   }
 
+  // Suppliers are saved through a business: this account's business, else
+  // the business receiving the loan, else the user's current business
+  // (never the umbrella "All" business — suppliers take its business type)
+  const ownBusiness = (currentBusiness && !(currentBusiness as any).isUmbrellaBusiness)
+    ? currentBusiness
+    : (businesses ?? []).find((b: any) => !b.isUmbrellaBusiness)
+  const supplierBusinessId = accountBusinessId || (isBusinessLoan ? loanBusinessId : '') || ownBusiness?.businessId || null
+
   const payeeCreateProps: ComboPayeeCreate = {
     refresh: payeeRefresh,
-    canSupplier: !!accountBusinessId,
+    canSupplier: !!supplierBusinessId,
     onCreate: canCreatePayees ? (kind, query, target) => setCreatePayee({ kind, query, target }) : undefined,
   }
 
@@ -750,16 +758,16 @@ export function ComboRequestForm({ accountId, requestId }: ComboRequestFormProps
         onSuccess={(payload: any) => { if (payload?.payee) applyNewPayee({ type: 'PERSON', id: payload.payee.id, name: payload.payee.fullName }) }}
         onError={err => toast.error(err)}
       />
-      {createPayee?.kind === 'supplier' && accountBusinessId && (
+      {createPayee?.kind === 'supplier' && supplierBusinessId && (
         <SupplierEditor
-          businessId={accountBusinessId}
+          businessId={supplierBusinessId}
           initialName={createPayee.query}
           onCancel={() => setCreatePayee(null)}
           onSave={async (supplierId?: string) => {
             if (!supplierId) { setCreatePayee(null); setPayeeRefresh(n => n + 1); return }
             let name = createPayee.query || 'New supplier'
             try {
-              const res = await fetch(`/api/business/${accountBusinessId}/suppliers`, { credentials: 'include' })
+              const res = await fetch(`/api/business/${supplierBusinessId}/suppliers`, { credentials: 'include' })
               const data = res.ok ? await res.json() : null
               const found = (data?.data ?? []).find((s: any) => s.id === supplierId)
               if (found?.name) name = found.name

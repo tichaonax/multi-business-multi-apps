@@ -580,6 +580,7 @@ export function ComboRequestItemRow({
               value={item.payee ? { type: item.payee.type, id: item.payee.id } : null}
               onChange={payee => onChange({ ...item, payee: payee ? { type: payee.type, id: payee.id, name: payee.name } : null })}
               refreshTrigger={payeeCreate?.refresh}
+              showBusinesses // MBM-335: any payee type, businesses included
               onCreateIndividual={payeeCreate?.onCreate ? q => payeeCreate.onCreate!('individual', q, { sectionId, itemId: item._id }) : undefined}
               onCreateContractor={payeeCreate?.onCreate ? q => payeeCreate.onCreate!('contractor', q, { sectionId, itemId: item._id }) : undefined}
               onCreateSupplier={payeeCreate?.onCreate && payeeCreate.canSupplier ? q => payeeCreate.onCreate!('supplier', q, { sectionId, itemId: item._id }) : undefined}

@@ -10488,7 +10488,7 @@ A request can also be marked as a **business loan**. Approving it lends the tota
    - **Payee** — who is being paid (person, employee, supplier, business, or leave blank)
    - **Item Notes** — any extra details
 
-> **Payee not in the list?** Type the name in the payee search. If you're allowed to create payees, the bottom of the list offers **+ Individual**, **+ Contractor** and (for a business's account) **+ Supplier**. Fill in the short form and save: the new payee is created and selected straight away, on the item or section you were editing. This works for the section's default payee and for an item's own payee.
+> **Payee not in the list?** Type the name in the payee search. If you're allowed to create payees, the bottom of the list offers **+ Individual**, **+ Contractor** and **+ Supplier**. Fill in the short form and save: the new payee is created and selected straight away, on the item or section you were editing. This works for the section's default payee and for an item's own payee. A new supplier is saved under this account's business, or, for a personal or family account, the loan's business or your own business. Businesses (the **Business** tab) and employees can be picked but are set up in their own screens.
 
 > **One item open at a time.** The item you're working on is open; the others fold into one line showing the description, quantity, classification, payee and amount, e.g. **fridge · 1 · 🏠 Home › 🛋 Furniture & Appliances › 🍳 Kitchen Appliances · 👤 Mr Moyo · $145.00**. Click a line to open that item (the open one folds away). A new item opens automatically.
 >
