@@ -5,12 +5,11 @@ import { useRouter } from 'next/navigation'
 import { useToastContext } from '@/components/ui/toast'
 import { ComboRequestSection, ComboSection, SectionType } from './combo-request-section'
 import { ComboItem, Domain, ComboPayeeCreate } from './combo-request-item-row'
-import { useSession } from 'next-auth/react'
+import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { CreateIndividualPayeeModal } from './create-individual-payee-modal'
 import { CreateContractorPayeeModal } from './create-contractor-payee-modal'
 import { SupplierEditor } from '@/components/suppliers/supplier-editor'
-import { getEffectivePermissions, hasUserPermission } from '@/lib/permission-utils'
 import { RecordedExpensesPanel } from '@/components/restaurant/expenses/recorded-expenses-panel'
 import { ReturnHistory, ReturnEntry } from './combo-request-return-history'
 
@@ -125,19 +124,19 @@ function serializeSections(sections: ComboSection[]) {
 export function ComboRequestForm({ accountId, requestId }: ComboRequestFormProps) {
   const router = useRouter()
   const toast = useToastContext()
-  const { data: session } = useSession()
+  const { hasPermission, isSystemAdmin, isBusinessOwner, currentBusiness } = useBusinessPermissionsContext()
 
   // MBM-335: one item open at a time; create payees on the fly
   const [activeItemId, setActiveItemId] = useState<string | null>(null)
   const [payeeRefresh, setPayeeRefresh] = useState(0)
   const [createPayee, setCreatePayee] = useState<{ kind: 'individual' | 'contractor' | 'supplier'; query?: string; target: { sectionId: string; itemId?: string } } | null>(null)
   const [accountBusinessId, setAccountBusinessId] = useState<string | null>(null)
-  const sessionUser = session?.user as any
-  const canCreatePayees = !!sessionUser && (
-    sessionUser.role === 'admin' ||
-    hasUserPermission(sessionUser, 'canCreatePayees') ||
-    !!getEffectivePermissions(sessionUser).canCreateIndividualPayees
-  )
+  // The session only carries the role, so use the business permissions
+  // context — same rule as the expense account page (owners, managers,
+  // admins) plus anyone granted canCreateIndividualPayees
+  const canCreatePayees = isSystemAdmin || isBusinessOwner ||
+    currentBusiness?.role === 'business-manager' ||
+    hasPermission('canCreateIndividualPayees')
 
   const [title, setTitle] = useState('')
   const [notes, setNotes] = useState('')

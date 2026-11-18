@@ -54,6 +54,35 @@ export function PayeeSelector({
   const buttonRef = useRef<HTMLButtonElement>(null)
   const [dropdownPos, setDropdownPos] = useState<{ top?: number; bottom?: number; left: number; width: number } | null>(null)
 
+  // Place the panel next to the button. Open upward when the panel (up to
+  // 384px) won't fit below but there's more room above — e.g. near the
+  // bottom of a modal.
+  const placeDropdown = () => {
+    if (!buttonRef.current) return
+    const rect = buttonRef.current.getBoundingClientRect()
+    const below = window.innerHeight - rect.bottom
+    const openUp = below < 392 && rect.top > below
+    setDropdownPos(openUp
+      ? { bottom: window.innerHeight - rect.top + 4, left: rect.left, width: rect.width }
+      : { top: rect.bottom + 4, left: rect.left, width: rect.width })
+  }
+
+  // MBM-335: keep the panel attached to its field while the page scrolls or
+  // resizes (it is position:fixed), and let Escape close it
+  useEffect(() => {
+    if (!isOpen) return
+    const onMove = () => placeDropdown()
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setIsOpen(false) }
+    window.addEventListener('scroll', onMove, true)
+    window.addEventListener('resize', onMove)
+    window.addEventListener('keydown', onKey)
+    return () => {
+      window.removeEventListener('scroll', onMove, true)
+      window.removeEventListener('resize', onMove)
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [isOpen]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Load payees on mount and when refreshTrigger changes
   useEffect(() => {
     loadPayees()
@@ -178,16 +207,7 @@ export function PayeeSelector({
           type="button"
           onClick={() => {
             if (!disabled) {
-              if (!isOpen && buttonRef.current) {
-                const rect = buttonRef.current.getBoundingClientRect()
-                // Open upward when the panel (up to 384px) won't fit below
-                // but there's more room above — e.g. near the bottom of a modal
-                const below = window.innerHeight - rect.bottom
-                const openUp = below < 392 && rect.top > below
-                setDropdownPos(openUp
-                  ? { bottom: window.innerHeight - rect.top + 4, left: rect.left, width: rect.width }
-                  : { top: rect.bottom + 4, left: rect.left, width: rect.width })
-              }
+              if (!isOpen) placeDropdown()
               setIsOpen(!isOpen)
             }
           }}
@@ -228,10 +248,11 @@ export function PayeeSelector({
       {isOpen && dropdownPos && (
         <div
           style={{ position: 'fixed', top: dropdownPos.top, bottom: dropdownPos.bottom, left: dropdownPos.left, width: dropdownPos.width, zIndex: 9999 }}
-          className="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-96 overflow-hidden"
+          className="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-96 overflow-hidden flex flex-col"
         >
           {/* Search Input */}
-          <div className="p-3 border-b border-gray-200 dark:border-gray-700 space-y-2">
+          <div className="p-3 border-b border-gray-200 dark:border-gray-700 space-y-2 shrink-0">
+            <div className="flex items-center gap-2">
             <input
               type="text"
               value={searchQuery}
@@ -240,6 +261,16 @@ export function PayeeSelector({
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               autoFocus
             />
+            {/* MBM-335: a visible way out (Escape and clicking outside also close) */}
+            <button
+              type="button"
+              onClick={() => setIsOpen(false)}
+              title="Close (Esc)"
+              className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700 text-lg leading-none"
+            >
+              ×
+            </button>
+            </div>
             {/* Type filter chips */}
             <div className="flex items-center gap-1 flex-wrap">
               {([
@@ -263,7 +294,7 @@ export function PayeeSelector({
           </div>
 
           {/* Payee List */}
-          <div className="max-h-60 overflow-y-auto">
+          <div className="flex-1 min-h-0 max-h-60 overflow-y-auto">
             {allPayeesCount === 0 ? (
               <div className="p-4 text-center text-gray-500 dark:text-gray-400">
                 No payees found
@@ -379,7 +410,7 @@ export function PayeeSelector({
           </div>
 
           {/* Footer Actions */}
-          <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between gap-3 flex-wrap">
+          <div className="p-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between gap-3 flex-wrap shrink-0">
             <div className="flex items-center gap-3 flex-wrap">
               {onCreateIndividual && (
                 <button
