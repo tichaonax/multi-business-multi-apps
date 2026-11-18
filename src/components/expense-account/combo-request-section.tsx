@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { PayeeSelector } from './payee-selector'
-import { ComboRequestItemRow, ComboItem, Domain } from './combo-request-item-row'
+import { ComboRequestItemRow, ComboItem, Domain, ComboPayeeCreate } from './combo-request-item-row'
 
 export type SectionType = 'GROCERY' | 'MONTHLY_CONTRIBUTION' | 'SCHOOL_FEES' | 'CUSTOM'
 
@@ -21,6 +21,10 @@ interface ComboRequestSectionProps {
   domains: Domain[]
   onChange: (updated: ComboSection) => void
   onRemove: () => void
+  // MBM-335
+  activeItemId: string | null
+  onActivateItem: (itemId: string) => void
+  payeeCreate?: ComboPayeeCreate
 }
 
 const SECTION_TYPE_LABELS: Record<SectionType, string> = {
@@ -59,6 +63,9 @@ export function ComboRequestSection({
   domains,
   onChange,
   onRemove,
+  activeItemId,
+  onActivateItem,
+  payeeCreate,
 }: ComboRequestSectionProps) {
   const [collapsed, setCollapsed] = useState(false)
 
@@ -75,12 +82,16 @@ export function ComboRequestSection({
 
   function addItemAt(index: number) {
     const items = [...section.items]
-    items.splice(index + 1, 0, newItem())
+    const added = newItem()
+    items.splice(index + 1, 0, added)
     onChange({ ...section, items })
+    onActivateItem(added._id) // MBM-335: the new item opens, the previous one closes
   }
 
   function addItem() {
-    onChange({ ...section, items: [...section.items, newItem()] })
+    const added = newItem()
+    onChange({ ...section, items: [...section.items, added] })
+    onActivateItem(added._id)
   }
 
   const sectionTotal = section.items.reduce((sum, item) => {
@@ -163,6 +174,10 @@ export function ComboRequestSection({
               <PayeeSelector
                 value={section.payee ? { type: section.payee.type, id: section.payee.id } : null}
                 onChange={payee => onChange({ ...section, payee: payee ? { type: payee.type, id: payee.id, name: payee.name } : null })}
+                refreshTrigger={payeeCreate?.refresh}
+                onCreateIndividual={payeeCreate?.onCreate ? q => payeeCreate.onCreate!('individual', q, { sectionId: section._id }) : undefined}
+                onCreateContractor={payeeCreate?.onCreate ? q => payeeCreate.onCreate!('contractor', q, { sectionId: section._id }) : undefined}
+                onCreateSupplier={payeeCreate?.onCreate && payeeCreate.canSupplier ? q => payeeCreate.onCreate!('supplier', q, { sectionId: section._id }) : undefined}
               />
             </div>
           </div>
@@ -178,6 +193,10 @@ export function ComboRequestSection({
                 onChange={updated => updateItem(idx, updated)}
                 onRemove={() => removeItem(idx)}
                 onAddBelow={() => addItemAt(idx)}
+                isOpen={activeItemId ? item._id === activeItemId : (sectionIndex === 0 && idx === 0)}
+                onOpen={() => onActivateItem(item._id)}
+                sectionId={section._id}
+                payeeCreate={payeeCreate}
               />
             ))}
           </div>

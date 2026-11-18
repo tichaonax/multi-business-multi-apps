@@ -4,7 +4,13 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useToastContext } from '@/components/ui/toast'
 import { ComboRequestSection, ComboSection, SectionType } from './combo-request-section'
-import { ComboItem, Domain } from './combo-request-item-row'
+import { ComboItem, Domain, ComboPayeeCreate } from './combo-request-item-row'
+import { useSession } from 'next-auth/react'
+import { SearchableSelect } from '@/components/ui/searchable-select'
+import { CreateIndividualPayeeModal } from './create-individual-payee-modal'
+import { CreateContractorPayeeModal } from './create-contractor-payee-modal'
+import { SupplierEditor } from '@/components/suppliers/supplier-editor'
+import { getEffectivePermissions, hasUserPermission } from '@/lib/permission-utils'
 import { RecordedExpensesPanel } from '@/components/restaurant/expenses/recorded-expenses-panel'
 import { ReturnHistory, ReturnEntry } from './combo-request-return-history'
 
@@ -108,6 +114,10 @@ function serializeSections(sections: ComboSection[]) {
         notes: item.notes.trim() || null,
         sortOrder: iIdx,
         expenseLineId: item.expenseLineId || null,
+        // MBM-335: keeps the cashier's flag; the requester only answers it
+        id: item.id || null,
+        flagResolved: !!item.flagResolved,
+        flagResponse: item.flagResponse?.trim() || null,
       })),
   }))
 }
@@ -115,6 +125,19 @@ function serializeSections(sections: ComboSection[]) {
 export function ComboRequestForm({ accountId, requestId }: ComboRequestFormProps) {
   const router = useRouter()
   const toast = useToastContext()
+  const { data: session } = useSession()
+
+  // MBM-335: one item open at a time; create payees on the fly
+  const [activeItemId, setActiveItemId] = useState<string | null>(null)
+  const [payeeRefresh, setPayeeRefresh] = useState(0)
+  const [createPayee, setCreatePayee] = useState<{ kind: 'individual' | 'contractor' | 'supplier'; query?: string; target: { sectionId: string; itemId?: string } } | null>(null)
+  const [accountBusinessId, setAccountBusinessId] = useState<string | null>(null)
+  const sessionUser = session?.user as any
+  const canCreatePayees = !!sessionUser && (
+    sessionUser.role === 'admin' ||
+    hasUserPermission(sessionUser, 'canCreatePayees') ||
+    !!getEffectivePermissions(sessionUser).canCreateIndividualPayees
+  )
 
   const [title, setTitle] = useState('')
   const [notes, setNotes] = useState('')
@@ -178,6 +201,13 @@ export function ComboRequestForm({ accountId, requestId }: ComboRequestFormProps
   }, [])
 
   useEffect(() => {
+    fetch(`/api/expense-account/${accountId}`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => setAccountBusinessId(d?.data?.businessId ?? d?.businessId ?? null))
+      .catch(() => {})
+  }, [accountId])
+
+  useEffect(() => {
     if (!requestId) return
     setLoadingDraft(true)
     fetch(`/api/expense-account/${accountId}/combo-requests/${requestId}`, { credentials: 'include' })
@@ -220,6 +250,19 @@ export function ComboRequestForm({ accountId, requestId }: ComboRequestFormProps
                   ? { type: i.payeeType, id: iPayeeId, name: iPayeeName }
                   : null,
                 notes: i.notes || '',
+                // MBM-335
+                id: i.id,
+                classificationLabel: i.category
+                  ? [
+                      i.category.domain ? `${i.category.domain.emoji ?? ''} ${i.category.domain.name}`.trim() : null,
+                      `${i.category.emoji ?? ''} ${i.category.name}`.trim(),
+                      i.subcategory ? `${i.subcategory.emoji ?? ''} ${i.subcategory.name}`.trim() : null,
+                    ].filter(Boolean).join(' › ')
+                  : '',
+                flagNote: i.flagNote ?? null,
+                flaggedByName: i.flaggedByUser?.name ?? null,
+                flagResolved: !!i.flagResolvedAt,
+                flagResponse: i.flagResponse ?? '',
                 expenseLineId: i.restaurant_expense_line?.id,
                 lockedInfo: i.restaurant_expense_line
                   ? `${i.restaurant_expense_line.transaction.reference} · ${new Date(i.restaurant_expense_line.transaction.purchasedAt).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' })}`
@@ -232,6 +275,26 @@ export function ComboRequestForm({ accountId, requestId }: ComboRequestFormProps
       .catch(() => toast.error('Failed to load draft'))
       .finally(() => setLoadingDraft(false))
   }, [requestId, accountId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // MBM-335: put a newly created payee where the user asked for it
+  function applyNewPayee(payee: { type: string; id: string; name: string }) {
+    const target = createPayee?.target
+    setCreatePayee(null)
+    setPayeeRefresh(n => n + 1)
+    if (!target) return
+    setSections(prev => prev.map(s => {
+      if (s._id !== target.sectionId) return s
+      if (!target.itemId) return { ...s, payee }
+      return { ...s, items: s.items.map(i => i._id === target.itemId ? { ...i, payee } : i) }
+    }))
+    toast.push(`Payee "${payee.name}" created and selected`)
+  }
+
+  const payeeCreateProps: ComboPayeeCreate = {
+    refresh: payeeRefresh,
+    canSupplier: !!accountBusinessId,
+    onCreate: canCreatePayees ? (kind, query, target) => setCreatePayee({ kind, query, target }) : undefined,
+  }
 
   const grandTotal = sections.reduce((sum, s) => {
     return sum + s.items.reduce((sSum, item) => {
@@ -259,6 +322,7 @@ export function ComboRequestForm({ accountId, requestId }: ComboRequestFormProps
       if (isNaN(amt) || amt <= 0) submitProblems.push(`${label}: add an amount`)
       if (isBusinessLoan && !i.payee && !s.payee) submitProblems.push(`${label}: add a payee (needed for a loan)`)
       if (isBusinessLoan && i.expenseLineId) submitProblems.push(`${label}: recorded restaurant expenses can't go in a loan`)
+      if (i.flagNote && !i.flagResolved) submitProblems.push(`${label}: 🚩 fix what the cashier flagged, then tick "Mark as fixed"`)
     })
   })
   if (filledItems === 0) submitProblems.push('Add at least one item')
@@ -496,30 +560,30 @@ export function ComboRequestForm({ accountId, requestId }: ComboRequestFormProps
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Business receiving the loan *</label>
-                  <select
+                  <SearchableSelect
+                    options={loanTargets.map(b => ({ id: b.id, label: b.name }))}
                     value={loanBusinessId}
-                    onChange={e => {
-                      const b = loanTargets.find(t => t.id === e.target.value)
-                      setLoanBusinessId(e.target.value)
+                    onChange={id => {
+                      const b = loanTargets.find(t => t.id === id)
+                      setLoanBusinessId(id)
                       setLoanExpenseAccountId(b?.accounts[0]?.id ?? '')
                     }}
-                    className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                  >
-                    <option value="">Choose a business…</option>
-                    {loanTargets.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                  </select>
+                    placeholder="Choose a business…"
+                    searchPlaceholder="Search businesses…"
+                    emptyMessage="No matching business"
+                  />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Its expense account that receives the money *</label>
-                  <select
+                  <SearchableSelect
+                    options={(loanBusiness?.accounts ?? []).map(a => ({ id: a.id, label: `${a.accountName} (${a.accountNumber})` }))}
                     value={loanExpenseAccountId}
-                    onChange={e => setLoanExpenseAccountId(e.target.value)}
+                    onChange={id => setLoanExpenseAccountId(id)}
                     disabled={!loanBusiness}
-                    className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 disabled:opacity-50"
-                  >
-                    {!loanBusiness && <option value="">Choose the business first</option>}
-                    {loanBusiness?.accounts.map(a => <option key={a.id} value={a.id}>{a.accountName} ({a.accountNumber})</option>)}
-                  </select>
+                    placeholder={loanBusiness ? 'Choose an account…' : 'Choose the business first'}
+                    searchPlaceholder="Search accounts…"
+                    emptyMessage="No matching account"
+                  />
                 </div>
               </div>
             )}
@@ -552,6 +616,9 @@ export function ComboRequestForm({ accountId, requestId }: ComboRequestFormProps
             domains={domains}
             onChange={updated => updateSection(idx, updated)}
             onRemove={() => removeSection(idx)}
+            activeItemId={activeItemId}
+            onActivateItem={setActiveItemId}
+            payeeCreate={payeeCreateProps}
           />
         ))}
 
@@ -668,6 +735,40 @@ export function ComboRequestForm({ accountId, requestId }: ComboRequestFormProps
           </div>
         )}
       </div>
+
+      {/* MBM-335: create a payee on the fly */}
+      <CreateIndividualPayeeModal
+        isOpen={createPayee?.kind === 'individual'}
+        initialName={createPayee?.query}
+        onClose={() => setCreatePayee(null)}
+        onSuccess={(payload: any) => { if (payload?.payee) applyNewPayee({ type: 'PERSON', id: payload.payee.id, name: payload.payee.fullName }) }}
+        onError={err => toast.error(err)}
+      />
+      <CreateContractorPayeeModal
+        isOpen={createPayee?.kind === 'contractor'}
+        initialName={createPayee?.query}
+        onClose={() => setCreatePayee(null)}
+        onSuccess={(payload: any) => { if (payload?.payee) applyNewPayee({ type: 'PERSON', id: payload.payee.id, name: payload.payee.fullName }) }}
+        onError={err => toast.error(err)}
+      />
+      {createPayee?.kind === 'supplier' && accountBusinessId && (
+        <SupplierEditor
+          businessId={accountBusinessId}
+          initialName={createPayee.query}
+          onCancel={() => setCreatePayee(null)}
+          onSave={async (supplierId?: string) => {
+            if (!supplierId) { setCreatePayee(null); setPayeeRefresh(n => n + 1); return }
+            let name = createPayee.query || 'New supplier'
+            try {
+              const res = await fetch(`/api/business/${accountBusinessId}/suppliers`, { credentials: 'include' })
+              const data = res.ok ? await res.json() : null
+              const found = (data?.data ?? []).find((s: any) => s.id === supplierId)
+              if (found?.name) name = found.name
+            } catch { /* keep the typed name */ }
+            applyNewPayee({ type: 'SUPPLIER', id: supplierId, name })
+          }}
+        />
+      )}
     </div>
   )
 }

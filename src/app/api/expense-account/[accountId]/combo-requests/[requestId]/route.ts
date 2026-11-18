@@ -43,7 +43,9 @@ async function getComboRequest(requestId: string, accountId: string) {
               payeeEmployee: { select: { id: true, fullName: true, phone: true } },
               payeeBusiness: { select: { id: true, name: true } },
               payeeSupplier: { select: { id: true, name: true, phone: true, contactPerson: true } },
-              category:      { select: { id: true, domainId: true } },
+              category:      { select: { id: true, domainId: true, name: true, emoji: true, domain: { select: { name: true, emoji: true } } } }, // MBM-335: shown to the cashier
+              subcategory:   { select: { id: true, name: true, emoji: true } },
+              flaggedByUser: { select: { name: true } }, // MBM-335
               // MBM-303: sum of receipts already tagged to this item (see
               // "Add Receipt" / comboItemId), mapped down to receiptedAmount
               // below rather than exposing raw receipt rows here.
@@ -214,6 +216,15 @@ export async function PATCH(
       if (sections !== undefined) {
         // MBM-319: free linked recorded expenses first; the payload re-links them
         await releaseExpenseLinesTx(tx, { requestId })
+        // MBM-335: items are re-created below — keep the cashier's flags by
+        // the item id the form sends back. The requester may only answer a
+        // flag (mark fixed + reply), never change or remove it.
+        const oldFlags = new Map(
+          (await tx.comboPaymentRequestItems.findMany({
+            where: { requestId, flagNote: { not: null } },
+            select: { id: true, flagNote: true, flaggedBy: true, flaggedAt: true, flagResolvedAt: true, flagResponse: true },
+          })).map(f => [f.id, f])
+        )
         await tx.comboPaymentRequestItems.deleteMany({ where: { requestId } })
         await tx.comboPaymentRequestSections.deleteMany({ where: { requestId } })
 
@@ -253,6 +264,18 @@ export async function PATCH(
                 payeeSupplierId: item.payeeSupplierId || null,
                 notes: item.notes || null,
                 sortOrder: item.sortOrder ?? iIdx,
+                ...(() => {
+                  const flag = item.id ? oldFlags.get(item.id) : undefined
+                  if (!flag) return {}
+                  const resolved = item.flagResolved === true
+                  return {
+                    flagNote: flag.flagNote,
+                    flaggedBy: flag.flaggedBy,
+                    flaggedAt: flag.flaggedAt,
+                    flagResolvedAt: resolved ? (flag.flagResolvedAt ?? new Date()) : null,
+                    flagResponse: resolved && typeof item.flagResponse === 'string' && item.flagResponse.trim() ? item.flagResponse.trim() : (resolved ? flag.flagResponse : null),
+                  }
+                })(),
               },
             })
             if (item.expenseLineId) await linkExpenseLineTx(tx, item.expenseLineId, created.id)

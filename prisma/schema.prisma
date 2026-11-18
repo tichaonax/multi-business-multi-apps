@@ -3958,6 +3958,7 @@ model Users {
   combo_requests_approved                                         ComboPaymentRequests[]            @relation("ComboRequestApprover")
   combo_requests_returned                                         ComboPaymentRequests[]            @relation("ComboRequestReturnedBy")
   combo_request_returns                                           ComboPaymentRequestReturns[]      @relation("ComboReturnHistoryBy")
+  combo_items_flagged                                             ComboPaymentRequestItems[]        @relation("ComboItemFlaggedBy")
   combo_requests_settled                                          ComboPaymentRequests[]            @relation("ComboRequestSettler")
   combo_section_payee                                             ComboPaymentRequestSections[]     @relation("ComboSectionPayeeUser")
   combo_item_payee                                                ComboPaymentRequestItems[]        @relation("ComboItemPayeeUser")
@@ -8379,6 +8380,13 @@ model ComboPaymentRequestItems {
   // MBM-333: business-loan combo — the payment created for this item on the
   // target business's expense account when the combo was approved
   generatedPaymentId      String?   @unique
+  // MBM-335: the cashier flagged this item for the requester to fix
+  // (non-null flagNote = flagged; resubmit is blocked until flagResolvedAt is set)
+  flagNote                String?
+  flaggedBy               String?
+  flaggedAt               DateTime?
+  flagResolvedAt          DateTime?
+  flagResponse            String?
   sortOrder               Int       @default(0)
   createdAt               DateTime  @default(now())
   updatedAt               DateTime  @default(now()) @updatedAt
@@ -8396,6 +8404,7 @@ model ComboPaymentRequestItems {
   // MBM-319: the recorded restaurant expense line this item pays, if any
   restaurant_expense_line RestaurantExpenseLines?      @relation("RestaurantExpenseLineComboItem")
   generatedPayment        ExpenseAccountPayments?      @relation("ComboItemGeneratedPayment", fields: [generatedPaymentId], references: [id])
+  flaggedByUser           Users?                       @relation("ComboItemFlaggedBy", fields: [flaggedBy], references: [id], onDelete: SetNull)
 
   @@index([requestId])
   @@index([sectionId])

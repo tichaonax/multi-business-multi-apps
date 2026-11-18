@@ -62,6 +62,14 @@ interface ComboItem {
   payeeSupplier?: { id: string; name: string } | null
   receiptPayments?: ComboItemReceiptPayment[] // MBM-330
   generatedPayment?: { id: string; status: string; amount: number; paidAt: string | null; expenseAccountId: string } | null // MBM-333
+  // MBM-335: classification + cashier flag
+  category?: { id: string; name: string; emoji: string | null; domain: { name: string; emoji: string | null } | null } | null
+  subcategory?: { id: string; name: string; emoji: string | null } | null
+  flagNote?: string | null
+  flaggedAt?: string | null
+  flagResolvedAt?: string | null
+  flagResponse?: string | null
+  flaggedByUser?: { name: string } | null
 }
 
 interface ComboSection {
@@ -69,9 +77,20 @@ interface ComboSection {
   sectionType: string
   sectionName: string | null
   payeeType: string | null
+  // MBM-335: the section's default payee, shown by name
+  payeePerson?: { id: string; fullName: string } | null
+  payeeUser?: { id: string; name: string } | null
+  payeeEmployee?: { id: string; fullName: string } | null
+  payeeBusiness?: { id: string; name: string } | null
+  payeeSupplier?: { id: string; name: string } | null
   notes: string | null
   sortOrder: number
   items: ComboItem[]
+}
+
+// MBM-335: a payee's display name from whichever relation is set
+function payeeName(p: { payeePerson?: { fullName: string } | null; payeeUser?: { name: string } | null; payeeEmployee?: { fullName: string } | null; payeeBusiness?: { name: string } | null; payeeSupplier?: { name: string } | null }): string | null {
+  return p.payeePerson?.fullName ?? p.payeeUser?.name ?? p.payeeEmployee?.fullName ?? p.payeeBusiness?.name ?? p.payeeSupplier?.name ?? null
 }
 
 interface ComboRequest {
@@ -190,6 +209,10 @@ export function ComboRequestDetail({ accountId, requestId }: ComboRequestDetailP
   const [showReturnPanel, setShowReturnPanel] = useState(false)
   const [returnNoteInput, setReturnNoteInput] = useState('')
   const [returning, setReturning] = useState(false)
+  // MBM-335: cashier flagging an item
+  const [flagEditId, setFlagEditId] = useState<string | null>(null)
+  const [flagText, setFlagText] = useState('')
+  const [flagSaving, setFlagSaving] = useState(false)
   const [showSettlePanel, setShowSettlePanel] = useState(false)
   const [settleConfirmPanel, setSettleConfirmPanel] = useState(false)
   const [settleConfirmNote, setSettleConfirmNote] = useState('')
@@ -350,6 +373,27 @@ export function ComboRequestDetail({ accountId, requestId }: ComboRequestDetailP
     }
   }
 
+  async function saveFlag(itemId: string, body: { note: string } | { clear: true }) {
+    setFlagSaving(true)
+    try {
+      const res = await fetch(`/api/expense-account/${accountId}/combo-requests/${requestId}/items/${itemId}/flag`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(body),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) { toast.error(data.error || 'Failed to save the flag'); return }
+      setFlagEditId(null)
+      setFlagText('')
+      loadRequest()
+    } catch {
+      toast.error('Failed to save the flag')
+    } finally {
+      setFlagSaving(false)
+    }
+  }
+
   async function handleReturn() {
     setReturning(true)
     try {
@@ -472,7 +516,11 @@ export function ComboRequestDetail({ accountId, requestId }: ComboRequestDetailP
   const canRequestSettle = request.canRequestSettle
   const canConfirmSettle = request.canConfirmSettle
   const overrideAmountValid = !isNaN(parseFloat(overrideAmountStr)) && parseFloat(overrideAmountStr) > 0
-  const returnNoteValid = returnNoteInput.trim().length >= 10
+  // MBM-335: open flags make the overall note optional
+  const flaggedItems = request.sections.flatMap(s => s.items).filter(i => i.flagNote && !i.flagResolvedAt)
+  const returnNoteValid = returnNoteInput.trim().length >= 10 || (flaggedItems.length > 0 && returnNoteInput.trim().length === 0)
+  const canFlag = canReturn && request.status === 'SUBMITTED'
+  const showReceiptBadges = !['DRAFT', 'SUBMITTED'].includes(request.status)
 
   const badge = STATUS_BADGE[request.status] ?? { label: request.status, className: 'bg-gray-100 text-gray-700' }
 
@@ -753,8 +801,18 @@ export function ComboRequestDetail({ accountId, requestId }: ComboRequestDetailP
                 placeholder='e.g. "Please add the payee for the school fees item and confirm the quantity for sugar."'
                 className="w-full border border-amber-300 dark:border-amber-700 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"
               />
-              <p className="text-xs text-amber-600 dark:text-amber-500 mt-1">Required · minimum 10 characters</p>
+              <p className="text-xs text-amber-600 dark:text-amber-500 mt-1">
+                {flaggedItems.length > 0 ? 'Optional — the flagged items say what to fix · or at least 10 characters' : 'Required · minimum 10 characters (or 🚩 flag the items that need fixing)'}
+              </p>
             </div>
+            {flaggedItems.length > 0 && (
+              <div className="text-xs text-amber-800 dark:text-amber-300">
+                <p className="font-medium">🚩 {flaggedItems.length} flagged item{flaggedItems.length === 1 ? '' : 's'} — the requester must fix each before resubmitting:</p>
+                <ul className="mt-1 space-y-0.5 list-disc list-inside">
+                  {flaggedItems.map(i => <li key={i.id}><span className="font-medium">{i.description}</span> — {i.flagNote}</li>)}
+                </ul>
+              </div>
+            )}
             <div className="flex gap-2">
               <button
                 onClick={handleReturn}
@@ -895,7 +953,9 @@ export function ComboRequestDetail({ accountId, requestId }: ComboRequestDetailP
                   {section.sectionName || SECTION_LABELS[section.sectionType] || section.sectionType}
                 </span>
                 {section.payeeType && (
-                  <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">({section.payeeType})</span>
+                  <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
+                    👤 {payeeName(section) ?? section.payeeType}
+                  </span>
                 )}
                 {section.notes && (
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{section.notes}</p>
@@ -928,7 +988,7 @@ export function ComboRequestDetail({ accountId, requestId }: ComboRequestDetailP
                       {/* MBM-303: whether this item has a matching receipt
                           total or a "no receipt" explanation — the gate the
                           cashier's final receipt approval enforces. */}
-                      {!isNotFunded && (
+                      {!isNotFunded && showReceiptBadges && (
                         item.accountedFor ? (
                           <span className="text-xs bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400 px-1.5 py-0.5 rounded" title={item.noReceiptReason ?? undefined}>
                             ✅ Accounted
@@ -960,12 +1020,55 @@ export function ComboRequestDetail({ accountId, requestId }: ComboRequestDetailP
                             </span>
                           )
                         })()}
+                        {!item.payeeType && section.payeeType && (
+                          <span title="This item uses the section's payee">Payee: ↳ {payeeName(section) ?? section.payeeType}</span>
+                        )}
+                        {item.category && (
+                          <span title="Domain › Category › Sub-category">
+                            {item.category.domain && <>{item.category.domain.emoji} {item.category.domain.name} › </>}
+                            {item.category.emoji} {item.category.name}
+                            {item.subcategory && <> › {item.subcategory.emoji} {item.subcategory.name}</>}
+                          </span>
+                        )}
                         {item.receiptNumber && <span>Receipt: {item.receiptNumber}</span>}
                         {item.paidAt && <span>Paid {fmtDate(item.paidAt)}</span>}
                         {item.notes && <span className="italic">{item.notes}</span>}
                       </div>
                       {item.noReceiptReason && (
                         <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5 italic">🚫 No receipt — {item.noReceiptReason}</p>
+                      )}
+                      {/* MBM-335: cashier's flag on this item */}
+                      {item.flagNote && (
+                        <div className={`mt-1.5 text-xs rounded px-2 py-1 border ${item.flagResolvedAt ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-800 dark:text-green-300' : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-800 dark:text-red-300'}`}>
+                          <span className="font-medium">🚩 {item.flaggedByUser?.name ?? 'Cashier'}:</span> {item.flagNote}
+                          {item.flagResolvedAt && (
+                            <div className="mt-0.5">✅ Fixed by the requester{item.flagResponse ? <> — &ldquo;{item.flagResponse}&rdquo;</> : ''}</div>
+                          )}
+                        </div>
+                      )}
+                      {canFlag && flagEditId === item.id && (
+                        <div className="mt-1.5 flex gap-1.5 items-start">
+                          <input
+                            autoFocus
+                            value={flagText}
+                            onChange={e => setFlagText(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter' && flagText.trim().length >= 3) saveFlag(item.id, { note: flagText }) }}
+                            placeholder='What needs fixing? e.g. "Wrong payee — should be Mr Moyo"'
+                            className="flex-1 min-w-0 border border-red-300 dark:border-red-700 rounded px-2 py-1 text-xs bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-red-400"
+                          />
+                          <button type="button" disabled={flagSaving || flagText.trim().length < 3} onClick={() => saveFlag(item.id, { note: flagText })} className="text-xs px-2 py-1 rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-50">Save</button>
+                          <button type="button" onClick={() => { setFlagEditId(null); setFlagText('') }} className="text-xs px-2 py-1 rounded border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300">Cancel</button>
+                        </div>
+                      )}
+                      {canFlag && flagEditId !== item.id && (
+                        <div className="mt-1 flex gap-3 text-xs">
+                          <button type="button" onClick={() => { setFlagEditId(item.id); setFlagText(item.flagResolvedAt ? '' : (item.flagNote ?? '')) }} className="text-red-600 dark:text-red-400 hover:underline">
+                            {!item.flagNote ? '🚩 Flag' : item.flagResolvedAt ? '🚩 Flag again' : '✎ Edit flag'}
+                          </button>
+                          {item.flagNote && (
+                            <button type="button" disabled={flagSaving} onClick={() => saveFlag(item.id, { clear: true })} className="text-gray-500 dark:text-gray-400 hover:underline">Clear flag</button>
+                          )}
+                        </div>
                       )}
                       <ComboItemPaidTo payments={item.receiptPayments} />
                     </div>

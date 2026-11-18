@@ -43,6 +43,12 @@ export async function POST(
       return NextResponse.json({ error: `Add an amount for ${unpriced.map(i => `"${i.description}"`).join(', ')} before submitting` }, { status: 400 })
     }
 
+    // MBM-335: every item the cashier flagged must be marked fixed first
+    const openFlags = items.filter(i => i.flagNote && !i.flagResolvedAt)
+    if (openFlags.length > 0) {
+      return NextResponse.json({ error: `Fix the flagged item${openFlags.length === 1 ? '' : 's'} first: ${openFlags.map(i => `"${i.description}"`).join(', ')}` }, { status: 400 })
+    }
+
     // MBM-333: a business-loan request needs every item priced with a payee
     // (each becomes its own payment at the target business)
     if (comboRequest.isBusinessLoan) {

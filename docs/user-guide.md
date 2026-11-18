@@ -10488,6 +10488,12 @@ A request can also be marked as a **business loan**. Approving it lends the tota
    - **Payee** — who is being paid (person, employee, supplier, business, or leave blank)
    - **Item Notes** — any extra details
 
+> **Payee not in the list?** Type the name in the payee search. If you're allowed to create payees, the bottom of the list offers **+ Individual**, **+ Contractor** and (for a business's account) **+ Supplier**. Fill in the short form and save: the new payee is created and selected straight away, on the item or section you were editing. This works for the section's default payee and for an item's own payee.
+
+> **One item open at a time.** The item you're working on is open; the others fold into one line showing the description, quantity, classification, payee and amount, e.g. **fridge · 1 · 🏠 Home › 🛋 Furniture & Appliances › 🍳 Kitchen Appliances · 👤 Mr Moyo · $145.00**. Click a line to open that item (the open one folds away). A new item opens automatically.
+>
+> **The classification folds too.** Once a category and sub-category are chosen (or picked from **✨ Suggest**), the Domain / Category / Sub-category boxes collapse into one line. Click **✎ Change** to open them again.
+
 > **✨ Suggest on combo items:** After typing a description, click **✨ Suggest** next to the Domain field. The system searches for matching expense categories and displays results in up to two sections — **matches within the selected domain** (if one is chosen) and **Other Categories** from across all domains. Selecting a result from either section fills in the Domain, Category, and Sub-category automatically. If no domain is selected, all results are shown as a flat list so you can discover the right classification from scratch.
 >
 > Up to 5 results show at first. If there are more, a **Load N more (M remaining)** button appears below the list. If nothing matches within the selected domain, the list says **No matches in [domain] — other categories:** and shows the other results, still with **Load more** when there are more to see.
@@ -10563,6 +10569,13 @@ If you need to make changes after submitting but before the cashier acts:
 
 When a user submits a combo request, you receive a notification (💬 Notifications → **📋 Combo Requests**), and it appears on the **Submitted** tab of the Combo Requests list.
 
+**Review everything before approving.** The request shows everything the requester entered, so you can spot a wrong payee, description or amount:
+- each section with its default payee's **name** and its notes;
+- each item with its description, quantity and unit, **payee** (its own, or **↳ the section's payee**), **classification** (Domain › Category › Sub-category), notes and amount;
+- the request's notes at the top.
+
+Receipt badges (**⚠️ Needs receipt** / **✅ Accounted**) only appear after approval.
+
 It also waits for you in **Pending Actions** (🔔 bell → **🧺 Combo Requests to Approve**, and the Pending Actions page → **Combo Requests Awaiting Approval**) until it is approved or returned. Each entry shows the requester, account, amount and days left before it expires, and **Review & approve →** opens it. Your own submitted requests are listed too, marked **Your request**, if you're allowed to approve them.
 
 > **How notifications look:**
@@ -10591,9 +10604,12 @@ The request status changes to **APPROVED** (all items funded) or **PARTIALLY APP
 If the request needs clarification or corrections before you can approve it:
 
 1. Open the submitted request.
-2. Click **↩ Return for Edits**.
-3. An inline panel opens. Type your feedback in the **Return Note** field (minimum 10 characters — be specific so the requester knows what to fix).
-4. Click **Confirm Return**.
+2. **Flag the items that need fixing (optional, recommended).** Under each item, click **🚩 Flag**, type what is wrong (e.g. "Wrong payee — should be Mr Moyo") and press **Save** (or Enter). The flag is saved straight away; use **✎ Edit flag** or **Clear flag** to change it.
+3. Click **↩ Return for Edits**. The panel lists the flagged items.
+4. Type an overall **Return Note**. It is **optional when at least one item is flagged**; otherwise it needs at least 10 characters.
+5. Click **Confirm Return**.
+
+The requester's notification says how many items are flagged (e.g. **🚩 2 items flagged**). **They can't resubmit until every flagged item is marked fixed.** When the request comes back, each flag shows **✅ Fixed by the requester** with their reply, so you can check it; use **🚩 Flag again** if it still isn't right.
 
 The request goes back to **DRAFT** status. The requester receives a notification and sees a yellow banner showing your feedback, both on the request and on its edit form.
 
@@ -10609,13 +10625,14 @@ When a cashier returns your request:
 
 1. Open the request (or click the notification). A yellow **↩️ Returned for changes** banner shows the cashier's note, who returned it and when.
 2. Click **✎ Edit**. The same banner is shown at the top of the edit form, so you can read it while you work.
-3. Make the requested changes. While the request is in DRAFT you can freely:
+3. **Flagged items** have a red border (a 🚩 on their one-line view) and show the cashier's note. Fix each one, then tick **✓ Mark as fixed** and, optionally, write a short reply (e.g. "payee corrected"). Removing a flagged item also clears its flag. **Submit stays disabled until every flag is marked fixed.** The **To submit:** line lists any that are left.
+4. Make the requested changes. While the request is in DRAFT you can freely:
    - add or remove sections and items;
    - reduce (or change) item amounts;
    - change payees;
    - edit the title and notes;
    - change the business-loan settings.
-4. When ready, click **Submit Request** again (same confirmation panel as the first submission).
+5. When ready, click **Submit Request** again (same confirmation panel as the first submission).
 
 Once you resubmit, the banner turns grey and reads **Was returned for changes … resubmitted [date]**. If the request was returned more than once, open **Earlier returns** to see the previous notes.
 
@@ -10642,7 +10659,7 @@ The loan only records the debt; it holds no money. The money is counted once on 
 
 1. Create the request as usual (see [Creating a Request](#requester--creating-a-request)).
 2. Tick **🤝 This is a business loan**.
-3. Choose the **Business receiving the loan**. This account's own business isn't listed.
+3. Choose the **Business receiving the loan**. This account's own business isn't listed. Both lists are searchable: click and start typing.
 4. Choose **Its expense account that receives the money**. The business's main account is picked for you; change it if needed.
 5. Add the sections and items. **Every item needs an amount and a payee** (the item's own payee, or the section's), because each item becomes its own payment at that business.
 6. Click **Submit Request**. A loan is requested in full, so the confirmation panel doesn't offer the amount override.
@@ -10820,7 +10837,7 @@ A combo request that isn't fully paid within **30 days of submission** automatic
 
 **Submit button is greyed out:**
 - Read the **To submit:** line under the buttons (or hover over the button) — it lists exactly what is missing.
-- Common causes: no title, an item without an amount or description, an unnamed Custom section, or (for a business loan) no target business/account or an item without a payee.
+- Common causes: no title, an item without an amount or description, an unnamed Custom section, (for a business loan) no target business/account or an item without a payee, or a 🚩 flagged item not yet marked fixed.
 - Save a draft first if you need to come back to it.
 
 **My submitted combo request isn't in my list:**

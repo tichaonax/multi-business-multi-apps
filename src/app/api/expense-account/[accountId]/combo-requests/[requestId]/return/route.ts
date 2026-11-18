@@ -33,10 +33,17 @@ export async function POST(
     }
 
     const body = await request.json().catch(() => ({}))
-    const note = typeof body?.note === 'string' ? body.note.trim() : ''
-    if (note.length < 10) {
-      return NextResponse.json({ error: 'Return note must be at least 10 characters' }, { status: 400 })
+    const typedNote = typeof body?.note === 'string' ? body.note.trim() : ''
+    // MBM-335: the overall note is optional when items are flagged (the
+    // flags say what to fix); otherwise it is required as before
+    const openFlags = await prisma.comboPaymentRequestItems.count({
+      where: { requestId, flagNote: { not: null }, flagResolvedAt: null },
+    })
+    if (openFlags === 0 && typedNote.length < 10) {
+      return NextResponse.json({ error: 'Return note must be at least 10 characters (or flag the items that need fixing)' }, { status: 400 })
     }
+    const flagSummary = openFlags > 0 ? `${openFlags} item${openFlags === 1 ? '' : 's'} flagged` : ''
+    const note = typedNote || `Please fix the flagged item${openFlags === 1 ? '' : 's'} (${flagSummary}).`
 
     const now = new Date()
     const [updated] = await prisma.$transaction([
@@ -61,7 +68,7 @@ export async function POST(
         userIds: [comboRequest.createdBy],
         type: 'COMBO_REQUEST_RETURNED',
         title: 'Request Returned for Edits',
-        message: `${user.name} returned "${comboRequest.title}" for edits: ${note}`,
+        message: `${user.name} returned "${comboRequest.title}" for edits${flagSummary ? ` — 🚩 ${flagSummary}` : ''}: ${note}`,
         linkUrl: `/expense-accounts/${accountId}/combo-requests/${requestId}`,
       })
     } catch (notifErr) {

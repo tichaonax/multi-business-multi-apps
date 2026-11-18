@@ -23,6 +23,21 @@ export interface ComboItem {
   // MBM-319: a recorded restaurant expense this item pays — shown locked
   expenseLineId?: string
   lockedInfo?: string
+  // MBM-335: the saved item's id (keeps the cashier's flag across saves),
+  // the one-line classification, and the cashier's flag + the answer to it
+  id?: string
+  classificationLabel?: string
+  flagNote?: string | null
+  flaggedByName?: string | null
+  flagResolved?: boolean
+  flagResponse?: string
+}
+
+/** MBM-335: lets a payee picker open the form's "create payee" dialogs */
+export interface ComboPayeeCreate {
+  refresh: number
+  canSupplier: boolean
+  onCreate?: (kind: 'individual' | 'contractor' | 'supplier', query: string | undefined, target: { sectionId: string; itemId?: string }) => void
 }
 
 interface ComboRequestItemRowProps {
@@ -32,6 +47,11 @@ interface ComboRequestItemRowProps {
   onChange: (updated: ComboItem) => void
   onRemove: () => void
   onAddBelow: () => void
+  // MBM-335: only one item is open at a time; the others show one line
+  isOpen: boolean
+  onOpen: () => void
+  sectionId: string
+  payeeCreate?: ComboPayeeCreate
 }
 
 interface Suggestion {
@@ -124,6 +144,8 @@ export function ItemCategorySelector({
   subcategoryId,
   description,
   onChange,
+  initialLabel,
+  onLabel,
 }: {
   domains: Domain[]
   defaultDomainId?: string
@@ -131,8 +153,12 @@ export function ItemCategorySelector({
   subcategoryId: string
   description: string
   onChange: (categoryId: string, subcategoryId: string) => void
+  initialLabel?: string
+  onLabel?: (label: string) => void
 }) {
   const [domainId, setDomainId] = useState(defaultDomainId ?? '')
+  // MBM-335: once chosen, the three pickers fold into one line (✎ Change re-opens)
+  const [editing, setEditing] = useState(false)
   const [categories, setCategories] = useState<{ id: string; label: string }[]>([])
   const [loadingCats, setLoadingCats] = useState(false)
   const [subcategories, setSubcategories] = useState<{ id: string; label: string }[]>([])
@@ -206,6 +232,27 @@ export function ItemCategorySelector({
     setDomainId(s.domainId)
     onChange(s.categoryId, s.subcategoryId)
     setShowSuggestions(false)
+    setEditing(false)
+  }
+
+  // MBM-335: "🏠 Home › 🛋 Furniture › 🍳 Kitchen Appliances"
+  const builtLabel = [
+    domains.find(d => d.id === domainId)?.label,
+    categories.find(c => c.id === categoryId)?.label,
+    subcategories.find(s => s.id === subcategoryId)?.label,
+  ].filter(Boolean).join(' › ')
+  const label = (categoryId && builtLabel.includes('›')) ? builtLabel : (initialLabel || builtLabel)
+  useEffect(() => {
+    if (onLabel && categoryId && builtLabel.includes('›')) onLabel(builtLabel)
+  }, [builtLabel]) // eslint-disable-line react-hooks/exhaustive-deps
+  const chosen = !!categoryId && (!!subcategoryId || (!loadingSubs && subcategories.length === 0 && !!label))
+  if (chosen && !editing && !showSuggestions) {
+    return (
+      <div className="flex items-center gap-2 border border-gray-200 dark:border-gray-700 rounded-md px-2 py-1.5 bg-gray-50 dark:bg-gray-700/40">
+        <span className="flex-1 min-w-0 truncate text-xs text-gray-800 dark:text-gray-200" title={label}>{label || 'Classified'}</span>
+        <button type="button" onClick={() => setEditing(true)} className="shrink-0 text-xs text-blue-600 dark:text-blue-400 hover:underline">✎ Change</button>
+      </div>
+    )
   }
 
   const canSuggest = description.trim().length >= 2
@@ -321,7 +368,7 @@ export function ItemCategorySelector({
         <SearchSelect
           value={subcategoryId}
           options={subcategories}
-          onChange={id => onChange(categoryId, id)}
+          onChange={id => { onChange(categoryId, id); if (id) setEditing(false) }}
           placeholder="Sub-category (optional)"
           loading={loadingSubs}
         />
@@ -337,6 +384,10 @@ export function ComboRequestItemRow({
   onChange,
   onRemove,
   onAddBelow,
+  isOpen,
+  onOpen,
+  sectionId,
+  payeeCreate,
 }: ComboRequestItemRowProps) {
   const [showExtra, setShowExtra] = useState(!!item.payee)
   const descRef = useRef<HTMLInputElement>(null)
@@ -389,9 +440,59 @@ export function ComboRequestItemRow({
 
   const inputBase = 'w-full border border-gray-300 dark:border-gray-600 rounded-md px-2 py-1.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500'
   const labelBase = 'block text-xs text-gray-400 dark:text-gray-500 mb-0.5'
+  const flagOpen = !!item.flagNote && !item.flagResolved
+
+  // MBM-335: closed item — one line; click to open (closes the previous one)
+  if (!isOpen) {
+    const amt = parseFloat(item.estimatedAmount)
+    return (
+      <button
+        type="button"
+        onClick={onOpen}
+        className={`w-full text-left border rounded-lg px-3 py-2 bg-white dark:bg-gray-800 hover:border-blue-400 dark:hover:border-blue-500 transition-colors flex items-center gap-2 text-sm ${flagOpen ? 'border-red-400 dark:border-red-600' : 'border-gray-200 dark:border-gray-700'}`}
+        title="Click to edit this item"
+      >
+        {flagOpen && <span title="Flagged by the cashier">🚩</span>}
+        {item.flagNote && item.flagResolved && <span title="Flag marked fixed">✅</span>}
+        <span className="font-medium text-gray-900 dark:text-gray-100 truncate">{item.description.trim() || <span className="italic text-gray-400">Item {index + 1} (empty)</span>}</span>
+        <span className="flex-1 min-w-0 truncate text-xs text-gray-500 dark:text-gray-400">
+          {[
+            item.quantity ? `${item.quantity}${item.unit ? ` ${item.unit}` : ''}` : '',
+            item.classificationLabel ?? '',
+            item.payee ? `👤 ${item.payee.name}` : '',
+          ].filter(Boolean).join(' · ')}
+        </span>
+        <span className="shrink-0 font-semibold text-gray-900 dark:text-gray-100">{isNaN(amt) ? '—' : `$${amt.toFixed(2)}`}</span>
+      </button>
+    )
+  }
 
   return (
-    <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 bg-white dark:bg-gray-800 space-y-2">
+    <div className={`border rounded-lg p-3 bg-white dark:bg-gray-800 space-y-2 ${flagOpen ? 'border-red-400 dark:border-red-600' : 'border-gray-200 dark:border-gray-700'}`}>
+      {/* MBM-335: the cashier's flag on this item — must be marked fixed to resubmit */}
+      {item.flagNote && (
+        <div className={`rounded-md px-3 py-2 text-xs border ${flagOpen ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-800 dark:text-red-300' : 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-800 dark:text-green-300'}`}>
+          <p><span className="font-semibold">🚩 {item.flaggedByName ?? 'Cashier'}:</span> {item.flagNote}</p>
+          <label className="mt-1.5 flex items-center gap-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={!!item.flagResolved}
+              onChange={e => onChange({ ...item, flagResolved: e.target.checked })}
+              className="rounded"
+            />
+            <span className="font-medium">✓ Mark as fixed</span>
+          </label>
+          {item.flagResolved && (
+            <input
+              type="text"
+              value={item.flagResponse ?? ''}
+              onChange={e => onChange({ ...item, flagResponse: e.target.value })}
+              placeholder="Reply to the cashier (optional) — e.g. payee corrected"
+              className="mt-1.5 w-full border border-green-300 dark:border-green-700 rounded px-2 py-1 text-xs bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+            />
+          )}
+        </div>
+      )}
       {/* Row 1: description + remove */}
       <div className="flex gap-2 items-center">
         <input
@@ -456,7 +557,9 @@ export function ComboRequestItemRow({
             categoryId={item.categoryId}
             subcategoryId={item.subcategoryId}
             description={item.description}
-            onChange={(catId, subId) => onChange({ ...item, categoryId: catId, subcategoryId: subId })}
+            onChange={(catId, subId) => onChange({ ...item, categoryId: catId, subcategoryId: subId, ...(catId ? {} : { classificationLabel: '' }) })}
+            initialLabel={item.classificationLabel}
+            onLabel={label => { if (label !== item.classificationLabel) onChange({ ...item, classificationLabel: label }) }}
           />
         </div>
         <button
@@ -476,6 +579,10 @@ export function ComboRequestItemRow({
             <PayeeSelector
               value={item.payee ? { type: item.payee.type, id: item.payee.id } : null}
               onChange={payee => onChange({ ...item, payee: payee ? { type: payee.type, id: payee.id, name: payee.name } : null })}
+              refreshTrigger={payeeCreate?.refresh}
+              onCreateIndividual={payeeCreate?.onCreate ? q => payeeCreate.onCreate!('individual', q, { sectionId, itemId: item._id }) : undefined}
+              onCreateContractor={payeeCreate?.onCreate ? q => payeeCreate.onCreate!('contractor', q, { sectionId, itemId: item._id }) : undefined}
+              onCreateSupplier={payeeCreate?.onCreate && payeeCreate.canSupplier ? q => payeeCreate.onCreate!('supplier', q, { sectionId, itemId: item._id }) : undefined}
             />
           </div>
           <div>
