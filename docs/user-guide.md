@@ -4433,8 +4433,12 @@ Tokens are **pre-generated** before any sale happens. A pool of AVAILABLE tokens
 
 This means:
 - There is no delay at checkout — the token is assigned instantly.
-- The pool must be topped up before it runs out.
-- The POS product card shows the current available count.
+- The POS product card shows how many codes are **ready**.
+
+**When no codes are ready (MBM-338)**, the pass can still be sold — the cashier doesn't need permission to make tokens. The card shows **⚡ code made at payment**, and the code is made on the WiFi device only after the customer pays (never when the pass is added to the cart). If the device can't make the code (for example it is offline):
+- the WiFi pass is **not charged** — the order total is lowered and the other items in the sale go through normally;
+- the Order Complete screen, a red message, and the receipt show **"📶 WiFi not issued — $X not charged"** — give that amount back to the customer (cash change is already adjusted);
+- the sale shows the line as *not issued* in Receipt History.
 
 #### Selling an R710 Token at the POS
 
@@ -4468,9 +4472,11 @@ This means:
 
 #### Checking and Restocking Token Availability
 
-On the POS product card, the available count is displayed. When availability drops below 5:
-- A **"Request 5 More"** button appears on the product card. Click it — 5 new tokens are generated in seconds and the count updates.
-- If availability actually reaches **zero**, the **Add to Cart** button itself becomes disabled and shows **"Sold Out"** instead — a package with nothing left can't be added to the cart at all, rather than failing later at checkout.
+On the POS product card, the ready count is displayed. When it drops below 5:
+- A **"Request 5 More"** button appears on the product card (for users allowed to make tokens). Click it — 5 new tokens are generated in seconds and the count updates.
+- At **zero**, R710 passes can still be sold — the code is made at payment (see above). Older **ESP32** WiFi packages still show **"Sold Out"** at zero, because their codes must exist on the device beforehand.
+
+**Where the money goes:** every R710 sale (POS or direct) is deposited into the business's **WiFi expense account**, and it also counts as a **sale of the business** in sales reports, end-of-day and Receipt History. The business account is credited only with the non-WiFi part of an order, so WiFi money isn't counted twice.
 
 **Automatic top-up:** separately from the button above, the system checks every package's stock every 10 minutes and tops it up on its own — using each package's own configured threshold and refill quantity (set per package in **R710 Portal → Token Management**, defaulting to "top up 20 when below 5") — so in normal operation a package shouldn't need the manual button at all. It exists for the rare case where a sudden rush of sales empties a package in between those automatic checks.
 
@@ -4550,6 +4556,10 @@ The **R710 Portal → Sales** page is a dedicated selling interface for R710 tok
 10. Click **📋 Copy** to copy the credentials as plain text (shows **✅ Copied** briefly), **👁️ Preview** to review before printing, or **🖨️ Print** to print all credentials on a single receipt.
 
 > **Tip:** The cart is cleared after a successful sale. To sell another batch, simply add packages to the cart again — no page refresh needed.
+
+**Direct sales count as business sales (MBM-338).** Each paid direct sale is also recorded as a completed, paid sales order of the business (all passes from one checkout on one order, with your name as salesperson and the business's normal receipt number). It appears in sales reports, end-of-day/salesperson sales and **Receipt History** (search "wifi"). The money stays in the WiFi expense account — the business account isn't credited a second time. Free ($0) passes are not recorded as sales.
+
+**The WiFi expense account's lines** read like **📶 8 Hour Pass — `7KQ2M9`**: the pass and the customer's code. Hover the code to see who sold it, when, and whether it was a POS or direct sale, with a **📋 Copy** button. Older lines show their code too (looked up from the token).
 
 #### R710 Wi-Fi Quick Sell — From Any Page
 
@@ -14236,6 +14246,13 @@ This is an **attribution fix only**. It corrects who a sale is credited to for r
 Available to system admins and anyone with **Can Close Books** or **Can Access Financial Data** permission on the business. Staff without one of these permissions do not see the Reassign controls at all.
 
 ### Reassigning a Single Sale
+
+**Receipt History at a glance (MBM-338):**
+- **Search** finds receipt numbers, customers, salespeople, item names and WiFi codes, ignoring capital letters. Type **wifi** to list every sale that included WiFi.
+- The **Items** column shows what was sold — the main item (WiFi first, with its code in a blue pill) and "+ N more".
+- **Hover a row** (desktop) to see every item, the total, the payment, the **salesperson** (with ↺ Reassigned history) and any **WiFi codes**, each in a highlighted box with **📋 Copy** (and **Copy all** for several). The card stays open while the pointer is on it. A WiFi pass that couldn't be issued shows in red as *not charged*.
+- For sales made before this change, WiFi codes are matched from the WiFi sales made by the same person, for the same pass, around the time of the order (labelled "matched"); if none is found it says "code not recorded".
+- On a phone, the receipt cards list the WiFi codes with a Copy button under the item.
 
 **From Receipt History:**
 1. Navigate to **Receipt History**.

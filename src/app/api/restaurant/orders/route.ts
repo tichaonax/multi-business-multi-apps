@@ -7,7 +7,7 @@ import { R710SessionManager } from '@/lib/r710-session-manager'
 import { generateDirectSaleUsername } from '@/lib/r710/username-generator'
 import { getOrCreateR710ExpenseAccount } from '@/lib/r710-expense-account-utils'
 import { decrypt } from '@/lib/encryption'
-import { generateAndSellR710Token } from '@/lib/r710/generate-and-sell-token'
+import { generateAndSellR710Token, sellExistingR710Token } from '@/lib/r710/generate-and-sell-token'
 import { resolveR710Duration } from '@/lib/r710/duration-unit-map'
 // B1 — Import centralised EcoCash helpers so the server uses the same logic as the client
 import { getEcocashConfig, calcEcocashFee } from '@/lib/ecocash-utils'
@@ -603,6 +603,9 @@ export async function POST(req: NextRequest) {
     const inventoryUpdates = []
     const generatedESP32Tokens = []
     const generatedR710Tokens = []
+    // MBM-338: WiFi money (goes to the WiFi expense account) and WiFi not issued (not charged)
+    let wifiCharged = 0
+    let wifiNotCharged = 0
 
     // Get WiFi portal integration for expense account (needed for ESP32 WiFi token sales)
     let wifiExpenseAccountId: string | null = null
@@ -842,198 +845,81 @@ export async function POST(req: NextRequest) {
           }, { status: 400 });
         }
       } else if ((item as any).r710Token === true) {
-        // Handle R710 WiFi token sales
-        const soldTokenIdsForRollback: string[] = [];
-        try {
-          // Verify R710 integration exists and is active
-          const r710IntegrationForSale = await prisma.r710BusinessIntegrations.findFirst({
-            where: {
-              businessId: businessId,
-              isActive: true
-            }
-          });
-
-          if (!r710IntegrationForSale) {
-            throw new Error('R710 integration not configured or not active');
-          }
-
-          // Look up R710 expense account using account number pattern
-          const r710AccountNumber = `R710-${businessId.slice(-6)}`;
-          const r710ExpenseAccount = await prisma.expenseAccounts.findFirst({
-            where: { accountNumber: r710AccountNumber }
-          });
-          
-          if (!r710ExpenseAccount) {
-            throw new Error('WiFi expense account not configured. Please configure WiFi portal integration.');
-          }
-
-          const r710ExpenseAccountId = r710ExpenseAccount.id;
-
-          // Find available R710 tokens for this config
-          const availableTokens = await prisma.r710Tokens.findMany({
-            where: {
-              businessId: businessId,
-              tokenConfigId: item.tokenConfigId,
-              status: 'AVAILABLE',
-              r710_token_sales: { none: {} } // Not sold yet
-            },
-            include: {
-              r710_token_configs: {
-                select: {
-                  name: true,
-                  durationValue: true,
-                  durationUnit: true,
-                  deviceLimit: true
-                }
-              },
-              r710_wlans: {
-                select: {
-                  ssid: true
-                }
-              }
-            },
-            take: itemQuantity,
-            orderBy: { createdAt: 'asc' }
-          });
-
-          if (availableTokens.length < itemQuantity) {
-            // Pool exhausted — generate fresh on the fly (always non-blocking)
-            console.log(`⚠️ R710 pool empty for config ${item.tokenConfigId} — attempting on-the-fly generation`)
-            try {
-              const freshResult = await generateAndSellR710Token({
-                businessId,
-                tokenConfigId: item.tokenConfigId,
-                saleAmount: itemPrice,
-                paymentMethod,
-                soldBy: user.id,
-                saleChannel: 'POS',
-              })
-              generatedR710Tokens.push({
-                itemName: item.name,
-                password: freshResult.token.password,
-                packageName: freshResult.token.tokenConfig.name || item.name,
-                durationValue: freshResult.token.tokenConfig.durationValue || 0,
-                durationUnit: freshResult.token.tokenConfig.durationUnit || 'hour_Hours',
-                expiresAt: freshResult.token.expiresAt?.toISOString?.() ?? undefined,
-                ssid: freshResult.wlanSsid,
-                success: true,
-              })
-              await prisma.businessOrderItems.create({
-                data: {
-                  orderId: newOrder.id,
-                  productVariantId: null,
-                  quantity: itemQuantity,
-                  unitPrice: itemPrice,
-                  discountAmount: 0,
-                  totalPrice: itemPrice * itemQuantity,
-                  attributes: {
-                    productName: item.name,
-                    category: item.category || 'r710-wifi',
-                    r710Token: true,
-                    tokenConfigId: item.tokenConfigId,
-                    businessTokenMenuItemId: item.businessTokenMenuItemId,
-                    freshGenerated: true,
-                  }
-                }
-              })
-              console.log(`✅ Fresh R710 token generated on-the-fly for order ${newOrder.id}`)
-            } catch (freshErr) {
-              // Fresh generation failed — skip token, never block the sale
-              console.warn('⚠️ R710 fresh generation failed — order proceeds without token:', freshErr)
-            }
-            continue // Skip rest of normal pool flow regardless
-          }
-
-          const tokensToSell = availableTokens.slice(0, itemQuantity);
-
-          // Create sales records and mark tokens as SOLD
-          for (const token of tokensToSell) {
-            // Mark token as SOLD
-            await prisma.r710Tokens.update({
-              where: { id: token.id },
-              data: { status: 'SOLD' }
-            });
-            soldTokenIdsForRollback.push(token.id);
-
-            // Create sale record
-            await prisma.r710TokenSales.create({
-              data: {
-                businessId: businessId,
-                tokenId: token.id,
-                expenseAccountId: r710ExpenseAccountId,
-                saleAmount: itemPrice,
-                paymentMethod: paymentMethod,
-                saleChannel: 'POS',
-                soldBy: user.id,
-                soldAt: new Date()
-              }
-            });
-
-            // Add to generatedR710Tokens for receipt (R710 format)
+        // MBM-338: R710 WiFi passes — one code per unit, taken from the ready pool
+        // first and otherwise made on the device right now (no special permission
+        // needed). A code that can't be made is NOT charged: it is recorded as a
+        // $0 "not issued" line and the order total is lowered below; the rest of
+        // the order goes through. Both helpers also deposit the money into the
+        // WiFi expense account, which is why the business account is credited
+        // without the WiFi part (wifiCharged) further down.
+        const issuedIds: string[] = []
+        const issuedCodes: string[] = []
+        const failures: string[] = []
+        for (let u = 0; u < itemQuantity; u++) {
+          try {
+            const pooled = await prisma.r710Tokens.findFirst({
+              where: { businessId, tokenConfigId: item.tokenConfigId, status: 'AVAILABLE', r710_token_sales: { none: {} } },
+              orderBy: { createdAt: 'asc' },
+              select: { id: true },
+            })
+            const saleResult = pooled
+              ? await sellExistingR710Token({ businessId, tokenId: pooled.id, saleAmount: itemPrice, paymentMethod, soldBy: user.id })
+              : await generateAndSellR710Token({ businessId, tokenConfigId: item.tokenConfigId, saleAmount: itemPrice, paymentMethod, soldBy: user.id, saleChannel: 'POS' })
+            issuedIds.push(saleResult.token.id)
+            issuedCodes.push(saleResult.token.password)
             generatedR710Tokens.push({
               itemName: item.name,
-              password: token.password, // R710 password/passcode only
-              packageName: token.r710_token_configs?.name || item.name,
-              durationValue: token.r710_token_configs?.durationValue || 0,
-              durationUnit: token.r710_token_configs?.durationUnit || 'hour_Hours',
-              expiresAt: token.expiresAtR710, // R710 expiration date
-              ssid: token.r710_wlans?.ssid, // VLAN name to connect to
-              success: true
-            });
+              password: saleResult.token.password,
+              packageName: saleResult.token.tokenConfig.name || item.name,
+              durationValue: saleResult.token.tokenConfig.durationValue || 0,
+              durationUnit: saleResult.token.tokenConfig.durationUnit || 'hour_Hours',
+              expiresAt: (saleResult.token.expiresAt as any)?.toISOString?.() ?? saleResult.token.expiresAt ?? undefined,
+              ssid: saleResult.wlanSsid,
+              success: true,
+            })
+          } catch (r710Error) {
+            const errorMessage = r710Error instanceof Error ? r710Error.message : 'Failed to make the WiFi code'
+            console.error('❌ R710 token could not be issued — not charged:', errorMessage)
+            failures.push(errorMessage)
+            generatedR710Tokens.push({ itemName: item.name, success: false, notCharged: itemPrice, error: errorMessage })
           }
-
-          // Create order item for R710 token — store tokenIds for reprint lookup
+        }
+        const baseAttrs = {
+          productName: item.name,
+          category: item.category || 'r710-wifi',
+          r710Token: true,
+          tokenConfigId: item.tokenConfigId,
+          businessTokenMenuItemId: item.businessTokenMenuItemId,
+        }
+        if (issuedIds.length > 0) {
           await prisma.businessOrderItems.create({
             data: {
               orderId: newOrder.id,
               productVariantId: null,
-              quantity: itemQuantity,
+              quantity: issuedIds.length,
               unitPrice: itemPrice,
               discountAmount: 0,
-              totalPrice: itemTotal,
-              attributes: {
-                productName: item.name,
-                category: item.category || 'r710-wifi',
-                r710Token: true,
-                tokenConfigId: item.tokenConfigId,
-                businessTokenMenuItemId: item.businessTokenMenuItemId,
-                tokenIds: soldTokenIdsForRollback.slice(-itemQuantity), // IDs of the tokens just sold
-              }
+              totalPrice: itemPrice * issuedIds.length,
+              attributes: { ...baseAttrs, tokenIds: issuedIds, tokenCodes: issuedCodes },
             }
-          });
-
-          // Skip inventory processing for R710 tokens
-          continue;
-        } catch (r710Error) {
-          const errorMessage = r710Error instanceof Error ? r710Error.message : 'Unknown error'
-          console.error('❌ R710 token processing error:', r710Error)
-
-          // Free token (e.g. Today's Special) — never roll back the order. Skip the token.
-          if (itemPrice === 0) {
-            console.warn('⚠️ Free R710 token failed — skipping token, order proceeds:', errorMessage)
-            // Undo any tokens that were partially marked SOLD in this iteration
-            if (soldTokenIdsForRollback.length > 0) {
-              await prisma.r710TokenSales.deleteMany({ where: { tokenId: { in: soldTokenIdsForRollback } } })
-              await prisma.r710Tokens.updateMany({ where: { id: { in: soldTokenIdsForRollback } }, data: { status: 'AVAILABLE' } })
-            }
-            continue // Skip this token item, keep processing the rest of the order
-          }
-
-          // Paid token — roll back the whole order
-          await prisma.businessOrderItems.deleteMany({ where: { orderId: newOrder.id } })
-          await prisma.businessOrders.delete({ where: { id: newOrder.id } })
-          if (soldTokenIdsForRollback.length > 0) {
-            await prisma.r710TokenSales.deleteMany({ where: { tokenId: { in: soldTokenIdsForRollback } } })
-            await prisma.r710Tokens.updateMany({ where: { id: { in: soldTokenIdsForRollback } }, data: { status: 'AVAILABLE' } })
-          }
-          await releaseSampleClaim()
-          return NextResponse.json({
-            error: `R710 Token Error: ${errorMessage}\n\nTransaction cancelled. Please try again or contact support.`,
-            success: false,
-            rollback: true,
-            r710TokenError: errorMessage
-          }, { status: 400 })
+          })
+          wifiCharged += itemPrice * issuedIds.length
         }
+        if (failures.length > 0) {
+          await prisma.businessOrderItems.create({
+            data: {
+              orderId: newOrder.id,
+              productVariantId: null,
+              quantity: failures.length,
+              unitPrice: itemPrice,
+              discountAmount: 0,
+              totalPrice: 0,
+              attributes: { ...baseAttrs, notIssued: true, notIssuedReason: failures[0], notChargedAmount: itemPrice * failures.length },
+            }
+          })
+          wifiNotCharged += itemPrice * failures.length
+        }
+        continue
       } else if ((item as any).isAYLICombo === true) {
         // Handle As-You-Like-It weight-based combo — save as single order item with full breakdown
         const aylicData = (item as any).aylicData
@@ -1653,14 +1539,34 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Credit business account when order is COMPLETED with PAID status
-    if (paymentStatus === 'PAID' && total > 0) {
+    // MBM-338: a WiFi pass whose code couldn't be made is not charged — lower the
+    // order's totals (and the change due) so the receipt and reports match.
+    const chargedTotal = Math.max(0, Number(total) - wifiNotCharged)
+    if (wifiNotCharged > 0) {
+      const attrs = (newOrder.attributes as any) || {}
+      newOrder = await prisma.businessOrders.update({
+        where: { id: newOrder.id },
+        data: {
+          subtotal: Math.max(0, Number(newOrder.subtotal) - wifiNotCharged),
+          totalAmount: chargedTotal,
+          attributes: {
+            ...attrs,
+            wifiNotCharged,
+            ...(typeof attrs.changeDue === 'number' && attrs.amountReceived ? { changeDue: Number(attrs.amountReceived) - chargedTotal } : {}),
+          },
+        },
+      })
+    }
+
+    // Credit business account when order is COMPLETED with PAID status.
+    // MBM-338: the WiFi part is left out — it was deposited into the WiFi account.
+    if (paymentStatus === 'PAID' && chargedTotal - wifiCharged > 0) {
       try {
         await initializeBusinessAccount(businessId, 0, user.id)
         const isEcocash = paymentMethod === 'ECOCASH'
         const orderAttrs = (newOrder.attributes as any) || {}
         const ecocashFee = isEcocash ? Number(orderAttrs.ecocashFeeAmount || 0) : 0
-        const creditAmount = total - ecocashFee
+        const creditAmount = Math.max(0, chargedTotal - wifiCharged - ecocashFee)
         await processBusinessTransaction({
           businessId,
           amount: creditAmount,

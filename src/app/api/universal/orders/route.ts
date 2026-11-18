@@ -887,10 +887,23 @@ export async function POST(request: NextRequest) {
 
       // Process R710 token items on-the-fly using shared utility
       const generatedR710Tokens: any[] = []
+      // MBM-338: WiFi money (deposited into the WiFi expense account by the sale
+      // helpers) and WiFi passes whose code couldn't be made (not charged).
+      let wifiCharged = 0
+      let wifiNotCharged = 0
+      const usedItemIds = new Set<string>()
 
       if (r710TokenItems.length > 0) {
         for (const item of r710TokenItems) {
           const tokenConfigId = item.attributes?.tokenConfigId
+          const issuedIds: string[] = []
+          const issuedCodes: string[] = []
+          const failures: string[] = []
+          // the order line created for this cart item (same pass, not yet matched)
+          const orderLine = createdItems.find((ci: any) =>
+            !usedItemIds.has(ci.id) && (ci.attributes as any)?.r710Token === true &&
+            (ci.attributes as any)?.tokenConfigId === tokenConfigId && ci.quantity === item.quantity)
+          if (orderLine) usedItemIds.add(orderLine.id)
 
           if (!tokenConfigId) {
             generatedR710Tokens.push({
@@ -953,6 +966,8 @@ export async function POST(request: NextRequest) {
                     saleChannel: 'POS'
                   }, tx)
 
+              issuedIds.push(saleResult.token.id)
+              issuedCodes.push(saleResult.token.password)
               generatedR710Tokens.push({
                 itemName: item.attributes?.productName || 'R710 WiFi Token',
                 username: saleResult.token.username,
@@ -967,14 +982,79 @@ export async function POST(request: NextRequest) {
               })
             } catch (tokenError) {
               console.error('Error generating R710 token:', tokenError)
+              const message = tokenError instanceof Error ? tokenError.message : 'Failed to generate R710 token'
+              failures.push(message)
               generatedR710Tokens.push({
                 itemName: item.attributes?.productName || 'R710 WiFi Token',
                 success: false,
-                error: tokenError instanceof Error ? tokenError.message : 'Failed to generate R710 token'
+                notCharged: item.unitPrice,
+                error: message
               })
             }
           }
+
+          // MBM-338: save the codes on the order line; a code that couldn't be
+          // made isn't charged — its share moves to a $0 "not issued" line.
+          if (orderLine) {
+            const lineTotal = Number(orderLine.totalPrice)
+            const perUnit = item.quantity > 0 ? lineTotal / item.quantity : 0
+            const attrs = (orderLine.attributes as any) || {}
+            if (issuedIds.length > 0) {
+              await tx.businessOrderItems.update({
+                where: { id: orderLine.id },
+                data: {
+                  quantity: issuedIds.length,
+                  totalPrice: perUnit * issuedIds.length,
+                  discountAmount: Number(orderLine.discountAmount) * issuedIds.length / item.quantity,
+                  attributes: { ...attrs, tokenIds: issuedIds, tokenCodes: issuedCodes },
+                },
+              })
+              wifiCharged += perUnit * issuedIds.length
+            }
+            if (failures.length > 0) {
+              const notCharged = perUnit * failures.length
+              const notIssuedAttrs = { ...attrs, notIssued: true, notIssuedReason: failures[0], notChargedAmount: notCharged }
+              if (issuedIds.length === 0) {
+                await tx.businessOrderItems.update({
+                  where: { id: orderLine.id },
+                  data: { totalPrice: 0, discountAmount: 0, attributes: notIssuedAttrs },
+                })
+              } else {
+                await tx.businessOrderItems.create({
+                  data: {
+                    orderId: order.id,
+                    productVariantId: null,
+                    quantity: failures.length,
+                    unitPrice: orderLine.unitPrice,
+                    discountAmount: 0,
+                    totalPrice: 0,
+                    attributes: notIssuedAttrs,
+                  },
+                })
+              }
+              wifiNotCharged += notCharged
+            }
+          }
         }
+      }
+
+      // MBM-338: lower the order's totals by any WiFi that wasn't issued
+      let chargedOrder: any = order
+      if (wifiNotCharged > 0) {
+        chargedOrder = await tx.businessOrders.update({
+          where: { id: order.id },
+          data: {
+            subtotal: Math.max(0, Number(order.subtotal) - wifiNotCharged),
+            totalAmount: Math.max(0, Number(order.totalAmount) - wifiNotCharged),
+            attributes: { ...((order.attributes as any) || {}), wifiNotCharged },
+          },
+          include: {
+            businesses: { select: { name: true, type: true } },
+            business_customers: { select: { id: true, name: true, customerNumber: true } },
+            employees: { select: { id: true, fullName: true, employeeNumber: true } },
+            business_order_items: true
+          }
+        })
       }
 
       // Reward redemption (mark REDEEMED, generate its free WiFi token, add its free
@@ -1071,15 +1151,18 @@ export async function POST(request: NextRequest) {
       }
 
       return {
-        ...order,
+        ...chargedOrder,
         items: createdItems,
         wifiTokens: generatedWifiTokens,
-        r710Tokens: generatedR710Tokens
+        r710Tokens: generatedR710Tokens,
+        wifiCharged,
+        wifiNotCharged,
       }
     }, { timeout: 30000 }) // Extended timeout for R710 device API calls
 
     // Credit business account when order is created as COMPLETED with PAID status
-    if (result.status === 'COMPLETED' && result.paymentStatus === 'PAID' && Number(result.totalAmount) > 0) {
+    // MBM-338: the WiFi part is left out — it was already deposited into the WiFi account.
+    if (result.status === 'COMPLETED' && result.paymentStatus === 'PAID' && Number(result.totalAmount) - result.wifiCharged > 0) {
       try {
         await initializeBusinessAccount(orderData.businessId, 0, user.id)
 
@@ -1088,7 +1171,7 @@ export async function POST(request: NextRequest) {
           ? Number(orderData.attributes?.ecocashFeeAmount || 0)
           : 0
         // For EcoCash, credit only the base amount (fee is not business revenue)
-        const creditAmount = Number(result.totalAmount) - ecocashFeeAmount
+        const creditAmount = Math.max(0, Number(result.totalAmount) - result.wifiCharged - ecocashFeeAmount)
 
         await processBusinessTransaction({
           businessId: orderData.businessId,

@@ -232,11 +232,15 @@ export function usePaymentProcessor(
 
         console.log('✅ [Payment] Order created:', result.data)
 
-        // Check for failed R710 tokens and warn user
+        // MBM-338: a WiFi pass whose code couldn't be made was not charged —
+        // the server lowered the order total; tell the cashier to give it back.
         const failedR710Tokens = result.data.r710Tokens?.filter((t: any) => t.success === false) || []
+        const wifiNotCharged = Number(result.data.wifiNotCharged || 0)
         if (failedR710Tokens.length > 0) {
-          const errorMsg = failedR710Tokens[0]?.error || 'No available tokens'
-          toast.warning(`WiFi token issue: ${errorMsg}. Please request more tokens.`, { duration: 8000 })
+          const errorMsg = failedR710Tokens[0]?.error || 'The WiFi code could not be made'
+          toast.error(wifiNotCharged > 0
+            ? `📶 WiFi not issued — $${wifiNotCharged.toFixed(2)} not charged. Give this back to the customer. (${errorMsg})`
+            : `WiFi token issue: ${errorMsg}`, { duration: 15000 })
         }
 
         // Build receipt data with CORRECT BusinessMembership fields
@@ -250,7 +254,7 @@ export function usePaymentProcessor(
             subtotal: totals.subtotal,
             taxAmount: totals.tax,
             discountAmount: totals.discount,
-            totalAmount: totals.total,
+            totalAmount: totals.total - wifiNotCharged,
             paymentMethod: checkoutData.paymentMethod.toUpperCase(),
             paymentStatus: result.data.paymentStatus,
             customerName: checkoutData.customerName,
@@ -263,7 +267,12 @@ export function usePaymentProcessor(
               quantity: item.quantity,
               unitPrice: item.unitPrice,
               totalPrice: item.totalPrice
-            })),
+            })).concat(wifiNotCharged > 0 ? [{
+              name: '📶 WiFi not issued — not charged',
+              quantity: 1,
+              unitPrice: -wifiNotCharged,
+              totalPrice: -wifiNotCharged,
+            }] : []),
             wifiTokens: result.data.wifiTokens?.map((token: any) => ({
               itemName: token.itemName || token.packageName || 'WiFi Access',
               tokenCode: token.tokenCode || token.token,

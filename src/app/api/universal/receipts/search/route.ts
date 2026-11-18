@@ -56,7 +56,29 @@ export async function GET(request: NextRequest) {
     // used when an item isn't linked to a real product/variant.
     if (query) {
       const asNumber = parseFloat(query)
+      // MBM-338: names kept in JSON attributes (item names, WiFi package names
+      // and codes, salesperson fallbacks) were matched case-sensitively by
+      // Prisma's string_contains, so e.g. "pass" missed "8 Hour Pass" and
+      // "wifi" matched nothing (WiFi items are named "📶 8 Hour Pass"). Match
+      // them case-insensitively in SQL; "wifi"/"wi-fi" finds every WiFi sale.
+      const like = `%${query.replace(/[\\%_]/g, m => '\\' + m)}%`
+      const wantsWifi = /wi-?fi/i.test(query)
+      const jsonMatches = await prisma.$queryRaw<Array<{ id: string }>>`
+        SELECT DISTINCT o.id FROM business_orders o
+        LEFT JOIN business_order_items i ON i."orderId" = o.id
+        WHERE o."businessId" = ${businessId}
+          AND (
+            o.attributes->>'employeeName' ILIKE ${like}
+            OR o.attributes->>'soldByName' ILIKE ${like}
+            OR o.attributes->>'participantName' ILIKE ${like}
+            OR i.attributes->>'productName' ILIKE ${like}
+            OR i.attributes->>'packageName' ILIKE ${like}
+            OR (i.attributes->'tokenCodes')::text ILIKE ${like}
+            OR (${wantsWifi} AND (i.attributes->>'r710Token' = 'true' OR i.attributes->>'wifiToken' = 'true'))
+          )
+        LIMIT 5000`
       whereClause.OR = [
+        ...(jsonMatches.length > 0 ? [{ id: { in: jsonMatches.map(r => r.id) } }] : []),
         { orderNumber: { contains: query, mode: 'insensitive' } },
         { notes: { contains: query, mode: 'insensitive' } },
         { business_customers: { name: { contains: query, mode: 'insensitive' } } },
@@ -104,6 +126,7 @@ export async function GET(request: NextRequest) {
         paymentMethod: true,
         status: true,
         createdAt: true,
+        createdBy: true,
         attributes: true,
         business_customers: {
           select: {
@@ -136,6 +159,53 @@ export async function GET(request: NextRequest) {
       take: limit,
       skip: offset,
     })
+
+    // MBM-338: WiFi codes per order line. New sales save them on the line
+    // (tokenCodes); older POS sales didn't, so match them from the WiFi sales
+    // made by the same person, for the same pass, within 2 minutes of the order.
+    const oldWifiLines = orders.flatMap(o => o.business_order_items
+      .filter(i => (i.attributes as any)?.r710Token === true && !(i.attributes as any)?.notIssued
+        && !Array.isArray((i.attributes as any)?.tokenCodes) && !Array.isArray((i.attributes as any)?.tokenIds))
+      .map(i => ({ order: o, item: i })))
+    const matchedCodes = new Map<any, string[]>() // order item object → codes
+    if (oldWifiLines.length > 0) {
+      const times = oldWifiLines.map(l => l.order.createdAt.getTime())
+      const sales = await prisma.r710TokenSales.findMany({
+        where: {
+          businessId,
+          soldAt: { gte: new Date(Math.min(...times) - 60_000), lte: new Date(Math.max(...times) + 120_000) },
+        },
+        select: { soldAt: true, soldBy: true, tokenId: true, r710_tokens: { select: { password: true, tokenConfigId: true } } },
+        orderBy: { soldAt: 'asc' },
+      })
+      const used = new Set<string>()
+      for (const { order, item } of oldWifiLines) {
+        const t = order.createdAt.getTime()
+        const cfg = (item.attributes as any)?.tokenConfigId
+        const codes: string[] = []
+        for (const s of sales) {
+          if (codes.length >= item.quantity) break
+          if (used.has(s.tokenId) || s.soldBy !== order.createdBy || s.r710_tokens?.tokenConfigId !== cfg) continue
+          const st = s.soldAt.getTime()
+          if (st < t - 60_000 || st > t + 120_000) continue
+          used.add(s.tokenId)
+          codes.push(s.r710_tokens.password)
+        }
+        if (codes.length > 0) matchedCodes.set(item, codes)
+      }
+    }
+    // Lines that saved tokenIds but not the codes (restaurant, before MBM-338)
+    const idOnlyLines = orders.flatMap(o => o.business_order_items)
+      .filter(i => !Array.isArray((i.attributes as any)?.tokenCodes) && Array.isArray((i.attributes as any)?.tokenIds))
+    if (idOnlyLines.length > 0) {
+      const ids = idOnlyLines.flatMap(i => (i.attributes as any).tokenIds as string[])
+      const toks = await prisma.r710Tokens.findMany({ where: { id: { in: ids } }, select: { id: true, password: true } })
+      const pw = new Map(toks.map(t => [t.id, t.password]))
+      for (const i of idOnlyLines) {
+        const codes = ((i.attributes as any).tokenIds as string[]).map(id => pw.get(id)).filter(Boolean) as string[]
+        if (codes.length > 0) matchedCodes.set(i, codes)
+      }
+    }
 
     // Get total count for pagination
     const totalCount = await prisma.businessOrders.count({
@@ -212,15 +282,26 @@ export async function GET(request: NextRequest) {
         // Most-expensive-first so the mobile card can show the top few
         // items inline without a round trip — see ReceiptHistoryPage.
         items: order.business_order_items
-          .map(item => ({
-            name: item.product_variants?.business_products?.name
-              || item.product_variants?.name
-              || (item.attributes as any)?.productName
-              || 'Item',
-            quantity: item.quantity,
-            totalPrice: Number(item.totalPrice),
-          }))
+          .map(item => {
+            const a = (item.attributes as any) || {}
+            const saved = Array.isArray(a.tokenCodes) ? (a.tokenCodes as string[]) : null
+            return {
+              name: item.product_variants?.business_products?.name
+                || item.product_variants?.name
+                || a.productName
+                || 'Item',
+              quantity: item.quantity,
+              totalPrice: Number(item.totalPrice),
+              // MBM-338: WiFi details for the Items column / hover popup
+              isWifi: a.r710Token === true || a.wifiToken === true,
+              wifiCodes: saved ?? matchedCodes.get(item) ?? [],
+              wifiCodesMatched: !saved && !Array.isArray(a.tokenIds) && matchedCodes.has(item),
+              notIssued: a.notIssued === true,
+              notChargedAmount: a.notIssued ? Number(a.notChargedAmount || 0) : 0,
+            }
+          })
           .sort((a, b) => b.totalPrice - a.totalPrice),
+        directWifiSale: (order.attributes as any)?.directWifiSale === true,
         businessType: order.businessType,
         paymentMethod: order.paymentMethod,
         status: order.status,

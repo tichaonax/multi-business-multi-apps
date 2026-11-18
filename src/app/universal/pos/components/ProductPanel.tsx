@@ -194,7 +194,9 @@ export function ProductPanel({
 
   const handleAddToCart = (product: Product, variant?: any) => {
     // Check WiFi token availability before adding to cart
-    if (product.isWiFiToken && product.availableQuantity !== undefined) {
+    // MBM-338: R710 passes are never blocked — with no ready code, one is made
+    // on the device at payment (and not charged if that fails).
+    if (product.isWiFiToken && !product.isR710Token && product.availableQuantity !== undefined) {
       const currentCartQuantity = cart.find(c => c.id === product.id)?.quantity || 0
       const tokenType = product.isR710Token ? 'R710 WiFi' : 'ESP32 WiFi'
 
@@ -340,7 +342,8 @@ export function ProductPanel({
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {filteredProducts.map((product) => {
                   const cartQty = cart.find(c => c.id === product.id)?.quantity || 0
-                  const remaining = product.isWiFiToken ? (product.availableQuantity || 0) - cartQty : undefined
+                  const remaining = product.isWiFiToken && !product.isR710Token ? (product.availableQuantity || 0) - cartQty : undefined
+                  const r710Ready = product.isR710Token ? Math.max(0, (product.availableQuantity || 0) - cartQty) : undefined
                   return (
                     <div
                       key={product.id}
@@ -432,6 +435,12 @@ export function ProductPanel({
                           </span>
                         )}
                         {/* WiFi token availability indicator */}
+                        {r710Ready !== undefined && (
+                          <span className={`text-xs font-medium block mt-1 ${r710Ready > 0 ? (r710Ready < 5 ? 'text-orange-500' : 'text-green-600') : 'text-blue-600 dark:text-blue-400'}`}
+                            title={r710Ready > 0 ? undefined : 'No ready codes — a new code is made on the WiFi device when the customer pays'}>
+                            {r710Ready > 0 ? `${r710Ready} ready` : '⚡ code made at payment'}
+                          </span>
+                        )}
                         {canViewPOSStockCount && product.isWiFiToken && remaining !== undefined && (
                           <span className={`text-xs font-medium block mt-1 ${
                             remaining <= 0 ? 'text-red-500' : remaining < 5 ? 'text-orange-500' : 'text-green-600'
@@ -552,7 +561,8 @@ export function ProductPanel({
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
                 {filteredProducts.map((product) => {
                   const cartQty = cart.find(c => c.id === product.id)?.quantity || 0
-                  const remaining = product.isWiFiToken ? (product.availableQuantity || 0) - cartQty : undefined
+                  const remaining = product.isWiFiToken && !product.isR710Token ? (product.availableQuantity || 0) - cartQty : undefined
+                  const r710Ready = product.isR710Token ? Math.max(0, (product.availableQuantity || 0) - cartQty) : undefined
                   return (
                     <div
                       key={product.id}
@@ -620,6 +630,12 @@ export function ProductPanel({
                           ${product.basePrice.toFixed(2)}
                         </p>
                         {/* WiFi token availability indicator */}
+                        {r710Ready !== undefined && (
+                          <span className={`text-xs font-medium block mt-1 ${r710Ready > 0 ? (r710Ready < 5 ? 'text-orange-500' : 'text-green-600') : 'text-blue-600 dark:text-blue-400'}`}
+                            title={r710Ready > 0 ? undefined : 'No ready codes — a new code is made on the WiFi device when the customer pays'}>
+                            {r710Ready > 0 ? `${r710Ready} ready` : '⚡ code made at payment'}
+                          </span>
+                        )}
                         {product.isWiFiToken && remaining !== undefined && (
                           <span className={`text-xs font-medium block mt-1 ${
                             remaining <= 0 ? 'text-red-500' : remaining < 5 ? 'text-orange-500' : 'text-green-600'

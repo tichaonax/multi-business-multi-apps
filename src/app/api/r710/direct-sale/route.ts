@@ -10,6 +10,7 @@ import { prisma } from '@/lib/prisma'
 import { isSystemAdmin } from '@/lib/permission-utils'
 import { generateAndSellR710Token } from '@/lib/r710/generate-and-sell-token'
 import { getServerUser } from '@/lib/get-server-user'
+import { recordDirectWifiSaleOrder } from '@/lib/r710/record-direct-sale-order'
 
 export async function POST(request: NextRequest) {
   try {
@@ -20,7 +21,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { businessId, tokenConfigId, saleAmount, paymentMethod, ecocashFeeAmount, ecocashTransactionCode } = body
+    const { businessId, tokenConfigId, saleAmount, paymentMethod, ecocashFeeAmount, ecocashTransactionCode, saleGroupId } = body
 
     if (!businessId || !tokenConfigId) {
       return NextResponse.json(
@@ -68,7 +69,28 @@ export async function POST(request: NextRequest) {
       ...(ecocashTransactionCode ? { ecocashTransactionCode } : {})
     })
 
-    return NextResponse.json(result, { status: 200 })
+    // MBM-338: also record it as a paid order so it counts as a business sale
+    // (reports, EOD, Receipt History). Never fails the sale itself.
+    let order: { id: string; orderNumber: string } | null = null
+    try {
+      order = await recordDirectWifiSaleOrder({
+        businessId,
+        user,
+        saleGroupId: typeof saleGroupId === 'string' ? saleGroupId : null,
+        tokenId: result.token.id,
+        code: result.token.password,
+        packageName: result.token.tokenConfig.name,
+        tokenConfigId,
+        amount: Number(saleAmount) || 0,
+        paymentMethod: paymentMethod || 'CASH',
+        ...(ecocashFeeAmount != null ? { ecocashFeeAmount } : {}),
+        ...(ecocashTransactionCode ? { ecocashTransactionCode } : {}),
+      })
+    } catch (orderErr) {
+      console.error('[R710 Direct Sale] could not record the sale as an order:', orderErr)
+    }
+
+    return NextResponse.json({ ...result, order }, { status: 200 })
 
   } catch (error) {
     console.error('[R710 Direct Sale] POST error:', error)

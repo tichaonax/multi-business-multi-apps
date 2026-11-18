@@ -3,7 +3,8 @@
 
 // Force dynamic rendering for session-based pages
 export const dynamic = 'force-dynamic';
-import { useState, useEffect, useCallback, Suspense } from 'react'
+import { useState, useEffect, useLayoutEffect, useCallback, useRef, Suspense } from 'react'
+import { createPortal } from 'react-dom'
 import { useSession } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import ReceiptDetailModal from '@/components/receipts/receipt-detail-modal'
@@ -20,6 +21,8 @@ import { Pagination } from '@/components/ui/pagination'
 import { usePageSize, PAGE_SIZE_OPTIONS } from '@/hooks/use-page-size-preference'
 import { useElementHeight } from '@/hooks/use-element-height'
 import { TableFillerRows } from '@/components/ui/table-filler-rows'
+import { ReceiptItemsCell, ReceiptHoverCard, type ReceiptPreviewItem } from '@/components/receipts/receipt-items-preview'
+import { CopyButton, WifiCodePill } from '@/components/wifi/wifi-code'
 
 interface ReceiptListItem {
   id: string
@@ -34,7 +37,8 @@ interface ReceiptListItem {
   mealProgram?: boolean
   hasCombo?: boolean
   // Most-expensive-first (server-sorted) — see /api/universal/receipts/search
-  items?: Array<{ name: string; quantity: number; totalPrice: number }>
+  items?: ReceiptPreviewItem[]
+  directWifiSale?: boolean
   businessType: string
   paymentMethod: string | null
   status: string
@@ -116,6 +120,40 @@ function ReceiptHistoryPageContent() {
     })
   }
   const [selectAllFilterActive, setSelectAllFilterActive] = useState(false)
+  // MBM-338: hovering a row shows what was sold (and WiFi codes to copy).
+  // Opens after a short pause; stays open while the pointer is on the card.
+  // Rendered in a portal (like the row actions menu) to the RIGHT of the
+  // receipt # cell, so the pointer can travel up/down the receipt # column to
+  // other rows without crossing the card. Vertically it starts level with the
+  // row and is pushed up only as far as needed to stay on screen.
+  const [hover, setHover] = useState<{ id: string; rowTop: number; rowBottom: number; left: number } | null>(null)
+  const [hoverPos, setHoverPos] = useState<{ top: number; maxHeight?: number } | null>(null)
+  const hoverCardRef = useRef<HTMLDivElement | null>(null)
+  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const clearHoverTimer = () => { if (hoverTimer.current) { clearTimeout(hoverTimer.current); hoverTimer.current = null } }
+  const onRowEnter = (id: string, e: React.MouseEvent<HTMLTableRowElement>) => {
+    clearHoverTimer()
+    const rect = e.currentTarget.getBoundingClientRect()
+    const cell = e.currentTarget.querySelector('[data-receipt-no]') as HTMLElement | null
+    const cellRight = cell ? cell.getBoundingClientRect().right : rect.left + 160
+    hoverTimer.current = setTimeout(() => {
+      setHoverPos(null)
+      setHover({ id, rowTop: rect.top, rowBottom: rect.bottom, left: Math.min(cellRight, window.innerWidth - 340) })
+    }, 250)
+  }
+  useLayoutEffect(() => {
+    if (!hover || !hoverCardRef.current) return
+    const h = hoverCardRef.current.offsetHeight
+    const margin = 8
+    const room = window.innerHeight - 2 * margin
+    if (h > room) setHoverPos({ top: margin, maxHeight: room }) // taller than the window: scroll inside
+    else if (hover.rowTop + h <= window.innerHeight - margin) setHoverPos({ top: Math.max(margin, hover.rowTop) }) // level with the row
+    else setHoverPos({ top: Math.max(margin, window.innerHeight - margin - h) }) // pushed up to fit
+  }, [hover])
+  const onRowLeave = () => {
+    clearHoverTimer()
+    hoverTimer.current = setTimeout(() => setHover(null), 200)
+  }
   const [reassignTarget, setReassignTarget] = useState<{ orderIds?: string[]; filter?: { query?: string; startDate?: string; endDate?: string }; count: number } | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
   const { ref: filtersRef, height: filtersHeight } = useElementHeight<HTMLDivElement>()
@@ -618,12 +656,22 @@ function ReceiptHistoryPageContent() {
                     const visible = receipt.items.slice(0, VISIBLE)
                     const rest = receipt.items.slice(VISIBLE)
                     const isExpanded = expandedItemsIds.has(receipt.id)
-                    const ItemRow = ({ item }: { item: { name: string; quantity: number; totalPrice: number } }) => (
-                      <div className="flex items-center justify-between gap-2 text-xs">
-                        <span className="text-gray-600 dark:text-gray-300 truncate">
-                          {item.name} <span className="text-gray-400 dark:text-gray-500">×{item.quantity}</span>
-                        </span>
-                        <span className="text-gray-700 dark:text-gray-300 shrink-0">{formatCurrency(item.totalPrice)}</span>
+                    const ItemRow = ({ item }: { item: ReceiptPreviewItem }) => (
+                      <div className="text-xs">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className={`truncate ${item.notIssued ? 'text-red-600 dark:text-red-400' : 'text-gray-600 dark:text-gray-300'}`}>
+                            {item.name} <span className="text-gray-400 dark:text-gray-500">×{item.quantity}</span>
+                            {item.notIssued && ' — WiFi not issued, not charged'}
+                          </span>
+                          <span className="text-gray-700 dark:text-gray-300 shrink-0">{formatCurrency(item.totalPrice)}</span>
+                        </div>
+                        {/* MBM-338: WiFi codes, copyable (no hover on touch screens) */}
+                        {(item.wifiCodes ?? []).map(c => (
+                          <div key={c} className="flex items-center gap-2 mt-0.5" onClick={(e) => e.stopPropagation()}>
+                            <WifiCodePill code={c} />
+                            <CopyButton text={c} />
+                          </div>
+                        ))}
                       </div>
                     )
                     return (
@@ -722,7 +770,7 @@ function ReceiptHistoryPageContent() {
                     Customer
                   </th>
                   <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Salesperson
+                    Items
                   </th>
                   <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Payment
@@ -746,6 +794,8 @@ function ReceiptHistoryPageContent() {
                   <tr
                     key={receipt.id}
                     onClick={() => handleReceiptClick(receipt.id)}
+                    onMouseEnter={(e) => onRowEnter(receipt.id, e)}
+                    onMouseLeave={onRowLeave}
                     className={`cursor-pointer transition-colors ${
                       receipt.cancellationOutcome === 'CANCELLED'
                         ? 'bg-red-50 dark:bg-red-900/10 hover:bg-red-100 dark:hover:bg-red-900/20'
@@ -764,7 +814,7 @@ function ReceiptHistoryPageContent() {
                         />
                       </td>
                     )}
-                    <td className="px-3 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                    <td data-receipt-no className="px-3 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
                       {receipt.orderNumber}
                     </td>
                     <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
@@ -774,10 +824,8 @@ function ReceiptHistoryPageContent() {
                       )}
                     </td>
                     <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span>{receipt.salespersonName || '-'}</span>
-                        <ReassignmentHistoryBadge history={receipt.reassignmentHistory} />
-                      </div>
+                      {/* MBM-338: what was sold (WiFi code shown); the salesperson is in the hover card */}
+                      <ReceiptItemsCell items={receipt.items} />
                     </td>
                     <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
                       {receipt.paymentMethod
@@ -962,6 +1010,34 @@ function ReceiptHistoryPageContent() {
           onClose={() => setShowCrossBusinessAlert(false)}
         />
       )}
+
+      {/* MBM-338: row hover card */}
+      {hover && typeof document !== 'undefined' && (() => {
+        const r = receipts.find(x => x.id === hover.id)
+        if (!r) return null
+        return createPortal(
+          <div
+            ref={hoverCardRef}
+            className={`fixed z-50 pl-1 ${hoverPos?.maxHeight ? 'overflow-y-auto' : ''}`}
+            // hidden until measured so it never flashes in the wrong place
+            style={{ top: hoverPos?.top ?? 0, left: hover.left, maxHeight: hoverPos?.maxHeight, visibility: hoverPos ? 'visible' : 'hidden' }}
+            onMouseEnter={clearHoverTimer}
+            onMouseLeave={onRowLeave}
+          >
+            <ReceiptHoverCard
+              orderNumber={r.orderNumber}
+              items={r.items}
+              total={Number(r.totalAmount)}
+              payment={r.paymentMethod ? r.paymentMethod.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, c => c.toUpperCase()) : '—'}
+              salesperson={r.salespersonName}
+              salespersonExtra={<ReassignmentHistoryBadge history={r.reassignmentHistory} />}
+              date={formatDate(r.createdAt)}
+              directWifiSale={r.directWifiSale}
+            />
+          </div>,
+          document.body
+        )
+      })()}
 
       {reassignTarget && businessId && (
         <ReassignSalespersonModal

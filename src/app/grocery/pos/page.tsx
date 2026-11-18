@@ -1485,26 +1485,8 @@ function GroceryPOSContent() {
       }
     }
 
-    // Check availability before adding R710 tokens
-    if (isR710Token) {
-      const availableQuantity = (product as any).availableQuantity || 0
-      const currentCartQuantity = cart.find(c => c.id === product.id)?.quantity || 0
-
-      if (availableQuantity <= currentCartQuantity) {
-        if (availableQuantity === 0) {
-          void customAlert({
-            title: '⚠️ No R710 WiFi Tokens Available',
-            description: `No R710 WiFi tokens available for "${product.name}". Please create more tokens in the R710 Portal.`
-          })
-        } else {
-          void customAlert({
-            title: '⚠️ Insufficient R710 Tokens',
-            description: `Only ${availableQuantity} R710 WiFi token(s) available for "${product.name}". You already have ${currentCartQuantity} in cart.`
-          })
-        }
-        return
-      }
-    }
+    // MBM-338: R710 passes can be sold at zero stock — the code is made on the
+    // R710 at payment (api/universal/orders); if that fails the pass isn't charged.
 
     const actualQuantity = product.weightRequired ? (weight || currentWeight) : quantity
     const subtotal = product.price * actualQuantity
@@ -2079,15 +2061,18 @@ function GroceryPOSContent() {
 
       if (result.success) {
         // Set completed order for display
+        // MBM-338: WiFi passes whose code couldn't be made are not charged
+        const wifiNotCharged = Number(result.data.wifiNotCharged || 0)
         const orderSummary = {
           orderId: result.data.id,
           orderNumber: result.data.orderNumber,
-          total: totals.total,
+          wifiNotCharged,
+          total: totals.total - wifiNotCharged,
           paymentMethod: paymentMethod.toUpperCase(),
           amountReceived: paymentMethod === 'cash' ? parseFloat(cashTendered)
             : paymentMethod === 'ecocash' ? totals.total + computedEcocashFee
             : totals.total,
-          change: paymentMethod === 'cash' ? (parseFloat(cashTendered) - totals.total) : 0,
+          change: paymentMethod === 'cash' ? (parseFloat(cashTendered) - totals.total + wifiNotCharged) : 0,
           ecocashFeeAmount: paymentMethod === 'ecocash' ? computedEcocashFee : undefined,
           ecocashTransactionCode: paymentMethod === 'ecocash' ? ecocashTxCode.trim() : undefined,
           items: cart.map(item => ({
@@ -2180,7 +2165,14 @@ function GroceryPOSContent() {
         quantity: item.quantity,
         unitPrice: Number(item.price),
         totalPrice: Number(item.price) * item.quantity
-      })),
+      })).concat(order.wifiNotCharged > 0 ? [{
+        // MBM-338: the WiFi pass(es) whose code couldn't be made are taken off
+        name: '📶 WiFi not issued — not charged',
+        sku: undefined,
+        quantity: 1,
+        unitPrice: -order.wifiNotCharged,
+        totalPrice: -order.wifiNotCharged,
+      }] : []),
       subtotal: order.total,
       tax: 0,
       discount: Number(order.discountAmount) > 0 ? Number(order.discountAmount) : undefined,
@@ -2243,7 +2235,9 @@ function GroceryPOSContent() {
           expiresAt: expiresAt,
           ssid: token.ssid,
           success: token.success,
-          error: token.error
+          error: token.error,
+          itemName: token.itemName,
+          notCharged: token.notCharged,
         }
         console.log('📶 [Grocery] Mapped R710 token:', mapped)
         return mapped
@@ -2543,6 +2537,11 @@ function GroceryPOSContent() {
                             <div className="text-sm text-red-600 dark:text-red-400 mt-1">
                               ⚠️ {token.error || 'Token unavailable'}
                             </div>
+                            {token.notCharged != null && (
+                              <div className="text-sm font-semibold text-red-700 dark:text-red-300 mt-1">
+                                WiFi not issued — ${Number(token.notCharged).toFixed(2)} not charged
+                              </div>
+                            )}
                           </div>
                         )
                       }
@@ -2566,6 +2565,14 @@ function GroceryPOSContent() {
                         </div>
                       )
                     })}
+                  </div>
+                )}
+
+                {/* MBM-338: WiFi that couldn't be issued was not charged */}
+                {completedOrder.wifiNotCharged > 0 && (
+                  <div className="mb-3 rounded-lg border-2 border-red-400 dark:border-red-600 bg-red-50 dark:bg-red-900/30 p-3 text-sm text-red-800 dark:text-red-200">
+                    <p className="font-bold">📶 WiFi not issued — ${completedOrder.wifiNotCharged.toFixed(2)} not charged</p>
+                    <p className="mt-0.5">The total below is already lowered. {completedOrder.paymentMethod === 'CASH' ? 'Give the customer the change shown.' : 'Refund this amount to the customer.'}</p>
                   </div>
                 )}
 
@@ -4076,12 +4083,16 @@ function GroceryPOSContent() {
                     {/* R710 token quantity indicator */}
                     {(product as any).r710Token && (
                       <div className="mt-1 space-y-1">
-                        <span className={`text-xs font-medium block ${
-                          (product as any).availableQuantity === 0 ? 'text-red-500' :
-                          (product as any).availableQuantity < 5 ? 'text-orange-500' :
-                          'text-green-600'}`}>
-                          📦 {(product as any).availableQuantity || 0} available
-                        </span>
+                        {(product as any).availableQuantity > 0 ? (
+                          <span className={`text-xs font-medium block ${
+                            (product as any).availableQuantity < 5 ? 'text-orange-500' : 'text-green-600'}`}>
+                            📦 {(product as any).availableQuantity} ready
+                          </span>
+                        ) : (
+                          <span className="text-xs font-medium block text-blue-600 dark:text-blue-400" title="No ready codes — a new code is made on the WiFi device when the customer pays">
+                            ⚡ code made at payment
+                          </span>
+                        )}
                         {/* Request more tokens button - only show when quantity < 5 and user has permission */}
                         {(product as any).availableQuantity < 5 && isAdmin && (
                           <button

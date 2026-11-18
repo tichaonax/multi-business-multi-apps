@@ -350,6 +350,8 @@ export function R710SalesPanel({ embedded = false, onClose }: Props) {
       setProcessing(true)
       setErrorMessage(null)
       const results: GeneratedR710TokenSale[] = []
+      // MBM-338: passes sold together are recorded on one sales order
+      const saleGroupId = `ds-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 
       for (let i = 0; i < cart.length; i++) {
         const item = cart[i]
@@ -366,7 +368,8 @@ export function R710SalesPanel({ embedded = false, onClose }: Props) {
             businessId: currentBusinessId,
             tokenConfigId: item.config.id,
             saleAmount: salePrice,
-            paymentMethod: salePrice > 0 ? paymentMethod : 'FREE'
+            paymentMethod: salePrice > 0 ? paymentMethod : 'FREE',
+            saleGroupId,
           }
           if (isEcocash && ecocashSummary) {
             body.ecocashFeeAmount = ecocashSummary.fee

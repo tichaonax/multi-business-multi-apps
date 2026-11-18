@@ -2545,8 +2545,9 @@ export default function RestaurantPOS() {
       }
     }
 
-    // Check available quantity for WiFi tokens (both ESP32 and R710)
-    if (isAnyWiFiToken) {
+    // Check available quantity for ESP32 WiFi tokens. MBM-338: R710 passes are
+    // never blocked — with no ready code one is made on the device at payment.
+    if (isESP32Token) {
       const availableQuantity = (item as any).availableQuantity || 0
       const currentCartQuantity = cart.find(c => c.id === item.id)?.quantity || 0
 
@@ -2735,7 +2736,7 @@ export default function RestaurantPOS() {
     }
     // Cap WiFi token items at available quantity
     const cartItem = cart.find(i => i.id === itemId)
-    if (cartItem && ((cartItem as any).esp32Token || (cartItem as any).r710Token)) {
+    if (cartItem && (cartItem as any).esp32Token) {
       const available = (cartItem as any).availableQuantity || 0
       if (quantity > available) {
         toast.push(`Only ${available} token${available === 1 ? '' : 's'} available for "${cartItem.name}".`, {
@@ -3097,6 +3098,14 @@ export default function RestaurantPOS() {
         if (result.sampleOffer) {
           receiptItems.push({ id: 'sample-free', name: `FREE SAMPLE - ${result.sampleOffer.sampledProductName}`, price: 0, quantity: 1, category: 'sample' } as CartItem)
         }
+        // MBM-338 — WiFi whose code couldn't be made was not charged; the server
+        // lowered the order total, so the receipt takes it off too.
+        const wifiNotCharged = Number(result.attributes?.wifiNotCharged || 0)
+        if (wifiNotCharged > 0) {
+          receiptItems.push({ id: 'wifi-not-issued', name: '📶 WiFi not issued — not charged', price: -wifiNotCharged, quantity: 1, category: 'wifi' } as CartItem)
+          toast.push(`📶 WiFi not issued — $${wifiNotCharged.toFixed(2)} not charged. Give this back to the customer.`, { type: 'error', duration: 15000 })
+        }
+        const chargedTotal = total - wifiNotCharged
 
         console.log('🟢 [completeOrder] paymentMethod:', paymentMethod, 'ecocashTxCode:', ecocashTxCode)
         // Note: ecocashFee and ecoBase are computed above (A1) and reused here
@@ -3115,15 +3124,15 @@ export default function RestaurantPOS() {
         } = {
           orderNumber: result.orderNumber,
           items: receiptItems,
-          subtotal: total + rewardCredit, // show pre-discount subtotal
-          total: total,
+          subtotal: chargedTotal + rewardCredit, // show pre-discount subtotal
+          total: chargedTotal,
           discountAmount: rewardCredit > 0 ? rewardCredit : undefined,
           rewardCouponCode: (appliedReward && !skipRewardThisTime) ? appliedReward.couponCode : undefined,
           paymentMethod: paymentMethod,
           amountReceived: (paymentMethod === 'ON_DELIVERY' || paymentMethod === 'ON_PICKUP') ? 0
-            : paymentMethod === 'CASH' ? parseFloat(amountReceived) : total,
+            : paymentMethod === 'CASH' ? parseFloat(amountReceived) : chargedTotal,
           change: (paymentMethod === 'ON_DELIVERY' || paymentMethod === 'ON_PICKUP') ? 0
-            : paymentMethod === 'CASH' ? parseFloat(amountReceived) - total : 0,
+            : paymentMethod === 'CASH' ? parseFloat(amountReceived) - chargedTotal : 0,
           ecocashFeeAmount: paymentMethod === 'ECOCASH' ? ecocashFee : undefined,
           ecocashTransactionCode: paymentMethod === 'ECOCASH' ? ecocashTxCode.trim() : undefined,
           // A4 — ecocashBase: the post-credit portion that EcoCash actually charged
@@ -5071,11 +5080,18 @@ export default function RestaurantPOS() {
                     {/* WiFi token quantity indicator */}
                     {((item as any).esp32Token || (item as any).r710Token) && (() => {
                       const remaining = (item.availableQuantity || 0) - cartQuantity;
+                      const onTheFly = (item as any).r710Token && remaining <= 0;
                       return (
                       <div className="mt-1 space-y-1">
+                        {onTheFly ? (
+                          <span className="text-xs font-medium block text-blue-600 dark:text-blue-400" title="No ready codes — a new code is made on the WiFi device when the customer pays">
+                            ⚡ code made at payment
+                          </span>
+                        ) : (
                         <span className={`text-xs font-medium block ${remaining <= 0 ? 'text-red-500' : remaining < 5 ? 'text-orange-500' : 'text-green-600'}`}>
-                          📦 {remaining} available
+                          📦 {remaining} {(item as any).r710Token ? 'ready' : 'available'}
                         </span>
+                        )}
                         {/* Request more tokens button - only show when quantity < 5 and user has permission */}
                         {item.availableQuantity < 5 && (isAdmin || hasPermission('canSellWifiTokens')) && (
                           <button

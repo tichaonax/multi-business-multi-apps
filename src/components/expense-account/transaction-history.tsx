@@ -20,6 +20,7 @@ import { Pagination } from '@/components/ui/pagination'
 import { usePageSize, PAGE_SIZE_OPTIONS } from '@/hooks/use-page-size-preference'
 import { TableFillerRows } from '@/components/ui/table-filler-rows'
 import { useElementHeight } from '@/hooks/use-element-height'
+import { WifiCodeHover } from '@/components/wifi/wifi-code'
 
 interface Transaction {
   id: string
@@ -54,6 +55,8 @@ interface Transaction {
   paymentType?: string
   isAutoTransfer?: boolean
   autoTransferSource?: string
+  // MBM-338: WiFi sale deposit — the pass and the customer's code
+  wifi?: { code: string; packageName: string | null; soldBy: string | null; soldAt: string | null; channel: string | null } | null
   // Transfer destination link (MBM-198)
   destinationDepositId?: string | null
   destinationAccountId?: string | null
@@ -133,6 +136,25 @@ function localDateStr(d: Date): string {
 function isWithin7Days(createdAt: string) {
   const diffMs = Date.now() - new Date(createdAt).getTime()
   return Math.floor(diffMs / (1000 * 60 * 60 * 24)) <= 7
+}
+
+// MBM-338: WiFi sale lines — "📶 8 Hour Pass" + the code pill; hovering the
+// pill shows the details and a Copy button.
+function WifiLine({ wifi }: { wifi: NonNullable<Transaction['wifi']> }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 flex-wrap">
+      <span>📶 {wifi.packageName || 'WiFi'}</span>
+      <WifiCodeHover
+        code={wifi.code}
+        packageName={wifi.packageName}
+        details={<>
+          {wifi.soldBy && <span className="block">Sold by {wifi.soldBy}</span>}
+          {wifi.soldAt && <span className="block">{new Date(wifi.soldAt).toLocaleString()}</span>}
+          {wifi.channel && <span className="block">{wifi.channel === 'DIRECT' ? 'WiFi direct sale' : 'POS sale'}</span>}
+        </>}
+      />
+    </span>
+  )
 }
 
 function shortDescription(transaction: Transaction): string {
@@ -1145,7 +1167,7 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
                       }`}>
                         {isDeposit ? '📥 Deposit' : '📤 Payment'}
                       </span>
-                      <span className="text-sm text-gray-900 dark:text-gray-100 truncate">{shortDescription(transaction)}</span>
+                      <span className="text-sm text-gray-900 dark:text-gray-100 truncate">{transaction.wifi ? <WifiLine wifi={transaction.wifi} /> : shortDescription(transaction)}</span>
                     </div>
                   </div>
                   {(transaction.notes || transaction.receiptNumber || transaction.createdBy?.name) && (
@@ -1248,7 +1270,7 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
 
                       <td className="hidden sm:table-cell px-2 sm:px-4 py-2 sm:py-3 text-sm text-gray-900 dark:text-gray-100">
                         <div className="font-medium">
-                          {shortDescription(transaction)}
+                          {transaction.wifi ? <WifiLine wifi={transaction.wifi} /> : shortDescription(transaction)}
                         </div>
                         {!isDeposit && transaction.notes && (
                           <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 italic">
