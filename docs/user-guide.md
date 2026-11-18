@@ -10604,7 +10604,7 @@ The request status changes to **APPROVED** (all items funded) or **PARTIALLY APP
 If the request needs clarification or corrections before you can approve it:
 
 1. Open the submitted request.
-2. **Flag the items that need fixing (optional, recommended).** Under each item, click **🚩 Flag**, type what is wrong (e.g. "Wrong payee — should be Mr Moyo") and press **Save** (or Enter). The flag is saved straight away; use **✎ Edit flag** or **Clear flag** to change it.
+2. **Flag the items that need fixing (optional, recommended).** A blue **🔍 Review each item before approving** banner sits above the items. Click the red **🚩 Flag item** button beside an item's amount, type what is wrong (e.g. "Wrong payee — should be Mr Moyo") and press **Save** (or Enter). The flag is saved straight away; use **✎ Edit flag** or **Clear flag** to change it.
 3. Click **↩ Return for Edits**. The panel lists the flagged items.
 4. Type an overall **Return Note**. It is **optional when at least one item is flagged**; otherwise it needs at least 10 characters.
 5. Click **Confirm Return**.
