@@ -10,6 +10,14 @@ import { useIsMobileDevice } from '@/hooks/use-is-mobile-device'
 
 export default function SignIn() {
   const [identifier, setIdentifier] = useState('')
+
+  // MBM-337: "Sign Out & Sign In as …" passes the next user's login name
+  useEffect(() => {
+    try {
+      const u = new URLSearchParams(window.location.search).get('username')
+      if (u) setIdentifier(u)
+    } catch { /* ignore */ }
+  }, [])
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)

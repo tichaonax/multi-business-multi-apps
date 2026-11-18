@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { globalBarcodeService, GlobalBarcodeEvent } from '@/lib/services/global-barcode-service'
-import { useSession, signOut } from 'next-auth/react'
+import { useSession, signOut, signIn } from 'next-auth/react'
 import { getGlobalBarcodeScanningAccess } from '@/lib/permission-utils'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { QuickStockFromScanModal } from '@/components/inventory/quick-stock-from-scan-modal'
@@ -194,7 +194,8 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence, curre
 
           if (isManagement) {
             // Management employees never clock in — always trigger logout prompt
-            setLogoutPromptEmployee(clockData.employee)
+            // MBM-336: remember whether it's the signed-in user's own card
+            setLogoutPromptEmployee({ ...clockData.employee, isOwnCard: !!clockData.isOwnCard })
             setShowLogoutPrompt(true)
           } else if (isExempt) {
             // Exempt non-management: silently skip — no clock-in, no prompt
@@ -521,29 +522,69 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence, curre
     setLogoutCameraError(false)
   }
 
-  const handleLogoutConfirm = () => {
+  // MBM-337: mode = 'self' (own card), 'close' (sign the other person out
+  // only) or 'switch' (sign them out so the scanner can sign in)
+  const handleLogoutConfirm = (mode: 'self' | 'close' | 'switch' = 'self') => {
     // 1. Capture frame NOW — before closing unmounts the video element
     const dataUrl = captureLogoutFrame()
     const currentUserId = (session?.user as any)?.id
+    const scanner = logoutPromptEmployee
+    const action = mode === 'self' ? 'logout' : mode === 'close' ? 'closed_by_other' : 'switch_user'
     // 2. Stop camera and close everything immediately — prevents inventory modal flash
     stopLogoutCamera()
     setShowLogoutPrompt(false)
     onClose()
     // 3. Upload photo + log in background (fire-and-forget; signOut navigates away)
-    ;(async () => {
+    const logPromise = (async () => {
       try {
         const photoUrl = dataUrl ? await uploadLogoutFrame(dataUrl) : undefined
         if (currentUserId) {
           await fetch('/api/clock-in/login-log', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: currentUserId, action: 'logout', method: 'card', photoUrl: photoUrl ?? null }),
+            body: JSON.stringify({
+              userId: currentUserId, action, method: 'card', photoUrl: photoUrl ?? null,
+              // MBM-337: who closed the session when it wasn't the owner
+              ...(mode !== 'self' && scanner?.id ? { actorEmployeeId: scanner.id, note: `Signed out by ${scanner.fullName}` } : {}),
+            }),
           })
         }
-      } catch { /* non-fatal */ }
+        return photoUrl
+      } catch { return undefined /* non-fatal */ }
     })()
-    signOut({ callbackUrl: window.location.origin })
+
+    if (mode === 'switch') {
+      // MBM-337: one scan does both — sign the old user out, then sign the
+      // scanner in with their card (same card login as the sign-in screen)
+      ;(async () => {
+        const photoUrl = await logPromise // log the switch while the old session still exists
+        await signOut({ redirect: false })
+        const result = scanner?.employeeNumber
+          ? await signIn('credentials', { employeeNumber: scanner.employeeNumber, type: 'card', identifier: '', password: '', redirect: false })
+          : { error: 'no employee number' }
+        if (!result?.error) {
+          fetch('/api/clock-in/login-log', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ employeeId: scanner.id, action: 'login', method: 'card', photoUrl: photoUrl ?? null, note: 'Switch user' }),
+          }).catch(() => {})
+          try { sessionStorage.setItem('kioskLogin', 'true') } catch { /* ignore */ }
+          window.location.href = '/auth/redirect'
+        } else {
+          // Card sign-in not possible (e.g. no active account) — fall back to
+          // the sign-in page with their login name filled in
+          const loginName = scanner?.users?.username || scanner?.users?.email || ''
+          window.location.href = `/auth/signin${loginName ? `?username=${encodeURIComponent(loginName)}` : ''}`
+        }
+      })()
+      return
+    }
+
+    // Sign out only / own card → the sign-in page
+    signOut({ callbackUrl: mode === 'close' ? `${window.location.origin}/auth/signin` : window.location.origin })
   }
+
+  const firstName = (name?: string | null) => (name ? name.trim().split(/\s+/)[0] : null)
 
   const handleResetScan = () => {
     setError(null)
@@ -725,13 +766,20 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence, curre
       <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[90]">
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-sm w-full mx-4 overflow-hidden">
           <div className="px-6 py-4 bg-red-600">
-            <h3 className="text-lg font-semibold text-white">Switch User?</h3>
+            <h3 className="text-lg font-semibold text-white">{logoutPromptEmployee?.isOwnCard ? 'Log Out?' : 'Switch User?'}</h3>
           </div>
           <div className="p-5 space-y-4">
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              <strong>{logoutPromptEmployee?.fullName}</strong> is in management.
-              Confirming will sign out the current session.
-            </p>
+            {/* MBM-336: own card = plain log out; someone else's = switch user */}
+            {logoutPromptEmployee?.isOwnCard ? (
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                You&apos;re signed in as <strong>{logoutPromptEmployee?.fullName}</strong>. Log out now?
+              </p>
+            ) : (
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                <strong>{(session?.user as any)?.name ?? 'Someone else'}</strong> is signed in here.
+                {' '}<strong>{logoutPromptEmployee?.fullName}</strong>, do you want to just sign them out, or sign out and sign in yourself?
+              </p>
+            )}
             {/* Camera viewfinder — always rendered so ref exists before stream arrives */}
             {logoutCameraError ? (
               <p className="text-xs text-gray-400 text-center py-1">
@@ -755,7 +803,7 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence, curre
               </div>
             )}
             <canvas ref={logoutCanvasRef} className="hidden" />
-            <div className="flex gap-3">
+            <div className={logoutPromptEmployee?.isOwnCard ? "flex gap-3" : "flex flex-col-reverse gap-2"}>
               <button
                 onClick={() => {
                   const dataUrl = captureLogoutFrame()
@@ -780,12 +828,30 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence, curre
               >
                 Cancel
               </button>
-              <button
-                onClick={handleLogoutConfirm}
-                className="flex-1 py-2.5 bg-red-600 text-white rounded-lg text-sm font-semibold hover:bg-red-700"
-              >
-                Log Out
-              </button>
+              {logoutPromptEmployee?.isOwnCard ? (
+                <button
+                  onClick={() => handleLogoutConfirm('self')}
+                  className="flex-1 py-2.5 bg-red-600 text-white rounded-lg text-sm font-semibold hover:bg-red-700"
+                >
+                  Log Out
+                </button>
+              ) : (
+                <>
+                  {/* MBM-337: close a session left open, or switch to yourself */}
+                  <button
+                    onClick={() => handleLogoutConfirm('close')}
+                    className="flex-1 py-2.5 border border-red-400 text-red-600 dark:text-red-400 rounded-lg text-sm font-semibold hover:bg-red-50 dark:hover:bg-red-900/20"
+                  >
+                    Sign Out {firstName((session?.user as any)?.name) ?? 'User'} Only
+                  </button>
+                  <button
+                    onClick={() => handleLogoutConfirm('switch')}
+                    className="flex-1 py-2.5 bg-red-600 text-white rounded-lg text-sm font-semibold hover:bg-red-700"
+                  >
+                    Sign Out &amp; Sign In as {firstName(logoutPromptEmployee?.fullName) ?? 'Me'}
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>

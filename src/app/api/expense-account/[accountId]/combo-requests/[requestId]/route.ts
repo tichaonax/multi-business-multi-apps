@@ -65,7 +65,7 @@ async function getComboRequest(requestId: string, accountId: string) {
               // MBM-319: recorded restaurant expense this item pays (locked in the edit form)
               restaurant_expense_line: { select: { id: true, transaction: { select: { reference: true, purchasedAt: true } } } },
               // MBM-333: the payment made for this item at the loan business
-              generatedPayment: { select: { id: true, status: true, amount: true, paidAt: true, expenseAccountId: true } },
+              generatedPayment: { select: { id: true, status: true, amount: true, paidAt: true, expenseAccountId: true, expense_payment_receipts: { select: { amount: true } } } },
             },
           },
         },
@@ -138,7 +138,12 @@ export async function GET(
           approvedAmount: item.approvedAmount !== null ? Number(item.approvedAmount) : null,
           estimatedAmount: item.estimatedAmount !== null ? Number(item.estimatedAmount) : null,
           noReceiptReason: item.noReceiptReason,
-          receipts: item.receipts.map(r => ({ amount: Number(r.amount) })),
+          // MBM-336: a business-loan item's receipts sit on its own payment at
+          // the loan business — count those too
+          receipts: [
+            ...item.receipts.map(r => ({ amount: Number(r.amount) })),
+            ...((item as any).generatedPayment?.expense_payment_receipts ?? []).map((r: any) => ({ amount: Number(r.amount) })),
+          ],
         }
         const { receipts, ...itemWithoutReceipts } = item
         return {

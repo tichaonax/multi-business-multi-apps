@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 
-const VALID_ACTIONS = ['login', 'logout', 'declined', 'scan', 'clock_in', 'clock_out']
+// MBM-337: closed_by_other / switch_user = someone else signed this person out
+const VALID_ACTIONS = ['login', 'logout', 'declined', 'scan', 'clock_in', 'clock_out', 'closed_by_other', 'switch_user']
 const VALID_METHODS = ['card', 'manual']
 
 // POST /api/clock-in/login-log
@@ -11,8 +12,8 @@ const VALID_METHODS = ['card', 'manual']
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { action, method, photoUrl, note } = body
-    let { employeeId, userId } = body
+    const { action, method, photoUrl, actorEmployeeId } = body
+    let { employeeId, userId, note } = body
 
     if (!VALID_ACTIONS.includes(action)) {
       return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
@@ -30,6 +31,13 @@ export async function POST(req: NextRequest) {
       if (emp) employeeId = emp.id
     }
 
+    // MBM-337: the signed-out account has no employee record (e.g. an admin
+    // login) — keep the event, filed under the person who closed it
+    if (!employeeId && actorEmployeeId && ['closed_by_other', 'switch_user'].includes(action)) {
+      employeeId = actorEmployeeId
+      note = [note, 'Signed-out account has no employee record'].filter(Boolean).join(' — ')
+    }
+
     if (!employeeId) {
       return NextResponse.json({ error: 'employeeId or userId required' }, { status: 400 })
     }
@@ -42,6 +50,7 @@ export async function POST(req: NextRequest) {
         method,
         photoUrl: photoUrl ?? null,
         note: note ?? null,
+        actorEmployeeId: actorEmployeeId && actorEmployeeId !== employeeId ? actorEmployeeId : null,
       },
     })
 
@@ -100,6 +109,7 @@ export async function GET(req: NextRequest) {
             primaryBusinessId: true,
           },
         },
+        actor: { select: { id: true, fullName: true, employeeNumber: true } }, // MBM-337
       },
       orderBy: { createdAt: 'desc' },
       take: 500,

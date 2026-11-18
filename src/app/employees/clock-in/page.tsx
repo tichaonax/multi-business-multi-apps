@@ -164,6 +164,8 @@ export default function ClockInDashboardPage() {
   const [attendanceSearch, setAttendanceSearch] = useState('')
   const [exemptSearch, setExemptSearch] = useState('')
   const [logSearch, setLogSearch] = useState('')
+  // MBM-337: action filter for Login Tracking
+  const [logAction, setLogAction] = useState<string>('')
   const [logActivePreset, setLogActivePreset] = useState<string | null>('today')
 
   // Inline schedule/exempt editor
@@ -600,10 +602,29 @@ export default function ClockInDashboardPage() {
     )
     if (logSearch) base = base.filter((log: any) =>
       lc(log.employees?.fullName ?? '').includes(lc(logSearch)) ||
-      lc(log.employees?.employeeNumber ?? '').includes(lc(logSearch))
+      lc(log.employees?.employeeNumber ?? '').includes(lc(logSearch)) ||
+      lc(log.actor?.fullName ?? '').includes(lc(logSearch))
     )
+    // MBM-337: action filter
+    if (logAction === 'closed') base = base.filter((log: any) => log.action === 'closed_by_other' || log.action === 'switch_user')
+    else if (logAction) base = base.filter((log: any) => log.action === logAction)
     return base
-  }, [loginLogs, allowedBizIds, logSearch])
+  }, [loginLogs, allowedBizIds, logSearch, logAction])
+
+  // MBM-337: people whose session someone else had to close, in the loaded period
+  const leftSignedIn = useMemo(() => {
+    const map = new Map<string, { name: string; count: number; last: string; closers: Set<string> }>()
+    for (const log of filteredLoginLogs as any[]) {
+      if (!['closed_by_other', 'switch_user'].includes(log.action) || !log.actorEmployeeId) continue
+      const key = log.employeeId
+      const e = map.get(key) ?? { name: log.employees?.fullName ?? 'Unknown', count: 0, last: log.createdAt, closers: new Set<string>() }
+      e.count++
+      if (new Date(log.createdAt) > new Date(e.last)) e.last = log.createdAt
+      if (log.actor?.fullName) e.closers.add(log.actor.fullName)
+      map.set(key, e)
+    }
+    return [...map.values()].sort((a, b) => b.count - a.count)
+  }, [filteredLoginLogs])
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
@@ -1224,6 +1245,23 @@ export default function ClockInDashboardPage() {
             >
               {isLoadingLogs ? 'Loading…' : '🔍 Load'}
             </button>
+            {/* MBM-337: action filter */}
+            <select
+              value={logAction}
+              onChange={(e) => setLogAction(e.target.value)}
+              className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+            >
+              <option value="">All actions</option>
+              <option value="login">🔑 Logins</option>
+              <option value="logout">🚪 Logouts</option>
+              <option value="closed">🔒 Closed by someone else (all)</option>
+              <option value="closed_by_other">🔒 Signed out only</option>
+              <option value="switch_user">🔁 Switch user</option>
+              <option value="declined">❌ Declined</option>
+              <option value="scan">📡 Scans</option>
+              <option value="clock_in">⏰ Clock in</option>
+              <option value="clock_out">⏱ Clock out</option>
+            </select>
             {/* Name search */}
             <div className="flex items-center gap-2 ml-auto">
               <input
@@ -1244,6 +1282,26 @@ export default function ClockInDashboardPage() {
             </div>
           </div>
 
+          {/* MBM-337: who left their account signed in for someone else to close */}
+          {!isLoadingLogs && leftSignedIn.length > 0 && (
+            <div className="mb-4 p-4 rounded-xl border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20">
+              <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">🔒 Left signed in: someone else had to sign them out</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {leftSignedIn.map(p => (
+                  <button
+                    key={p.name}
+                    type="button"
+                    onClick={() => { setLogSearch(p.name); setLogAction('closed') }}
+                    title={`Closed by: ${[...p.closers].join(', ')}`}
+                    className="text-xs px-3 py-1.5 rounded-lg border border-amber-300 dark:border-amber-700 bg-white dark:bg-gray-800 text-amber-900 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900/40"
+                  >
+                    <span className="font-semibold">{p.name}</span> · {p.count}× · last {new Date(p.last).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {isLoadingLogs ? (
             <div className="flex items-center justify-center py-12">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
@@ -1255,7 +1313,7 @@ export default function ClockInDashboardPage() {
             </div>
           ) : (
             <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
-              {logSearch && (
+              {(logSearch || logAction) && (
                 <div className="px-4 py-2 text-xs text-gray-400 border-b border-gray-100 dark:border-gray-700">
                   Showing {filteredLoginLogs.length} of {loginLogs.length} events
                 </div>
@@ -1298,6 +1356,8 @@ export default function ClockInDashboardPage() {
                             ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300'
                             : log.action === 'scan'
                             ? 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+                            : log.action === 'closed_by_other' || log.action === 'switch_user'
+                            ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300'
                             : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300'
                         }`}>
                           {log.action === 'login' ? '🔑 Login'
@@ -1305,8 +1365,17 @@ export default function ClockInDashboardPage() {
                             : log.action === 'clock_in' ? '⏰ Clock In'
                             : log.action === 'clock_out' ? '⏱ Clock Out'
                             : log.action === 'scan' ? '📡 Scan'
+                            : log.action === 'closed_by_other' ? '🔒 Signed out by other'
+                            : log.action === 'switch_user' ? '🔁 Switch user'
                             : '❌ Declined'}
                         </span>
+                        {/* MBM-337: who closed it */}
+                        {log.actor?.fullName && (
+                          <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">by {log.actor.fullName}</div>
+                        )}
+                        {log.note && !log.actor && (
+                          <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{log.note}</div>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-gray-600 dark:text-gray-400 capitalize">{log.method}</td>
                       <td className="px-4 py-3 text-gray-600 dark:text-gray-400">

@@ -64,6 +64,12 @@ export async function POST(
       return NextResponse.json({ error: 'Only SUBMITTED requests can be approved' }, { status: 400 })
     }
 
+    // MBM-336: an open (unresolved) item flag blocks approval
+    const openFlags = comboRequest.sections.flatMap(s => s.items).filter(i => i.flagNote && !i.flagResolvedAt)
+    if (openFlags.length > 0) {
+      return NextResponse.json({ error: `${openFlags.length} flagged item(s) not resolved (${openFlags.map(i => i.description).join(', ')}) — clear the flag or return the request for edits` }, { status: 400 })
+    }
+
     // MBM-336: a cashier corrected this request — the requester must be told why
     if (comboRequest.cashierEditedAt && String(approvalNote ?? '').trim().length < 10) {
       return NextResponse.json({ error: 'This request was changed by a cashier — add an approval note (at least 10 characters) telling the requester what was changed and why' }, { status: 400 })

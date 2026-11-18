@@ -204,6 +204,7 @@ export function ComboRequestDetail({ accountId, requestId }: ComboRequestDetailP
   const [noReceiptSubmitting, setNoReceiptSubmitting] = useState(false)
   const [noReceiptReasons, setNoReceiptReasons] = useState<string[]>([]) // MBM-323: reasons used before
   const [showReceipts, setShowReceipts] = useState(false) // MBM-286: request-level "Manage Receipts"
+  const [loanReceiptItem, setLoanReceiptItem] = useState<ComboItem | null>(null) // MBM-336: loan item's own payment
   const [showVoucherModal, setShowVoucherModal] = useState(false)
   const [accountInfo, setAccountInfo] = useState<{ accountName: string; accountNumber: string } | null>(null)
   const [showSubmitPanel, setShowSubmitPanel] = useState(false)
@@ -732,11 +733,18 @@ export function ComboRequestDetail({ accountId, requestId }: ComboRequestDetailP
                 setOverrideAmountStr(effectiveRequested.toFixed(2))
                 setShowSubmitPanel(v => !v)
               }}
-              disabled={!dataReady || submitting}
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              disabled={!dataReady || submitting || flaggedItems.length > 0}
+              title={flaggedItems.length > 0 ? `Fix the flagged item${flaggedItems.length === 1 ? '' : 's'} first: ${flaggedItems.map(i => i.description).join(', ')}` : undefined}
+              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-blue-600 transition-colors"
             >
               {!dataReady ? 'Loading...' : 'Submit Request'}
             </button>
+          )}
+          {/* MBM-336: open flags block resubmitting — fix them in Edit Request */}
+          {canSubmit && flaggedItems.length > 0 && (
+            <span className="self-center text-xs text-red-600 dark:text-red-400">
+              🚩 {flaggedItems.length} flagged item{flaggedItems.length === 1 ? '' : 's'} to fix: click <span className="font-semibold">Edit Request</span>, open {flaggedItems.length === 1 ? 'it' : 'each one'} and tick <span className="font-semibold">✓ Mark as fixed</span>
+            </span>
           )}
           {canApprove && !request.canApproveLoan && (
             <span className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400" title="Business loans also need the lending permission">
@@ -746,10 +754,18 @@ export function ComboRequestDetail({ accountId, requestId }: ComboRequestDetailP
           {canApprove && request.canApproveLoan && (
             <button
               onClick={() => setShowApproveModal(true)}
-              className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors"
+              disabled={flaggedItems.length > 0}
+              title={flaggedItems.length > 0 ? `${flaggedItems.length} flagged item${flaggedItems.length === 1 ? '' : 's'} not resolved — clear the flag, correct the item, or return the request for edits` : undefined}
+              className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-green-600"
             >
               Approve Request
             </button>
+          )}
+          {/* MBM-336: open flags block approval */}
+          {canApprove && request.canApproveLoan && flaggedItems.length > 0 && (
+            <span className="self-center text-xs text-red-600 dark:text-red-400">
+              🚩 {flaggedItems.length} flagged item{flaggedItems.length === 1 ? '' : 's'} open: clear {flaggedItems.length === 1 ? 'it' : 'them'} or return for edits to approve
+            </span>
           )}
           {canReturn && (
             <button
@@ -813,6 +829,22 @@ export function ComboRequestDetail({ accountId, requestId }: ComboRequestDetailP
               🧾 Manage Receipts
             </button>
           )}
+          {/* MBM-336: after approval, one click to the account where the work
+              continues — the loan's receiving account for a business loan */}
+          {['APPROVED', 'PARTIALLY_APPROVED', 'PARTIALLY_PAID', 'PAID', 'SETTLE_REQUESTED'].includes(request.status) && (() => {
+            const target = request.isBusinessLoan && request.loanExpenseAccount
+              ? { id: request.loanExpenseAccount.id, name: request.loanExpenseAccount.accountName }
+              : { id: accountId, name: accountInfo?.accountName ?? 'the expense account' }
+            return (
+              <button
+                onClick={() => router.push(`/expense-accounts/${target.id}`)}
+                title={request.isBusinessLoan ? 'The items were set up as payments there: pay them and add receipts' : 'Open the expense account'}
+                className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors"
+              >
+                🏦 Go to {target.name} →
+              </button>
+            )
+          })()}
         </div>
 
         {/* Inline return panel */}
@@ -1037,9 +1069,27 @@ export function ComboRequestDetail({ accountId, requestId }: ComboRequestDetailP
                             ✅ Accounted
                           </span>
                         ) : (
-                          <span className="text-xs bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400 px-1.5 py-0.5 rounded">
-                            ⚠️ Needs receipt
-                          </span>
+                          (() => {
+                            // MBM-336: click to add the receipt — on the item's own
+                            // payment for a business loan, else on the request's payment
+                            const loanPaymentId = request.isBusinessLoan ? (item as any).generatedPayment?.id as string | undefined : undefined
+                            const canOpen = isCreator && (loanPaymentId || (request.linkedPaymentId && !request.isBusinessLoan))
+                            if (!canOpen) return (
+                              <span className="text-xs bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400 px-1.5 py-0.5 rounded">
+                                ⚠️ Needs receipt
+                              </span>
+                            )
+                            return (
+                              <button
+                                type="button"
+                                onClick={() => loanPaymentId ? setLoanReceiptItem(item) : setReceiptItem(item)}
+                                title="Add the receipt for this item"
+                                className="text-xs bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400 px-1.5 py-0.5 rounded border border-amber-300 dark:border-amber-700 hover:bg-amber-100 dark:hover:bg-amber-900/40 underline-offset-2 hover:underline"
+                              >
+                                ⚠️ Needs receipt →
+                              </button>
+                            )
+                          })()
                         )
                       )}
                     </div>
@@ -1333,6 +1383,18 @@ export function ComboRequestDetail({ accountId, requestId }: ComboRequestDetailP
           presetComboItemId={receiptItem.id}
           presetPayee={payeeRefFromItem(receiptItem)}
           onClose={() => setReceiptItem(null)}
+          onReceiptsChanged={loadRequest}
+        />
+      )}
+
+      {/* MBM-336: a business-loan item — receipts go on its own payment at the loan business */}
+      {loanReceiptItem && (loanReceiptItem as any).generatedPayment?.id && (
+        <ViewReceiptsModal
+          paymentId={(loanReceiptItem as any).generatedPayment.id}
+          paymentAmount={Number((loanReceiptItem as any).generatedPayment.amount ?? loanReceiptItem.estimatedAmount ?? 0)}
+          paymentDescription={loanReceiptItem.description}
+          presetPayee={payeeRefFromItem(loanReceiptItem)}
+          onClose={() => setLoanReceiptItem(null)}
           onReceiptsChanged={loadRequest}
         />
       )}

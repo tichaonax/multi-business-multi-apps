@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
         scheduledEndTime: true,
         primaryBusinessId: true,
         userId: true,
-        users: { select: { role: true } },
+        users: { select: { role: true, username: true, email: true } }, // MBM-337: pre-fill sign-in on Switch User
         job_titles: { select: { level: true } },
       },
     })

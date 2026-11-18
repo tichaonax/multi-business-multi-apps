@@ -1184,8 +1184,12 @@ model EmployeeLoginLog {
   method     String
   photoUrl   String?
   note       String?
+  // MBM-337: who did it, when it isn't the account owner (e.g. someone else
+  // closed a session that was left open)
+  actorEmployeeId String?
   createdAt  DateTime  @default(now())
   employees  Employees @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  actor      Employees? @relation("LoginLogActor", fields: [actorEmployeeId], references: [id], onDelete: SetNull)
 
   @@map("employee_login_log")
 }
@@ -1532,6 +1536,7 @@ model Employees {
   employee_absences                                                         EmployeeAbsences[]
   employee_benefits                                                         EmployeeBenefits[]
   employee_login_logs                                                       EmployeeLoginLog[]
+  login_logs_as_actor                                                       EmployeeLoginLog[]                @relation("LoginLogActor")
   employee_bonuses_employee_bonuses_approvedByToemployees                   EmployeeBonuses[]             @relation("employee_bonuses_approvedByToemployees")
   employee_bonuses_employee_bonuses_employeeIdToemployees                   EmployeeBonuses[]             @relation("employee_bonuses_employeeIdToemployees")
   employee_business_assignments                                             EmployeeBusinessAssignments[]

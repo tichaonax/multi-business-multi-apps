@@ -2581,6 +2581,30 @@ To see attendance records:
 
 ---
 
+### Signing Out with a Manager's Card (Log Out / Switch User)
+
+Managers don't clock in. Scanning a manager's card on a screen that is signed in opens a sign-out popup instead:
+
+- **Your own card:** **Log Out?** Click **Log Out** to sign yourself out.
+- **Someone else's card** (they left their window signed in): **Switch User?** with three choices:
+  - **Cancel**: nothing happens (logged as *Declined*).
+  - **Sign Out {name} Only**: closes their session and leaves the sign-in page empty. Use it when you just found their window open.
+  - **Sign Out & Sign In as {you}**: closes their session and **signs you in straight away with the same scan**; no password or second scan. (If your card can't sign you in, for example your account is inactive, the sign-in page opens with your username filled in.)
+
+A photo is taken at the moment you confirm, when a camera is available.
+
+### Login Tracking: Who Leaves Their Account Signed In
+
+**Employees → Clock-In → Login Tracking** lists logins, logouts, scans and clock events for the chosen dates.
+
+- When someone else signs a person out, the event is filed under **the person who left the session open**: **🔒 Signed out by other** or **🔁 Switch user**, with **"by {name}"** showing who closed it.
+- **🔒 Left signed in** (amber box above the table): everyone whose session someone else had to close in the period, how many times, and when it last happened. Hover a name to see who closed it; click it to list just those events.
+- Use the **Actions** list to show only logins, logouts, *Closed by someone else (all)*, *Switch user*, scans, and so on. The name search also matches the person who closed the session.
+
+> If the signed-out account has no employee record (for example an admin login), the event is filed under the person who closed it, with the note "Signed-out account has no employee record".
+
+---
+
 ### Manually Managing Clock-In Records
 
 Managers can view, add, edit, and correct any clock-in record. This covers situations where an employee forgot to scan, clocked in but forgot to clock out, was clocked in by a colleague, or where the system missed a scan.
@@ -10646,6 +10670,8 @@ Small mistakes (a wrong payee, a typo, an amount that is a few dollars off) you 
 
 The requester's notification is titled **… Approved — with changes** and includes your note. On the request they see an amber **✏️ Changed by {cashier} before approval** box with the list of changes and your note.
 
+> **Open flags block approval.** While any item has an unresolved 🚩 flag, **Approve Request** is greyed out with a red note beside it. Clear the flag (for example after correcting the item yourself) or return the request for edits.
+
 > Anything the requester has to sort out themselves (a missing receipt, the wrong items altogether) still goes back with **🚩 Flag item** and **↩ Return for Edits**. You can correct only requests that are waiting for approval, and not your own.
 
 ---
@@ -10725,6 +10751,10 @@ The requester is notified (*"approved as a loan to …"*), and so are the users 
 ---
 
 ### Requester — Marking Items as Paid
+
+> **Adding a receipt from the item:** click an item's amber **⚠️ Needs receipt →** badge to open the receipt dialog for that item. For a business loan it opens the item's own payment at the business, and the receipt counts on the request too.
+
+> **Getting back to the account:** once a request is approved, the green **🏦 Go to {account} →** button beside Manage Receipts opens the expense account where the work continues. For a business loan that is the business's account, where each item was set up as a payment to pay and add receipts.
 
 Once your request is approved:
 

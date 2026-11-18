@@ -10,6 +10,7 @@ All detailed project plans live in `ai-contexts/project-plans/`.
 
 | ID | Title | File | Status |
 |----|-------|------|--------|
+| MBM-337 | Switch User popup: Cancel / Sign out only / Sign out & sign in; track who leaves sessions open and who closed them (Login Tracking) | [view](ai-contexts/project-plans/review/projectplan-MBM-337-switch-user-options-and-tracking-2026-11-18.md) | 🔨 BUILT — awaiting testing |
 | MBM-336 | Combo requests: cashier can correct a submitted request and approve with a required note (auto change list); requester shortcuts on the Expense Accounts list (waiting / 🚩 needs attention) | [view](ai-contexts/project-plans/review/projectplan-MBM-336-cashier-edits-and-requester-shortcuts-2026-11-18.md) | 🔨 BUILT — awaiting testing |
 | MBM-335 | Combo requests: create payees on the fly; cashier sees full details and flags items (resubmit blocked until resolved); searchable loan dropdowns; compact one-line items | [view](ai-contexts/project-plans/review/projectplan-MBM-335-combo-review-flags-and-form-polish-2026-11-18.md) | 🟢 BUILT — (A) for Q1–Q5; migration applied on dev; awaiting browser testing (branch `feature/MBM-335-combo-review-flags`) |
 | MBM-334 | Lock the whole UI while a backup, restore or validation runs; only a Stop button stays usable | [view](ai-contexts/project-plans/review/projectplan-MBM-334-lock-ui-during-backup-restore-2026-11-16.md) | ✅ DONE — merged to main (3aeaf8d1), not yet pushed |
