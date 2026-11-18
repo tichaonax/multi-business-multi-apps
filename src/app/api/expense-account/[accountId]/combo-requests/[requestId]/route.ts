@@ -7,6 +7,7 @@ import { validateExpenseLinks, linkExpenseLineTx, releaseExpenseLinesTx, Expense
 import { refreshRestaurantExpenseNoticeForAccount } from '@/lib/restaurant-expense-notify'
 import { comboItemReceiptedAmount, comboItemTargetAmount, isComboItemAccountedFor } from '@/lib/expense-account/combo-item-reconciliation'
 import { readComboLoanFields } from '@/lib/expense-account/combo-business-loan'
+import { describeComboChanges } from '@/lib/expense-account/combo-cashier-changes'
 
 async function getComboRequest(requestId: string, accountId: string) {
   return prisma.comboPaymentRequests.findFirst({
@@ -21,6 +22,7 @@ async function getComboRequest(requestId: string, accountId: string) {
       returns: { orderBy: { returnedAt: 'asc' }, include: { returnedByUser: { select: { id: true, name: true } } } },
       loanBusiness: { select: { id: true, name: true } },
       loanExpenseAccount: { select: { id: true, accountName: true, accountNumber: true } },
+      cashierEditor: { select: { id: true, name: true } }, // MBM-336
       outgoingLoan: {
         select: {
           id: true, loanNumber: true, status: true, principalAmount: true, remainingBalance: true,
@@ -121,6 +123,8 @@ export async function GET(
     // Creator or admin can edit DRAFT or SUBMITTED (before approval)
     const canEditRequest = (comboRequest.createdBy === user.id || user.role === 'admin') &&
       ['DRAFT', 'SUBMITTED'].includes(comboRequest.status)
+    // MBM-336: a cashier may correct a request waiting for approval
+    const canCashierCorrect = isCashier && comboRequest.status === 'SUBMITTED' && comboRequest.createdBy !== user.id
 
     // MBM-303: fold each item's raw receipts down to receiptedAmount +
     // accountedFor — the detail page shows this directly, no client-side
@@ -158,7 +162,7 @@ export async function GET(
       data: {
         ...comboRequest,
         sections: sectionsWithReconciliation,
-        canApprove, canApproveLoan, canReturn, canRequestSettle, canConfirmSettle, remainingBalance, canEditRequest,
+        canApprove, canApproveLoan, canReturn, canRequestSettle, canConfirmSettle, remainingBalance, canEditRequest, canCashierCorrect,
       },
     })
   } catch (error) {
@@ -184,12 +188,31 @@ export async function PATCH(
     if (!['DRAFT', 'SUBMITTED'].includes(existing.status)) {
       return NextResponse.json({ error: 'Only DRAFT or SUBMITTED requests can be edited' }, { status: 400 })
     }
-    if (existing.createdBy !== user.id && user.role !== 'admin') {
-      return NextResponse.json({ error: 'Only the creator can edit this request' }, { status: 403 })
+    // MBM-336: besides the creator (and admins), a cashier may correct a
+    // request that is waiting for approval — that is recorded so the
+    // approval needs a note and the requester sees what changed
+    const isCreator = existing.createdBy === user.id
+    const isCashier = getEffectivePermissions(user).canMakeExpensePayments || user.role === 'admin'
+    const cashierEdit = !isCreator && isCashier && existing.status === 'SUBMITTED'
+    if (!isCreator && user.role !== 'admin' && !cashierEdit) {
+      return NextResponse.json({ error: existing.status === 'SUBMITTED' ? 'Only the creator or a cashier can edit this request' : 'Only the creator can edit this request' }, { status: 403 })
+    }
+    if (cashierEdit && user.role !== 'admin' && !(await canUserViewAccount(user.id, accountId))) {
+      return NextResponse.json({ error: 'You do not have access to this expense account' }, { status: 403 })
     }
 
     const body = await request.json()
     const { title, notes, sections } = body
+
+    // MBM-336: what the cashier changed, worked out before the items are replaced
+    let cashierChangeLines: string[] = []
+    if (cashierEdit) {
+      const before = await prisma.comboPaymentRequests.findUnique({
+        where: { id: requestId },
+        select: { title: true, sections: { orderBy: { sortOrder: 'asc' }, include: { items: { orderBy: { sortOrder: 'asc' } } } } },
+      })
+      if (before) cashierChangeLines = await describeComboChanges(prisma, before, title, sections)
+    }
 
     // MBM-333: business-loan fields (target business + receiving account)
     const loan = await readComboLoanFields(accountId, body)
@@ -291,6 +314,12 @@ export async function PATCH(
           ...(loan.fields ?? {}),
           ...(loan.fields?.isBusinessLoan ? { overrideAmount: null } : {}),
           requestedAmount,
+          // MBM-336: keep a running list of the cashier's corrections
+          ...(cashierChangeLines.length > 0 ? {
+            cashierEditedBy: user.id,
+            cashierEditedAt: new Date(),
+            cashierChanges: [existing.cashierChanges, ...cashierChangeLines.map(l => `• ${l}`)].filter(Boolean).join('\n'),
+          } : {}),
         },
         include: {
           creator: { select: { id: true, name: true } },

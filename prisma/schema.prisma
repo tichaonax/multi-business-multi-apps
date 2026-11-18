@@ -3959,6 +3959,7 @@ model Users {
   combo_requests_returned                                         ComboPaymentRequests[]            @relation("ComboRequestReturnedBy")
   combo_request_returns                                           ComboPaymentRequestReturns[]      @relation("ComboReturnHistoryBy")
   combo_items_flagged                                             ComboPaymentRequestItems[]        @relation("ComboItemFlaggedBy")
+  combo_requests_cashier_edited                                   ComboPaymentRequests[]            @relation("ComboCashierEditedBy")
   combo_requests_settled                                          ComboPaymentRequests[]            @relation("ComboRequestSettler")
   combo_section_payee                                             ComboPaymentRequestSections[]     @relation("ComboSectionPayeeUser")
   combo_item_payee                                                ComboPaymentRequestItems[]        @relation("ComboItemPayeeUser")
@@ -8295,6 +8296,11 @@ model ComboPaymentRequests {
   loanBusinessId       String?
   loanExpenseAccountId String?
   outgoingLoanId       String?                   @unique
+  // MBM-336: the cashier corrected the request before approving it — the
+  // approval note is then required, and the requester sees what changed
+  cashierEditedBy      String?
+  cashierEditedAt      DateTime?
+  cashierChanges       String?
   createdAt            DateTime                  @default(now())
   updatedAt            DateTime                  @default(now()) @updatedAt
 
@@ -8308,6 +8314,7 @@ model ComboPaymentRequests {
   loanExpenseAccount ExpenseAccounts?              @relation("ComboLoanTargetAccount", fields: [loanExpenseAccountId], references: [id])
   outgoingLoan       AccountOutgoingLoans?         @relation("ComboOutgoingLoan", fields: [outgoingLoanId], references: [id])
   returns            ComboPaymentRequestReturns[]
+  cashierEditor      Users?                        @relation("ComboCashierEditedBy", fields: [cashierEditedBy], references: [id], onDelete: SetNull)
   sections           ComboPaymentRequestSections[]
   items              ComboPaymentRequestItems[]
 

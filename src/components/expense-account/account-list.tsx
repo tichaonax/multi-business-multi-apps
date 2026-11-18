@@ -55,6 +55,8 @@ interface ExpenseAccount {
   landlordSupplierName?: string | null
   recentDeposits?: RecentTx[]
   recentPayments?: RecentTx[]
+  // MBM-336: the current user's own requests in progress on this account
+  myRequests?: { combosWaiting: number; combosAttention: number; paymentsWaiting: number } | null
   creator?: {
     name: string
     email: string
@@ -95,6 +97,8 @@ export function AccountList({
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [filterStatus, setFilterStatus] = useState<string>('active')
+  // MBM-336: show only the accounts where the user has requests in progress
+  const [onlyMine, setOnlyMine] = useState(false)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showCreateSiblingModal, setShowCreateSiblingModal] = useState(false)
   const [showMergeModal, setShowMergeModal] = useState(false)
@@ -296,6 +300,9 @@ export function AccountList({
     if (isAdmin && filterStatus === 'active' && !account.isActive) return false
     if (isAdmin && filterStatus === 'inactive' && account.isActive) return false
 
+    // MBM-336: "my requests" filter from the summary line
+    if (onlyMine && !account.myRequests) return false
+
     // Search filter
     if (searchQuery) {
       const query = searchQuery.toLowerCase()
@@ -308,6 +315,13 @@ export function AccountList({
 
     return true
   })
+
+  // MBM-336: totals for the "requests in progress" summary line
+  const myTotals = accounts.reduce((t, a) => {
+    const m = a.myRequests
+    if (!m) return t
+    return { inProgress: t.inProgress + m.combosWaiting + m.combosAttention + m.paymentsWaiting, attention: t.attention + m.combosAttention }
+  }, { inProgress: 0, attention: 0 })
 
   const totalPages = Math.max(1, Math.ceil(filteredAccounts.length / pageSize))
   const paginatedAccounts = filteredAccounts.slice((currentPage - 1) * pageSize, currentPage * pageSize)
@@ -368,6 +382,23 @@ export function AccountList({
           </select>
         </div>
       </div>
+
+      {/* MBM-336: the user's own requests in progress — one click to those accounts */}
+      {(myTotals.inProgress > 0 || onlyMine) && (
+        <div className={`flex items-center justify-between gap-3 flex-wrap rounded-lg border px-4 py-2.5 text-sm ${myTotals.attention > 0 ? 'border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-200' : 'border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20 text-blue-800 dark:text-blue-200'}`}>
+          <span>
+            You have <span className="font-semibold">{myTotals.inProgress} request{myTotals.inProgress === 1 ? '' : 's'} in progress</span>
+            {myTotals.attention > 0 && <span className="font-semibold"> · 🚩 {myTotals.attention} need{myTotals.attention === 1 ? 's' : ''} your attention</span>}
+          </span>
+          <button
+            type="button"
+            onClick={() => { setOnlyMine(v => !v); setCurrentPage(1) }}
+            className="text-xs font-medium px-3 py-1 rounded border border-current hover:bg-white/50 dark:hover:bg-black/20"
+          >
+            {onlyMine ? 'Show all accounts' : 'Show only these accounts'}
+          </button>
+        </div>
+      )}
 
       {/* Accounts List */}
       {filteredAccounts.length === 0 ? (
@@ -490,9 +521,43 @@ export function AccountList({
                           {new Date(account.createdAt).toLocaleDateString()}
                         </div>
                       </>
-                    ) : (
+                    ) : !account.myRequests ? (
                       <div className="mt-2 px-3 py-2 rounded bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 text-xs text-blue-700 dark:text-blue-300">
                         Personal access — open to view your requests
+                      </div>
+                    ) : null}
+
+                    {/* MBM-336: shortcuts to the user's own requests on this account */}
+                    {account.myRequests && (
+                      <div className="mt-2 flex gap-2 flex-wrap text-xs" onClick={e => e.stopPropagation()}>
+                        {account.myRequests.combosAttention > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => router.push(`/expense-accounts/${account.id}?tab=combo-requests`)}
+                            className="px-2.5 py-1 rounded border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 font-semibold hover:bg-red-100 dark:hover:bg-red-900/50"
+                            title="Returned to you by the cashier — fix the flagged items and resubmit"
+                          >
+                            🚩 {account.myRequests.combosAttention} combo request{account.myRequests.combosAttention === 1 ? '' : 's'} need{account.myRequests.combosAttention === 1 ? 's' : ''} your attention
+                          </button>
+                        )}
+                        {account.myRequests.combosWaiting > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => router.push(`/expense-accounts/${account.id}?tab=combo-requests`)}
+                            className="px-2.5 py-1 rounded border border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/50"
+                          >
+                            🧺 {account.myRequests.combosWaiting} combo request{account.myRequests.combosWaiting === 1 ? '' : 's'} waiting for approval
+                          </button>
+                        )}
+                        {account.myRequests.paymentsWaiting > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => router.push('/expense-accounts/my-payments')}
+                            className="px-2.5 py-1 rounded border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                          >
+                            📋 {account.myRequests.paymentsWaiting} payment request{account.myRequests.paymentsWaiting === 1 ? '' : 's'} waiting
+                          </button>
+                        )}
                       </div>
                     )}
 

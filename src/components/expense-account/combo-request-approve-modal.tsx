@@ -30,6 +30,8 @@ interface ComboRequestApproveModalProps {
   // MBM-333: set for a business-loan request — approved in full only
   loanBusinessName?: string | null
   loanAccountName?: string | null
+  // MBM-336: the cashier corrected the request — a note is then required
+  cashierChanges?: string | null
 }
 
 const SECTION_LABELS: Record<string, string> = {
@@ -52,6 +54,7 @@ export function ComboRequestApproveModal({
   availableBalance,
   loanBusinessName,
   loanAccountName,
+  cashierChanges,
 }: ComboRequestApproveModalProps) {
   const toast = useToastContext()
   const isLoan = loanBusinessName !== undefined && loanBusinessName !== null
@@ -97,6 +100,10 @@ export function ComboRequestApproveModal({
     }
     if (approvedNum > availableBalance) {
       toast.error(`Insufficient balance. Available: $${availableBalance.toFixed(2)}`)
+      return
+    }
+    if (cashierChanges && approvalNote.trim().length < 10) {
+      toast.error('You changed this request — add a note (at least 10 characters) for the requester')
       return
     }
     setSubmitting(true)
@@ -194,15 +201,24 @@ export function ComboRequestApproveModal({
             </div>
           )}
 
+          {/* MBM-336: the cashier's corrections — the requester will see these */}
+          {cashierChanges && (
+            <div className="bg-amber-50 border border-amber-300 rounded-lg px-4 py-3 text-sm text-amber-900">
+              <p className="font-semibold">✏️ You changed this request</p>
+              <pre className="mt-1 whitespace-pre-wrap font-sans text-xs">{cashierChanges}</pre>
+              <p className="mt-1 text-xs">Explain the changes in the note below — the requester sees it with this list.</p>
+            </div>
+          )}
+
           {/* Approval note */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Approval Note {isPartial ? '*' : '(optional)'}
+              Approval Note {(isPartial || cashierChanges) ? '*' : '(optional)'}
             </label>
             <textarea
               value={approvalNote}
               onChange={e => setApprovalNote(e.target.value)}
-              placeholder={isPartial ? 'Explain the partial funding...' : 'Optional note for the requester'}
+              placeholder={cashierChanges ? 'Required — e.g. "Corrected the payee to Pitsco, the supplier we use for fridges."' : isPartial ? 'Explain the partial funding...' : 'Optional note for the requester'}
               rows={3}
               className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
             />
@@ -224,7 +240,7 @@ export function ComboRequestApproveModal({
           </button>
           <button
             onClick={handleSubmit}
-            disabled={submitting || !approvedNum || approvedNum <= 0}
+            disabled={submitting || !approvedNum || approvedNum <= 0 || (!!cashierChanges && approvalNote.trim().length < 10)}
             className={`px-5 py-2 text-sm font-medium text-white rounded-lg disabled:opacity-50 transition-colors ${
               isPartial ? 'bg-amber-600 hover:bg-amber-700' : 'bg-green-600 hover:bg-green-700'
             }`}

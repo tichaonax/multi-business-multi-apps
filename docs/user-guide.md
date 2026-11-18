@@ -90,6 +90,7 @@
     - [Requester — Submitting a Request](#requester--submitting-a-request)
     - [Cashier — Approving a Request](#cashier--approving-a-request)
     - [Cashier — Returning a Request for Edits](#cashier--returning-a-request-for-edits)
+    - [Cashier — Correcting a Request Before Approving](#cashier--correcting-a-request-before-approving)
     - [Requester — Editing a Returned Request](#requester--editing-a-returned-request)
     - [Requester — Marking Items as Paid](#requester--marking-items-as-paid)
     - [Requester — Requesting Settlement (Returning Change)](#requester--requesting-settlement-returning-change)
@@ -3060,6 +3061,18 @@ A business's expense account is normally linked automatically when the business 
 This can only be done once per account — an already-linked account can't be re-pointed to a different business from here, to avoid accidentally disconnecting a business from a live account by mistake.
 
 ---
+
+### Your Requests in Progress — Shortcuts on the Accounts List
+
+You don't need to open an account and find the right tab to check on your own requests. On the **Expense Accounts** list:
+
+- **A summary line at the top:** "You have 3 requests in progress · 🚩 1 needs your attention". Click **Show only these accounts** to list just the accounts with your requests (useful when the list has several pages); **Show all accounts** puts the full list back.
+- **Links on each account card** (only when there is something):
+  - **🚩 1 combo request needs your attention** (red): a cashier returned it to you, usually with flagged items to fix. It opens the account's **Combo Requests** tab.
+  - **🧺 2 combo requests waiting for approval**: submitted and waiting for the cashier. It opens the **Combo Requests** tab.
+  - **📋 1 payment request waiting**: your own single payment requests not yet paid. It opens **My Payments**.
+
+On a **Personal access** card, these links replace "Personal access — open to view your requests" whenever you have something in progress.
 
 ### Switching Between Expense Accounts
 
@@ -10616,6 +10629,24 @@ The request goes back to **DRAFT** status. The requester receives a notification
 **Every return is kept.** If you return the same request more than once, each note is saved with who returned it and when. The request shows the latest note as **↩️ Returned for changes (2 times)**, and the older ones under **Earlier returns**. The history stays on the request after it is resubmitted and approved, so anyone can see what was asked and when it was answered.
 
 > **Need to approve less than a business-loan request asks for?** Loans are approved in full only. Return the request and say what to remove or reduce. See [Business-Loan Requests](#business-loan-requests) below.
+
+---
+
+### Cashier — Correcting a Request Before Approving
+
+Small mistakes (a wrong payee, a typo, an amount that is a few dollars off) you can fix yourself instead of sending the request back:
+
+1. Open the submitted request and click **✎ Correct before approving** (amber button next to the other actions).
+2. The edit form opens with an amber banner **✏️ You're correcting {requester}'s request**. Make your changes and click **Save Changes**.
+3. The system records exactly what you changed, for example:
+   - `fridge: amount $145.00 → $150.00`
+   - `fridge: payee Qawa Investiments PL → Pitsco`
+   - `added "delivery" ($10.00)` / `removed "water" ($5.00)`
+4. Click **Approve**. The dialog shows **✏️ You changed this request** with the list, and the **Approval Note is required** (at least 10 characters). Explain what you changed and why.
+
+The requester's notification is titled **… Approved — with changes** and includes your note. On the request they see an amber **✏️ Changed by {cashier} before approval** box with the list of changes and your note.
+
+> Anything the requester has to sort out themselves (a missing receipt, the wrong items altogether) still goes back with **🚩 Flag item** and **↩ Return for Edits**. You can correct only requests that are waiting for approval, and not your own.
 
 ---
 

@@ -64,6 +64,14 @@ export async function POST(
       return NextResponse.json({ error: 'Only SUBMITTED requests can be approved' }, { status: 400 })
     }
 
+    // MBM-336: a cashier corrected this request — the requester must be told why
+    if (comboRequest.cashierEditedAt && String(approvalNote ?? '').trim().length < 10) {
+      return NextResponse.json({ error: 'This request was changed by a cashier — add an approval note (at least 10 characters) telling the requester what was changed and why' }, { status: 400 })
+    }
+    const changedNote = comboRequest.cashierEditedAt
+      ? ` — approved with changes: ${String(approvalNote).trim()}`
+      : ''
+
     // Check account balance
     const effectiveRequestedAmount = Number(comboRequest.overrideAmount ?? comboRequest.requestedAmount)
     const depositsAgg = await prisma.expenseAccountDeposits.aggregate({
@@ -116,8 +124,8 @@ export async function POST(
         await emitNotification({
           userIds: [comboRequest.createdBy],
           type: 'COMBO_REQUEST_APPROVED',
-          title: 'Combo Request Approved as a Loan',
-          message: `"${comboRequest.title}" was approved: $${approvedAmountNum.toFixed(2)} lent to ${business?.name ?? 'the business'} (${loan.loanNumber}) and set up there as ${comboRequest.sections.flatMap(s => s.items).length} payments`,
+          title: comboRequest.cashierEditedAt ? 'Combo Request Approved as a Loan — with changes' : 'Combo Request Approved as a Loan',
+          message: `"${comboRequest.title}" was approved: $${approvedAmountNum.toFixed(2)} lent to ${business?.name ?? 'the business'} (${loan.loanNumber}) and set up there as ${comboRequest.sections.flatMap(s => s.items).length} payments${changedNote}`,
           linkUrl: `/expense-accounts/${accountId}/combo-requests/${requestId}`,
         })
         const lenders = (await getLendingCashierUserIds()).filter(id => id !== user.id)
@@ -234,10 +242,10 @@ export async function POST(
       await emitNotification({
         userIds: [comboRequest.createdBy],
         type: isPartialResult ? 'COMBO_REQUEST_PARTIALLY_APPROVED' : 'COMBO_REQUEST_APPROVED',
-        title: isPartialResult ? 'Combo Request Partially Approved' : 'Combo Request Approved',
+        title: (isPartialResult ? 'Combo Request Partially Approved' : 'Combo Request Approved') + (comboRequest.cashierEditedAt ? ' — with changes' : ''),
         message: isPartialResult
-          ? `Your request "${comboRequest.title}" was partially approved for $${approvedAmountNum.toFixed(2)} of $${effectiveRequestedAmount.toFixed(2)}${approvalNote ? `. Note: ${approvalNote}` : ''}`
-          : `Your request "${comboRequest.title}" has been approved for $${approvedAmountNum.toFixed(2)}`,
+          ? `Your request "${comboRequest.title}" was partially approved for $${approvedAmountNum.toFixed(2)} of $${effectiveRequestedAmount.toFixed(2)}${changedNote || (approvalNote ? `. Note: ${approvalNote}` : '')}`
+          : `Your request "${comboRequest.title}" has been approved for $${approvedAmountNum.toFixed(2)}${changedNote}`,
         linkUrl: `/expense-accounts/${accountId}/combo-requests/${requestId}`,
       })
     } catch (notifErr) {

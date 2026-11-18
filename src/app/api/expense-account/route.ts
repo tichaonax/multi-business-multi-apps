@@ -317,6 +317,42 @@ export async function GET(request: NextRequest) {
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     })
 
+    // MBM-336: the user's own requests still in progress, per account —
+    // shown on the cards as shortcuts ("🧺 2 waiting · 🚩 1 needs attention")
+    const [myComboRows, myPaymentGroups] = await Promise.all([
+      prisma.comboPaymentRequests.findMany({
+        where: {
+          createdBy: user.id,
+          accountId: { in: accountIds },
+          OR: [
+            { status: 'SUBMITTED' },
+            { status: 'DRAFT', returns: { some: { resubmittedAt: null } } }, // returned to them
+          ],
+        },
+        select: { accountId: true, status: true },
+      }),
+      prisma.expenseAccountPayments.groupBy({
+        by: ['expenseAccountId'],
+        where: {
+          createdBy: user.id,
+          expenseAccountId: { in: accountIds },
+          status: { in: ['QUEUED', 'REQUEST', 'PENDING_APPROVAL'] },
+          paymentType: { notIn: ['LOAN_REPAYMENT', 'LOAN_EXPENSE'] },
+        },
+        _count: { id: true },
+      }),
+    ])
+    const myRequestsMap = new Map<string, { combosWaiting: number; combosAttention: number; paymentsWaiting: number }>()
+    const myEntry = (id: string) => {
+      if (!myRequestsMap.has(id)) myRequestsMap.set(id, { combosWaiting: 0, combosAttention: 0, paymentsWaiting: 0 })
+      return myRequestsMap.get(id)!
+    }
+    for (const c of myComboRows) {
+      if (c.status === 'SUBMITTED') myEntry(c.accountId).combosWaiting++
+      else myEntry(c.accountId).combosAttention++
+    }
+    for (const g of myPaymentGroups) myEntry(g.expenseAccountId).paymentsWaiting += g._count.id
+
     return NextResponse.json({
       success: true,
       data: {
@@ -359,6 +395,7 @@ export async function GET(request: NextRequest) {
             recentPayments: isPersonal ? [] : (recentPaymentsMap.get(account.id) ?? []),
             // Grant level so the UI can render the appropriate card view
             userGrantLevel,
+            myRequests: myRequestsMap.get(account.id) ?? null, // MBM-336
           }
         }),
       },

@@ -128,6 +128,8 @@ export function ComboRequestForm({ accountId, requestId }: ComboRequestFormProps
 
   // MBM-335: one item open at a time; create payees on the fly
   const [activeItemId, setActiveItemId] = useState<string | null>(null)
+  // MBM-336: the cashier is correcting someone else's submitted request
+  const [cashierCorrecting, setCashierCorrecting] = useState<{ requester: string } | null>(null)
   const [payeeRefresh, setPayeeRefresh] = useState(0)
   const [createPayee, setCreatePayee] = useState<{ kind: 'individual' | 'contractor' | 'supplier'; query?: string; target: { sectionId: string; itemId?: string } } | null>(null)
   const [accountBusinessId, setAccountBusinessId] = useState<string | null>(null)
@@ -218,6 +220,7 @@ export function ComboRequestForm({ accountId, requestId }: ComboRequestFormProps
         setTitle(req.title || '')
         setNotes(req.notes || '')
         setReturns(req.returns ?? [])
+        setCashierCorrecting(req.canCashierCorrect ? { requester: req.creator?.name ?? 'the requester' } : null)
         setIsBusinessLoan(!!req.isBusinessLoan)
         setLoanBusinessId(req.loanBusinessId || '')
         setLoanExpenseAccountId(req.loanExpenseAccountId || '')
@@ -530,6 +533,14 @@ export function ComboRequestForm({ accountId, requestId }: ComboRequestFormProps
         </h1>
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Bundle multiple expense items into a single payment request.</p>
       </div>
+
+      {/* MBM-336: a cashier is correcting the requester's submitted request */}
+      {cashierCorrecting && (
+        <div className="rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 text-sm text-amber-900 dark:text-amber-200">
+          <p className="font-semibold">✏️ You&apos;re correcting {cashierCorrecting.requester}&apos;s request</p>
+          <p className="mt-0.5 text-xs">Your changes are recorded and shown to {cashierCorrecting.requester}. When you approve, you&apos;ll need to add a note explaining what you changed and why.</p>
+        </div>
+      )}
 
       {/* MBM-333: what the cashier asked to change */}
       {returns.length > 0 && <ReturnHistory returns={returns} />}

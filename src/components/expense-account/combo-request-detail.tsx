@@ -131,6 +131,11 @@ interface ComboRequest {
   canRequestSettle: boolean
   canConfirmSettle: boolean
   canEditRequest: boolean
+  // MBM-336: cashier corrections before approval
+  canCashierCorrect?: boolean
+  cashierEditedAt?: string | null
+  cashierChanges?: string | null
+  cashierEditor?: { id: string; name: string } | null
   remainingBalance: number
   // Settle fields
   settleRequestedAt: string | null
@@ -665,6 +670,20 @@ export function ComboRequestDetail({ accountId, requestId }: ComboRequestDetailP
           <p className="text-sm text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 rounded-lg px-4 py-2">{request.notes}</p>
         )}
 
+        {/* MBM-336: what the cashier corrected before approving */}
+        {request.cashierChanges && (
+          <div className="rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 text-sm text-amber-900 dark:text-amber-200">
+            <p className="font-semibold">
+              ✏️ Changed by {request.cashierEditor?.name ?? 'the cashier'} before approval
+              {request.cashierEditedAt && <span className="font-normal text-xs"> · {fmtDate(request.cashierEditedAt)}</span>}
+            </p>
+            <pre className="mt-1 whitespace-pre-wrap font-sans text-xs">{request.cashierChanges}</pre>
+            {request.approvalNote && request.approver && (
+              <p className="mt-1.5 text-xs"><span className="font-medium">Cashier&apos;s note:</span> <span className="italic">&ldquo;{request.approvalNote}&rdquo;</span></p>
+            )}
+          </div>
+        )}
+
         {/* Action buttons */}
         <div className="flex gap-3 pt-2 flex-wrap">
           {canEdit && (
@@ -673,6 +692,16 @@ export function ComboRequestDetail({ accountId, requestId }: ComboRequestDetailP
               className="px-4 py-2 text-sm font-medium text-blue-700 dark:text-blue-400 border border-blue-300 dark:border-blue-700 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
             >
               Edit Request
+            </button>
+          )}
+          {/* MBM-336: the cashier fixes small things here instead of returning it */}
+          {request.canCashierCorrect && (
+            <button
+              onClick={() => router.push(`/expense-accounts/${accountId}/combo-requests/${requestId}/edit`)}
+              title="Change the request yourself (payee, description, amount…). You'll need to add an approval note so the requester knows what changed."
+              className="px-4 py-2 text-sm font-medium text-amber-700 dark:text-amber-400 border border-amber-300 dark:border-amber-700 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors"
+            >
+              ✎ Correct before approving
             </button>
           )}
           <button
@@ -943,6 +972,7 @@ export function ComboRequestDetail({ accountId, requestId }: ComboRequestDetailP
             Check the description, payee, classification and amount below. If anything is wrong, click{' '}
             <span className="font-semibold text-red-600 dark:text-red-400">🚩 Flag item</span> and say what to fix. Then click{' '}
             <span className="font-semibold">Return for Edits</span>; the requester can&apos;t resubmit until every flagged item is fixed.
+            {' '}Small mistakes you can fix yourself with <span className="font-semibold">✎ Correct before approving</span>; you&apos;ll then add a note when approving.
             {flaggedItems.length > 0 && <span className="font-semibold"> · {flaggedItems.length} item{flaggedItems.length === 1 ? '' : 's'} flagged so far</span>}
           </p>
         </div>
@@ -1190,6 +1220,7 @@ export function ComboRequestDetail({ accountId, requestId }: ComboRequestDetailP
           availableBalance={availableBalance}
           loanBusinessName={request.isBusinessLoan ? (request.loanBusiness?.name ?? 'the business') : undefined}
           loanAccountName={request.loanExpenseAccount?.accountName ?? null}
+          cashierChanges={request.cashierEditedAt ? request.cashierChanges ?? null : null}
         />
       )}
 
