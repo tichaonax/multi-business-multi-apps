@@ -248,6 +248,17 @@
 69. [POS Sales Comparison Report — Today vs Yesterday vs 2 Days Ago](#69-pos-sales-comparison-report--today-vs-yesterday-vs-2-days-ago)
 70. [Linked Profile — Name & Photo Shared Between Your Login and Employee Record](#70-linked-profile--name--photo-shared-between-your-login-and-employee-record)
 71. [Restaurant Daily Expenses — Record Now, Pay Later](#71-restaurant-daily-expenses--record-now-pay-later)
+72. [FarmNet Control — Farm Cameras](#72-farmnet-control--farm-cameras)
+    - [What You Need First](#what-you-need-first)
+    - [Who Sees Which Cameras](#who-sees-which-cameras)
+    - [The Camera Strip](#the-camera-strip)
+    - [The Enlarged Viewer](#the-enlarged-viewer)
+    - [My Cameras](#my-cameras-cameras)
+    - [Camera Alerts](#camera-alerts)
+    - [Movement & Sound Alerts](#movement--sound-alerts)
+    - [Setting Up — Camera Admin](#setting-up--camera-admin-admin--farm-cameras)
+    - [What Is Set Where](#what-is-set-where)
+    - [Troubleshooting](#troubleshooting-9)
 
 ---
 
@@ -15176,3 +15187,162 @@ For restaurants, the **Sales Analytics** chart and the **Daily Detail** drill-do
 
 The new restaurant expense data is included in every backup and restored automatically — see [Schema Version](#schema-version) in Section 52 (schema 6.47.0). The *My purchases* view and payee phones add no new data — they read existing records (phones come from the payee's person, employee, supplier or business record).
 
+
+---
+
+## 72. FarmNet Control — Farm Cameras
+
+The system can show live and recorded video from the farm's cameras. The cameras are run by **FarmNet Control** ("Farm Control"), a separate camera system. This system doesn't store any video. It shows Farm Control's own camera windows inside its pages and controls who may see which cameras.
+
+### What You Need First
+
+| Requirement | Why |
+|---|---|
+| **The device is on the farm's tailnet** | Camera video always comes straight from Farm Control's `*.ts.net` address. A device that isn't on the farm's tailnet sees "Farm Control is not reachable from this device". |
+| **The system is opened over `https`, with a certificate the device trusts** | Farm Control refuses camera windows on plain `http`. The desktop app already trusts the server. In a browser, install the certificate first (see [Trusting the Site Certificate on a New Device](#trusting-the-site-certificate-on-a-new-device)). |
+| **FarmNet has registered this server** | FarmNet must register this server's public key and every `https` address people use to open it (up to 10). |
+| **Your user is linked to a Farm Control person** | Farm Control checks every camera against that person's permissions. |
+
+### Who Sees Which Cameras
+
+You see a camera only when **all four** of these are true:
+
+1. Farm cameras are **on for this server** (Admin → Farm Cameras → Connection).
+2. The camera is assigned to a business, and **camera access is on** for that business.
+3. You hold **View Farm Cameras** in that business, or a camera admin ticked **All businesses → View** for you.
+4. Your linked Farm Control person may watch that camera, live or recorded.
+
+**Record Video & Take Pictures** works the same way. Without it you can still watch live video and recordings in full quality, but the Record, Take picture, Download and Protect buttons are hidden.
+
+> Being a system admin does **not** give anyone cameras. Admins need the permissions or the "All businesses" ticks like everyone else.
+
+### The Camera Strip
+
+When you have cameras, a thin strip of up to **4 small cameras** appears in the top header of every page. On wide screens it sits in the middle of the header; on narrow screens it sits in a row underneath. It never appears on popups, the customer display or the sign-in page.
+
+| Control | What it does |
+|---|---|
+| **Click a camera** | Opens it in the enlarged viewer (see below). |
+| **👁** | Hides the strip. Show it again with the same button or from **My Cameras**. |
+| **⚙** | Opens the **larger cameras** panel under the header. It shows the strip's cameras large, as still pictures refreshed every 10 seconds. In the panel, clicking a camera in the strip plays it **live** in the panel, and clicking again swaps it back. Clicking a large picture opens the enlarged viewer. **✎ Names** lets you rename cameras and choose whether names show on the strip. **✕ Close** puts the strip back as it was. |
+
+**On POS screens** the strip is hidden unless you switch on "Show camera strip on POS screens" in My Cameras. There it uses **still pictures** by default, because they use far less of the farm's connection and suit a till that stays open all day.
+
+### The Enlarged Viewer
+
+The enlarged viewer is Farm Control's own camera window:
+
+- **Live**, with **Full quality, with sound**, and camera control where allowed.
+- **Recordings**: a zoomable time bar, playback speeds, movement markers, day before/after, mark start/end, plus Protect and Download where allowed.
+- **Record**: saves an `.mp4` with sound to the computer's Downloads folder. A recording stops when you stop it, after 5 minutes (or your Farm Control clip limit), or when you close the camera.
+- **Take picture**: saves a time-stamped `.jpg` to Downloads.
+
+Files never pass through this system, and Farm Control keeps its own record of each capture.
+
+**Limit:** at most **2 cameras** can be open large at once, or 3 if the farm raised the limit. Trying to open another shows "Two cameras can be open large at once: close one first". Close a camera with its **✕**, or close the viewer with **Esc**.
+
+### My Cameras (`/cameras`)
+
+**My Cameras** appears in the left menu under **Tools** once you have at least one camera. On this page you can:
+
+- **Search** cameras and filter by site, with still pictures of each. **↻ New pictures** refreshes them.
+- **Build your strip**: **+ Add to strip** (4 at most), **Move left / Move right**, and **Take off the strip**. If you pick none, the strip shows the first 4 cameras you're allowed.
+- **Give a camera your own name** (up to 40 characters, only you see it) and choose whether it shows.
+- **Choose the strip mode**: **Usually show** live video or still pictures, and **On POS show** live video or still pictures.
+- **Show camera strip on POS screens**.
+- **Camera alerts**: switch problem alerts on or off **in notifications** and **in chat** (see below).
+- **🔔 Alert me** on each camera: **Off**, **Movement**, **Sound** or **Movement or sound** (see [Movement & Sound Alerts](#movement--sound-alerts)).
+- **⤢ Open large**: opens a camera in the enlarged viewer.
+
+### Camera Alerts
+
+When a camera stops working, a site can't be reached, or devices are waiting for approval, Farm Control raises an alert. The server checks for alerts **every minute**, even when nobody has the system open. You only get alerts for cameras you may watch.
+
+- **🔔 Notifications**: alerts appear in the bell under **📷 Farm Cameras**, for example "🔴 Camera problem: Yard east". Clicking one opens that camera large. When the problem is fixed, the bell row disappears by itself. If a camera keeps dropping out, a repeat within 10 minutes updates the same row ("3 times") instead of adding a new one.
+- **💬 Chat**: a read-only **Farm Camera Alerts** room keeps the history, for example "🔴 Camera problem — …", "✅ Resolved — … after 18 min" and "🔁 Again (3rd time) — …". Each line is visible only to people allowed to see that alert.
+
+You can switch either one off in **My Cameras → Camera alerts**.
+
+### Movement & Sound Alerts
+
+You can also be told when **a camera you choose** sees **movement** or hears **a sound**: someone at the gate, a vehicle arriving, a dog barking.
+
+**Choosing cameras.** On **My Cameras**, set **🔔 Alert me** on a camera card to **Movement**, **Sound** or **Movement or sound** (or **Off**). This is the same list as in Farm Control itself:
+- the 🔔 next to the camera's name in the enlarged viewer changes it too;
+- a camera you **pause** in Farm Control's own alert list shows **Off** here, and you get nothing from it until you turn it on again;
+- you're never alerted twice for the same thing.
+
+**🔔 Alert me** only appears on cameras Farm Control lets you choose, and only while motion detection is on for that camera at the farm.
+
+**How you're told.**
+
+| Where | What you see |
+|---|---|
+| **🔔 Bell, under 📷 Farm Cameras** | "🟠 Movement at Gate (Home farm)", "🔵 Sound at …" or "🟣 Movement and sound at …", with the **picture** Farm Control took when it started. Click the row to open the camera **on its recording, 5 seconds before it started**. **One row per camera**: a camera that keeps seeing things updates its row ("· 3 times") instead of filling the bell. Rows clear themselves after a day. This works **even while MBM is closed**: the server checks every 5 seconds. |
+| **Pop-up while MBM is open** | A pop-up such as "🟠 Movement — Gate (Home farm)" and Farm Control's short chime, straight away. The camera is outlined in the strip (amber for movement, blue for sound, purple for both) until you click it. The pop-up needs the camera strip to be showing on that screen. Some browsers stay silent until you've clicked somewhere on the page once. |
+
+**Your switches** (My Cameras → **Movement & sound alerts**):
+- **In notifications**: the bell rows. Off means the server stops checking for you.
+- **Pop-up with sound while MBM is open**: the pop-up and the chime.
+
+### Setting Up — Camera Admin (Admin → Farm Cameras)
+
+This screen needs the **Manage Farm Control Camera Integration** permission. It has four tabs, and each tab notes what is managed in Farm Control instead.
+
+#### 1. Connection
+
+1. Enter the details **from FarmNet**: the **Farm Control address**, **Integration id** and **Audience**.
+2. Click **Make signing key**, then **Copy all for FarmNet** and send it to FarmNet. The private key never leaves this server. Use **Make a new key** only when you're changing keys: FarmNet must register the new public key.
+3. Under **Addresses of this MBM server**, list every `https` address people use to open the system (**+ Add this address** adds the one you're on). FarmNet must register each one exactly as shown. A red warning appears if you opened the system over plain `http`.
+4. Set **Cameras open in full view, per user**: **2** (Farm Control's default), or **3** only if the farm raised the limit.
+5. Tick **On for this server** and click **Save**.
+
+The tab also shows your own sign-in state ("Signed in as …", or the reason it failed, with **Try again**), the features Farm Control has switched on, and when **camera alerts** were last checked and for how many people, with the last error in plain words. For example, "This server can't reach Farm Control" means the server must also be on the farm's tailnet for alerts. **Movement & sound alerts** shows how many people the server is watching for and when it last checked. They need the `cameraAlerts` feature, which FarmNet switches on.
+
+> Each server (for example, each shop's server) has **its own** connection and key, because each has its own users.
+
+#### 2. Cameras & businesses
+
+This tab lists the cameras **you** may see in Farm Control. Your own user must be linked first. For each camera, tick the businesses it belongs to; a camera can belong to several. Cameras with no business are **hidden from everyone**. Click **Save**.
+
+#### 3. Businesses
+
+Turn **camera access** on for each business that should see farm cameras. Turning it off hides that business's cameras from everyone in it. The umbrella business shows as **All**.
+
+#### 4. Users
+
+1. Click **Create id** for each person who should see cameras, then **Copy** it and send it to FarmNet. FarmNet links the id to a Farm Control person, and several users may share one Farm Control person.
+2. The person's status moves from **Waiting for FarmNet** to **Linked** after their next sign-in once FarmNet has linked them. **Refused** means Farm Control rejected the link. **Remove id** removes it.
+3. Give camera access in one of two ways:
+   - per business, in **User Management**, with **View Farm Cameras** and **Record Video & Take Pictures from Farm Cameras** (in the user's business permissions); or
+   - here, by ticking **All businesses** for View and/or Capture. This is useful for admins and covers every business with camera access on. It is available once the person is linked.
+
+   The **View in / Capture in** columns show where each person has access, and each linked person's last alerts check (or error) is shown too.
+
+Farm Control system administrators can't be linked. Each user links to an ordinary Farm Control person, whose permissions are the hard limit.
+
+> **Two layers of protection:** this system filters cameras by business, but Farm Control's own permissions are the real limit. Make sure each Farm Control person covers only the right cameras (for example, a person for Business A sees only Business A's cameras).
+
+### What Is Set Where
+
+| Setting | Here | In Farm Control (farm / FarmNet) |
+|---|---|---|
+| Connection, signing key, server addresses (for reference) | ✅ | Public key and addresses registered |
+| Cameras ↔ businesses, camera access per business | ✅ | – |
+| Who may view / capture, per business | ✅ | – |
+| Linking users to Farm Control people | Id and status | ✅ The linking itself |
+| What each person may do per camera, clip limits, sites, live-view limits | – | ✅ |
+| Strip cameras, order, names, live/stills, strip on POS, alert switches | ✅ Per user (My Cameras) | – |
+| Which cameras alert a person (movement / sound), pausing | ✅ My Cameras (🔔 Alert me) | ✅ The same list; pausing is only there |
+
+### Troubleshooting
+
+| What you see | What to do |
+|---|---|
+| No **My Cameras** in the menu, or "You have no farm cameras" | Check the four rules in [Who Sees Which Cameras](#who-sees-which-cameras). The usual causes are that the user isn't linked yet, or the camera has no business. |
+| "Farm Control is not reachable from this device" | Join the farm's tailnet. Check the address on the Connection tab and that the device trusts the certificate. |
+| "Farm Control refused the sign-in" | The user isn't linked yet, or FarmNet hasn't registered this server's public key or address. |
+| "Too many cameras are open" | Close one of the cameras open large. The farm limits live views per person. |
+| Recording saves as WebM instead of MP4 | Update the desktop app. Recording in MP4 needs a recent version. |
+| No **🔔 Alert me** on a camera | Motion detection is off for it at the farm, or Farm Control doesn't let you choose it. |
+| Alerts in the bell but no pop-up or sound | The pop-up needs the camera strip showing; check **Pop-up with sound** is on, and click once in the page (browsers block sound until then). |

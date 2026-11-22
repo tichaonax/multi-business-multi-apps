@@ -2056,14 +2056,6 @@ export function Sidebar() {
           </Link>
         )}
 
-        {/* My Cameras (MBM-331) - the user's own camera screen, when MBM allows them cameras */}
-        {hasFarmCameras && (
-          <Link href="/cameras" className={getLinkClasses('/cameras')}>
-            <span className="text-lg">📹</span>
-            <span>My Cameras</span>
-          </Link>
-        )}
-
         {/* Farm Cameras (MBM-331) - Farm Control connection, camera businesses, user links */}
         {hasUserPermission(currentUser, 'canManageFarmControl') && (
           <Link
@@ -2154,6 +2146,14 @@ export function Sidebar() {
           <span className="text-lg">🧾</span>
           <span>Receipt History</span>
         </Link>
+
+        {/* My Cameras (MBM-331; in Tools since MBM-339, so everyone with cameras finds it) */}
+        {hasFarmCameras && (
+          <Link href="/cameras" className={getLinkClasses('/cameras')}>
+            <span className="text-lg">📹</span>
+            <span>My Cameras</span>
+          </Link>
+        )}
 
 
 {/* Business Categories - Cross-business functionality */}

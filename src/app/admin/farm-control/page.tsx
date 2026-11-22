@@ -34,6 +34,8 @@ interface Config {
   alertsLastRunAt?: string | null
   alertsLastError?: string | null
   alertsUsers?: number
+  // MBM-339: the camera-alerts (movement / sound) check
+  motion?: { lastRunAt: string | null; watching: number; lastError: string | null }
 }
 
 interface BusinessRow {
@@ -95,6 +97,27 @@ function AlertsStatus({ config, alertsOn }: { config: Config; alertsOn?: string 
         <span className="text-secondary">checked {ago(config.alertsLastRunAt)} for {config.alertsUsers ?? 0} {config.alertsUsers === 1 ? 'person' : 'people'}</span>
       )}
       {config.alertsLastError && <p className="text-red-600 dark:text-red-400 mt-1">{config.alertsLastError}</p>}
+    </div>
+  )
+}
+
+/** MBM-339 — the movement / sound alerts check (every 5 s for people with alerting cameras) */
+function MotionStatus({ config, cameraAlertsOn }: { config: Config; cameraAlertsOn?: string }) {
+  const m = config.motion
+  return (
+    <div className="text-sm">
+      <span className="font-medium text-primary">Movement &amp; sound alerts: </span>
+      {cameraAlertsOn && cameraAlertsOn !== 'on' ? (
+        <span className="text-secondary">{cameraAlertsOn === 'off' ? 'switched off for this integration in Farm Control' : 'not in this Farm Control release'}</span>
+      ) : !m || m.watching === 0 ? (
+        <span className="text-secondary">nobody has chosen alerting cameras yet (people choose them on My Cameras)</span>
+      ) : (
+        <span className="text-secondary">
+          watching for {m.watching} {m.watching === 1 ? 'person' : 'people'}
+          {m.lastRunAt ? `, last checked ${new Date(m.lastRunAt).toLocaleTimeString()}` : ''}
+        </span>
+      )}
+      {m?.lastError && <p className="text-red-600 dark:text-red-400 mt-1">{m.lastError}</p>}
     </div>
   )
 }
@@ -359,6 +382,7 @@ MBM address: ${thisOrigin}`, 'Key id, public key and MBM address')}>Copy all for
           </div>
         )}
         <AlertsStatus config={config} alertsOn={farm?.features?.alerts} />
+        <MotionStatus config={config} cameraAlertsOn={farm?.features?.cameraAlerts} />
       </div>
 
       <FarmNote>linking MBM users to Farm Control people, which cameras each person may watch, record or control, recording limits, sites in the integration, and the live-view limits.</FarmNote>

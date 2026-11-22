@@ -142,6 +142,8 @@ export async function getCameraPreferences(userId: string) {
     cameraLabels: (p?.cameraLabels && typeof p.cameraLabels === 'object' ? p.cameraLabels : {}) as Record<string, { name?: string; showName?: boolean }>,
     alertsBell: p?.alertsBell ?? true,
     alertsChat: p?.alertsChat ?? true,
+    motionAlertsBell: p?.motionAlertsBell ?? true,
+    motionAlertsSound: p?.motionAlertsSound ?? true,
   }
 }
 

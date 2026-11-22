@@ -18,8 +18,9 @@ import { FarmMessage, useFarmControl } from './farm-control-provider'
 import { FarmFrame } from './farm-frame'
 
 interface FarmCameraViewsValue {
-  /** Open these cameras in the enlarged view (added to the ones already open) */
-  open: (cameraIds: string[]) => void
+  /** Open these cameras in the enlarged view (added to the ones already open).
+   *  MBM-339: `at` (ISO time) opens them on their recordings at that moment. */
+  open: (cameraIds: string[], at?: string) => void
   isOpen: boolean
   /** The user's name for a camera, else Farm Control's, else its id */
   cameraName: (cameraId: string) => string
@@ -46,6 +47,8 @@ export function FarmCameraViewsProvider({ children }: { children: React.ReactNod
   const farm = useFarmControl()
   const toast = useToastContext()
   const [openIds, setOpenIds] = useState<string[]>([])
+  /** MBM-339: cameras opened on their recordings at a moment (from a camera alert) */
+  const [atById, setAtById] = useState<Record<string, string>>({})
   const [names, setNames] = useState<Record<string, string>>({})
   const openRef = useRef(openIds)
   openRef.current = openIds
@@ -75,7 +78,15 @@ export function FarmCameraViewsProvider({ children }: { children: React.ReactNod
     })
   }, [])
 
-  const open = useCallback((cameraIds: string[]) => {
+  const open = useCallback((cameraIds: string[], at?: string) => {
+    // A camera not open yet opens at `at`, or live again without it
+    const fresh = cameraIds.map(String).filter(id => !openRef.current.includes(id))
+    const when = at && !Number.isNaN(Date.parse(at)) ? at : null
+    if (fresh.length) setAtById(prev => {
+      const next = { ...prev }
+      for (const id of fresh) { if (when) next[id] = when; else delete next[id] }
+      return next
+    })
     const next = [...openRef.current]
     let full = false
     for (const id of cameraIds.map(String)) {
@@ -100,7 +111,7 @@ export function FarmCameraViewsProvider({ children }: { children: React.ReactNod
   return (
     <FarmCameraViewsContext.Provider value={value}>
       {children}
-      {openIds.length > 0 && <FarmCameraModal openIds={openIds} setOpenIds={setOpenIds} cameraName={cameraName} max={max} />}
+      {openIds.length > 0 && <FarmCameraModal openIds={openIds} setOpenIds={setOpenIds} atById={atById} cameraName={cameraName} max={max} />}
     </FarmCameraViewsContext.Provider>
   )
 }
@@ -108,11 +119,13 @@ export function FarmCameraViewsProvider({ children }: { children: React.ReactNod
 function FarmCameraModal({
   openIds,
   setOpenIds,
+  atById,
   cameraName,
   max,
 }: {
   openIds: string[]
   setOpenIds: React.Dispatch<React.SetStateAction<string[]>>
+  atById: Record<string, string>
   cameraName: (id: string) => string
   max: number
 }) {
@@ -145,7 +158,8 @@ function FarmCameraModal({
       <div className={`grid gap-2 flex-1 min-h-0 ${openIds.length > 1 ? 'grid-cols-1 xl:grid-cols-2' : 'grid-cols-1'}`}>
         {openIds.map(id => {
           const problem = PROBLEMS[states[id] || '']
-          const src = farm.frameSrc('modal', { camera: id, capture: canCapture.has(id) ? undefined : '0' })
+          const at = atById[id]
+          const src = farm.frameSrc('modal', { camera: id, capture: canCapture.has(id) ? undefined : '0', ...(at ? { tab: 'recordings', at } : {}) })
           return (
             <div key={id} className="flex flex-col min-h-[320px] rounded-lg overflow-hidden border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
               <div className="flex items-center gap-2 px-2 py-1 bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm border-b border-gray-200 dark:border-gray-800">

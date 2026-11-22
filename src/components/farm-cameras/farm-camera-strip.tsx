@@ -24,6 +24,7 @@ import { usePathname } from 'next/navigation'
 import { useFarmControl, FarmMessage, StripMode } from './farm-control-provider'
 import { useFarmCameraViews } from './farm-camera-views'
 import { FarmFrame } from './farm-frame'
+import { useToastContext } from '@/components/ui/toast'
 
 const WIDE = '(min-width: 1024px)'
 const isPosPath = (p: string | null) => !!p && /\/pos(\/|$)/.test(p)
@@ -118,6 +119,7 @@ export function FarmCameraStrip({ placement }: { placement: 'inline' | 'row' }) 
         showNames={prefs.showNamesOnStrip}
         labels={labels}
         stillCameras={liveBelow}
+        alertSound={prefs.motionAlertsSound !== false}
         onOpen={onStripClick}
         onNames={views.rememberNames}
       />
@@ -145,6 +147,7 @@ function StripFrame({
   showNames,
   labels,
   stillCameras,
+  alertSound,
   onOpen,
   onNames,
 }: {
@@ -153,15 +156,18 @@ function StripFrame({
   showNames: boolean
   labels: Record<string, string>
   stillCameras: string[]
+  /** MBM-339: Farm Control's chime for camera alerts (the user's "pop-up with sound") */
+  alertSound: boolean
   onOpen: (cameraId: string) => void
   onNames: (cameras: unknown) => void
 }) {
   const farm = useFarmControl()
+  const toast = useToastContext()
   const frame = useRef<HTMLIFrameElement | null>(null)
   const [src] = useState(() =>
-    farm?.frameSrc('previews', { cameras: ids.join(','), names: showNames ? undefined : '0', mode: mode === 'pictures' ? 'pictures' : undefined })
+    farm?.frameSrc('previews', { cameras: ids.join(','), names: showNames ? undefined : '0', mode: mode === 'pictures' ? 'pictures' : undefined, alertSound: alertSound ? '1' : undefined })
   )
-  const options = { type: 'previews.options', showNames, labels, mode, stillCameras: stillCameras.map(toFarmId) }
+  const options = { type: 'previews.options', showNames, labels, mode, stillCameras: stillCameras.map(toFarmId), alertSound }
   const optionsKey = JSON.stringify(options)
   const idsKey = ids.join(',')
   const sent = useRef({ ids: idsKey, options: optionsKey })
@@ -180,6 +186,18 @@ function StripFrame({
 
   const onMessage = (m: FarmMessage) => {
     if (m.type === 'camera.open' && m.cameraId !== undefined) onOpen(String(m.cameraId))
+    else if (m.type === 'camera.alert' && m.cameraId !== undefined) {
+      // MBM-339 (guide §6, rev 5): one of the user's alerting cameras found
+      // something. Pop up at once; the server's bell row follows, without a
+      // second toast (notification-provider checks __farmAlertShownAt).
+      if (!alertSound) return // "pop-up with sound" off: the bell still tells them
+      const cameraId = String(m.cameraId)
+      const w = window as unknown as { __farmAlertShownAt?: Record<string, number> }
+      ;(w.__farmAlertShownAt ||= {})[cameraId] = Date.now()
+      const what = m.trigger === 'sound' ? '🔵 Sound' : m.trigger === 'both' ? '🟣 Movement and sound' : '🟠 Movement'
+      const site = m.site && typeof m.site === 'object' && 'name' in m.site ? ` (${String((m.site as { name: unknown }).name)})` : typeof m.site === 'string' ? ` (${m.site})` : ''
+      toast.push(`${what} — ${String(m.name || `camera ${cameraId}`)}${site}. Click the camera in the strip to watch.`, { type: 'warning', duration: 8000 })
+    }
     else if (m.type === 'previews') {
       onNames(m.cameras)
       // A (re)loaded strip starts without labels: send the current options again

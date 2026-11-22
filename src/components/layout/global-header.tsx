@@ -1538,11 +1538,22 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                                 onClick={() => { markRead(n.id); setShowNotifPanel(false); if (n.linkUrl) window.location.href = n.linkUrl }}
                               >
                                 <span className="mt-0.5 shrink-0 text-base">
-                                  {isUrgent ? '🚨' : n.type === 'PAYMENT_APPROVED' ? '✅' : n.type === 'PAYMENT_REJECTED' ? '↩️' : n.type === 'PAYMENT_SUBMITTED' ? '📋' : n.type === 'PAYMENT_PAID' ? '💰' : n.type === 'PETTY_CASH_SUBMITTED' ? '💸' : n.type === 'PETTY_CASH_APPROVED' ? '🪙' : n.type === 'PETTY_CASH_REJECTED' ? '❌' : n.type === 'CHAT_MESSAGE' ? '💬' : n.type === 'LOW_STOCK' ? '📦' : n.type === 'COMBO_REQUEST_SUBMITTED' ? '📋' : n.type === 'COMBO_REQUEST_RESUBMITTED' ? '🔁' : n.type === 'COMBO_REQUEST_APPROVED' ? '✅' : n.type === 'COMBO_REQUEST_PARTIALLY_APPROVED' ? '⚠️' : n.type === 'COMBO_REQUEST_CANCELLED' ? '❌' : n.type === 'COMBO_REQUEST_PAID' ? '💯' : n.type === 'JOB_BILLED_AWAITING_PAYMENT' ? '🧾' : n.type === 'JOB_START_ESCALATION' ? '⏰' : '🔔'}
+                                  {isUrgent ? '🚨' : n.type.startsWith('FARM_CAMERA') ? '📷' : n.type === 'PAYMENT_APPROVED' ? '✅' : n.type === 'PAYMENT_REJECTED' ? '↩️' : n.type === 'PAYMENT_SUBMITTED' ? '📋' : n.type === 'PAYMENT_PAID' ? '💰' : n.type === 'PETTY_CASH_SUBMITTED' ? '💸' : n.type === 'PETTY_CASH_APPROVED' ? '🪙' : n.type === 'PETTY_CASH_REJECTED' ? '❌' : n.type === 'CHAT_MESSAGE' ? '💬' : n.type === 'LOW_STOCK' ? '📦' : n.type === 'COMBO_REQUEST_SUBMITTED' ? '📋' : n.type === 'COMBO_REQUEST_RESUBMITTED' ? '🔁' : n.type === 'COMBO_REQUEST_APPROVED' ? '✅' : n.type === 'COMBO_REQUEST_PARTIALLY_APPROVED' ? '⚠️' : n.type === 'COMBO_REQUEST_CANCELLED' ? '❌' : n.type === 'COMBO_REQUEST_PAID' ? '💯' : n.type === 'JOB_BILLED_AWAITING_PAYMENT' ? '🧾' : n.type === 'JOB_START_ESCALATION' ? '⏰' : '🔔'}
                                 </span>
                                 <div className="min-w-0 flex-1">
                                   <p className={`font-medium truncate ${isUrgent ? 'text-red-700 dark:text-red-300' : n.type === 'COMBO_REQUEST_RESUBMITTED' ? 'text-purple-700 dark:text-purple-300' : !n.isRead ? 'text-blue-700 dark:text-blue-300' : 'text-primary'}`}>{n.title}</p>
                                   <p className="text-secondary line-clamp-2">{n.message}</p>
+                                  {/* MBM-339: the picture Farm Control took when the camera found it */}
+                                  {n.type === 'FARM_CAMERA_MOTION' && n.metadata?.cameraId != null && n.metadata?.hasPicture !== false && (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img
+                                      src={`/api/farm-control/picture?camera=${encodeURIComponent(String(n.metadata.cameraId))}${n.metadata.eventId ? `&event=${encodeURIComponent(String(n.metadata.eventId))}` : ''}`}
+                                      alt=""
+                                      loading="lazy"
+                                      className="mt-1 w-40 h-[90px] object-cover rounded bg-black"
+                                      onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+                                    />
+                                  )}
                                   {showBadges && (
                                     <div className="flex items-center gap-1 mt-1 flex-wrap">
                                       {isUrgent && <span className="bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300 font-bold px-1.5 py-0.5 rounded text-[10px]">URGENT</span>}
@@ -1826,7 +1837,7 @@ function formatBusinessTypeLabel(businessType: string): string {
 // unmatched types fall into "Other". Not collapsible by design — this is
 // visual segmentation only, not hiding anything.
 const NOTIF_SEGMENTS: { key: string; label: string; icon: string; types: string[] }[] = [
-  { key: 'farm-cameras', label: 'Farm Cameras', icon: '📷', types: ['FARM_CAMERA_ALERT'] },
+  { key: 'farm-cameras', label: 'Farm Cameras', icon: '📷', types: ['FARM_CAMERA_ALERT', 'FARM_CAMERA_MOTION'] },
   { key: 'vehicle', label: 'Vehicle & Licensing', icon: '🚗', types: ['VEHICLE_LICENSE_EXPIRING', 'VEHICLE_LICENSE_OVERDUE'] },
   { key: 'payments', label: 'Payments', icon: '💰', types: ['PAYMENT_SUBMITTED', 'PAYMENT_APPROVED', 'PAYMENT_REJECTED', 'PAYMENT_PAID', 'BATCH_READY', 'PAYMENTS_REVERSED_TO_PETTY_CASH', 'PAYMENT_RETURN_REQUESTED', 'PAYMENT_RETURN_CONFIRMED'] },
   { key: 'withdrawals', label: 'Withdrawals', icon: '🏦', types: ['WITHDRAWAL_SUBMITTED', 'WITHDRAWAL_ADMIN_APPROVED', 'WITHDRAWAL_DENIED_LENDER', 'WITHDRAWAL_DENIED_ADMIN', 'WITHDRAWAL_PAID', 'WITHDRAWAL_CASHIER_ALERT'] },

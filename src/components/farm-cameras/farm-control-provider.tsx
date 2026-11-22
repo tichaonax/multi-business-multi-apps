@@ -25,6 +25,9 @@ export interface FarmCameraPreferences {
   /** MBM-332: camera alerts in the bell / the Farm Camera Alerts chat */
   alertsBell: boolean
   alertsChat: boolean
+  /** MBM-339: movement / sound alerts in the bell, and the pop-up with chime */
+  motionAlertsBell: boolean
+  motionAlertsSound: boolean
 }
 
 export interface FarmControlMe {
@@ -48,6 +51,8 @@ export interface FarmCamera {
   state?: string
   may?: Record<string, boolean>
   pinned?: boolean
+  /** MBM-339 (cameraAlerts): what this user is alerted about from it; absent = off or paused */
+  alert?: 'motion' | 'sound' | 'any'
 }
 
 export type FarmStatus = 'off' | 'loading' | 'connecting' | 'ready' | 'refused' | 'unreachable'
@@ -78,7 +83,7 @@ interface FarmControlContextValue {
   refresh: () => Promise<void>
   /** Sign in to Farm Control again (e.g. after FarmNet links this user) */
   reconnect: () => Promise<boolean>
-  savePreferences: (patch: Partial<FarmCameraPreferences>) => Promise<boolean>
+  savePreferences: (patch: Partial<FarmCameraPreferences> & { alertingChanged?: boolean }) => Promise<boolean>
   /** Cameras from Farm Control, narrowed to what MBM allows (all: every camera the
    *  linked identity sees, for the admin's camera ↔ business mapping) */
   listCameras: (q?: string, all?: boolean) => Promise<FarmCamera[]>
@@ -280,7 +285,7 @@ export function FarmControlProvider({ children }: { children: React.ReactNode })
     return `${origin}/embed/v1/${page}?${q.toString()}`
   }, [origin, me])
 
-  const savePreferences = useCallback(async (patch: Partial<FarmCameraPreferences>) => {
+  const savePreferences = useCallback(async (patch: Partial<FarmCameraPreferences> & { alertingChanged?: boolean }) => {
     const r = await fetch('/api/farm-control/preferences', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },

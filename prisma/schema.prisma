@@ -9291,6 +9291,8 @@ model FarmCameraUserPreferences {
   cameraLabels     Json     @default("{}") // { cameraId: { name, showName } }
   alertsBell       Boolean  @default(true) // MBM-332: camera alerts in the notification bell
   alertsChat       Boolean  @default(true) // MBM-332: camera alerts in the Farm Camera Alerts chat
+  motionAlertsBell  Boolean @default(true) // MBM-339: movement / sound alerts in the notification bell
+  motionAlertsSound Boolean @default(true) // MBM-339: pop-up with Farm Control's chime while MBM is open
   updatedAt        DateTime @updatedAt
 
   users Users @relation(fields: [userId], references: [id], onDelete: Cascade)

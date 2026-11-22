@@ -46,12 +46,14 @@ export async function GET() {
         where: { userId: user.id },
         orderBy: { createdAt: 'desc' },
         take: 30,
-        select: { id: true, type: true, title: true, message: true, linkUrl: true, isRead: true, createdAt: true },
+        select: { id: true, type: true, title: true, message: true, linkUrl: true, isRead: true, createdAt: true, metadata: true },
       }),
       prisma.appNotification.count({ where: { userId: user.id, isRead: false } }),
     ])
 
-    return NextResponse.json({ notifications, unreadCount })
+    // MBM-339: only camera-alert rows need their metadata (for the picture)
+    const rows = notifications.map(n => (n.type === 'FARM_CAMERA_MOTION' ? n : { ...n, metadata: undefined }))
+    return NextResponse.json({ notifications: rows, unreadCount })
   } catch (error) {
     console.error('GET /api/notifications error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

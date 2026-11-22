@@ -8,6 +8,8 @@
 // - Up to 4 strip cameras, in order.
 // - A personal name per camera (at most 40 characters, Farm Control's limit).
 // - Still pictures for finding cameras; "Open large" uses the enlarged view.
+// - MBM-339: 🔔 Alert me per camera (movement / sound / either), the same list
+//   as in Farm Control (guide §7.12), and the switches for those alerts.
 
 export const dynamic = 'force-dynamic'
 
@@ -63,14 +65,16 @@ export default function CamerasPage() {
   useEffect(() => { if (cameras) loadPictures(cameras) }, [cameras]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => { Object.values(pictureUrls.current).forEach(u => URL.revokeObjectURL(u)) }, [])
 
-  // MBM-332: a camera alert links to /cameras?open=<id>: open that camera large once
+  // MBM-332: a camera alert links to /cameras?open=<id>: open that camera large once.
+  // MBM-339: with &at=<time> it opens on the recording at that moment.
   const openedFromLink = useRef(false)
   useEffect(() => {
     if (!ready || !views || openedFromLink.current) return
-    const id = new URLSearchParams(window.location.search).get('open')
+    const params = new URLSearchParams(window.location.search)
+    const id = params.get('open')
     if (!id || !(farm?.me?.cameraIds || []).includes(id)) return
     openedFromLink.current = true
-    views.open([id])
+    views.open([id], params.get('at') || undefined)
   }, [ready, allowedKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Personal names being edited
@@ -113,6 +117,20 @@ export default function CamerasPage() {
     if (!(await farm.savePreferences(patch))) toast.error('Could not save')
   }
   const setStrip = (ids: string[]) => save({ stripCameraIds: ids })
+
+  // MBM-339: the camera's alert, in Farm Control (the same list as there)
+  const alertsOn = farm.features.cameraAlerts === 'on'
+  const setAlert = async (c: FarmCamera, what: '' | 'motion' | 'sound' | 'any') => {
+    const id = encodeURIComponent(String(c.id))
+    try {
+      const updated: FarmCamera | null = what ? await farm.api('PUT', `/cameras/${id}/alert`, { what }) : await farm.api('DELETE', `/cameras/${id}/alert`)
+      setCameras(prev => (prev || []).map(x => (x.id === c.id ? { ...x, ...(updated || {}), alert: updated?.alert } : x)))
+      farm.savePreferences({ alertingChanged: true }) // the server's check picks it up now
+      toast.push(what ? `Alerts on for ${label(String(c.id))}` : `Alerts off for ${label(String(c.id))}`, { type: 'success' })
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Could not change the alert')
+    }
+  }
   const move = (i: number, d: -1 | 1) => {
     const ids = [...strip]
     const j = i + d
@@ -187,6 +205,20 @@ export default function CamerasPage() {
             </label>
             <p className="text-xs text-secondary">A camera that stops, a site that can&apos;t be reached, devices waiting for approval: for the cameras you may watch.</p>
           </div>
+          {alertsOn && (
+            <div className="border-t border-gray-200 dark:border-gray-700 pt-3 space-y-2">
+              <span className="text-sm font-medium text-primary">Movement &amp; sound alerts</span>
+              <label className="flex items-center gap-2 text-sm text-primary">
+                <input type="checkbox" checked={prefs.motionAlertsBell !== false} onChange={e => save({ motionAlertsBell: e.target.checked })} />
+                In notifications (🔔 Farm Cameras), also while MBM is closed
+              </label>
+              <label className="flex items-center gap-2 text-sm text-primary">
+                <input type="checkbox" checked={prefs.motionAlertsSound !== false} onChange={e => save({ motionAlertsSound: e.target.checked })} />
+                Pop-up with sound while MBM is open (needs the camera strip showing)
+              </label>
+              <p className="text-xs text-secondary">Choose the cameras below with 🔔 Alert me. It&apos;s the same list as in Farm Control: a camera you pause there is off here too.</p>
+            </div>
+          )}
         </div>
 
         <div className="card p-4">
@@ -247,6 +279,17 @@ export default function CamerasPage() {
                   onBlur={() => saveName(id)}
                   onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
                 />
+                {alertsOn && c.may?.alert && (
+                  <label className="flex items-center gap-2 text-sm text-primary">
+                    <span title="Be told when this camera finds movement or a sound">🔔 Alert me</span>
+                    <select className="input-field py-1 text-sm flex-1" value={c.alert || ''} onChange={e => setAlert(c, e.target.value as '' | 'motion' | 'sound' | 'any')}>
+                      <option value="">Off</option>
+                      <option value="motion">Movement</option>
+                      <option value="sound">Sound</option>
+                      <option value="any">Movement or sound</option>
+                    </select>
+                  </label>
+                )}
                 <div className="flex items-center gap-2 mt-auto pt-1">
                   {onStrip >= 0
                     ? <button className="btn-secondary text-xs" onClick={() => setStrip(strip.filter(x => x !== id))}>On strip #{onStrip + 1} · Remove</button>
