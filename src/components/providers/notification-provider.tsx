@@ -106,6 +106,11 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       socket.emit('join-notification-room', { userId })
     })
 
+    // MBM-340: camera alerts for the 📹 panel (farm-alerts-provider listens on window)
+    socket.on('farm-alert', (payload: unknown) => {
+      window.dispatchEvent(new CustomEvent('farm-alert', { detail: payload }))
+    })
+
     // Toasts for a burst of notifications (e.g. a scheduled sweep that
     // generates several at once) are coalesced into one popup instead of
     // stacking a separate toast per event — each one still lands in the
@@ -144,13 +149,8 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       // Dispatch the existing event so pending-actions hooks re-fetch
       window.dispatchEvent(new CustomEvent('pending-actions:refresh'))
 
-      // MBM-339: a camera alert the camera strip already popped up for (in
-      // the last minute) needs no second toast
-      if (payload.type === 'FARM_CAMERA_MOTION') {
-        const cameraId = String((payload.metadata as { cameraId?: unknown } | null | undefined)?.cameraId ?? '')
-        const shown = (window as unknown as { __farmAlertShownAt?: Record<string, number> }).__farmAlertShownAt?.[cameraId]
-        if (shown && Date.now() - shown < 60_000) return
-      }
+      // MBM-340: the camera alerts' count row needs no toast: the corner card shows the alert
+      if (payload.type === 'FARM_CAMERA_MOTION') return
 
       // Buffer the toast instead of showing it immediately — see flushToasts.
       toastBufferRef.current.push({ title: payload.title, message: payload.message })

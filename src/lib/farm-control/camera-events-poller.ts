@@ -1,39 +1,35 @@
-// MBM-339 — Farm Control camera alerts (movement / sound) in MBM's bell
-// (guide §7.12, revision 5; plan MBM-339 §2.2).
+// MBM-339 / MBM-340 — Farm Control camera alerts (movement / sound)
+// (guide §7.12, revision 5; alert list guide §3; plans MBM-339 §2.2, MBM-340 §2.2).
 //
 // Each user chooses their own alerting cameras (My Cameras, or the 🔔 in Farm
-// Control's viewer; the same list). This runs in the server process, so the
-// user is told also while MBM is closed:
+// Control's viewer; the same list). This runs in the server process, so
+// alerts are kept also while MBM is closed:
 // - Every minute: for each Linked person with cameras MBM allows them and
-//   "Movement & sound alerts in notifications" on, `GET /cameras?alerting=true`
-//   → who has alerting cameras, kept in memory (MBM's own filter on top).
+//   "Keep my camera alerts" on, `GET /cameras?alerting=true` → who has
+//   alerting cameras, kept in memory (MBM's own filter on top). Hourly, alerts
+//   older than 30 days are cleaned (except watch later).
 // - Every 5 s (the guide's minimum), only for those people:
-//   `GET /camera-events?since=<Farm Control's last now>`.
-//   - A camera newly in `goingOn` → notify; not again while it stays there.
-//   - An `events` item with a new id → if that camera was notified from
-//     `goingOn` a little before its start, the same thing: update the row
-//     with its picture; otherwise notify.
-//   The first answer after a start only sets the cursor (its events count as
-//   known), so nothing is repeated after a restart.
-// - The bell: one row per camera (groupKey farm-motion:<userId>:<cameraId>),
-//   refreshed with each detection (B2); rows older than 24 h are removed.
+//   `GET /camera-events?since=<Farm Control's last now>`, then alert-store:
+//   - a camera newly in `goingOn` → an alert at once (or joins the latest);
+//   - a camera that left `goingOn` → its open alert is closed;
+//   - an `events` item with a new id → completes / joins / starts an alert.
+//   Paused cameras (🔕, MBM side) are dropped. The first answer after a start
+//   only sets the cursor (its events count as known).
 // - 429 `limit` → that person waits `retryAfter`; one person's failure never
 //   holds up the others; runs never overlap.
-// Cursors and dedupe are in memory on purpose (transient, guide §7.12).
+// Cursors and dedupe are in memory on purpose (transient, guide §7.12); the
+// alerts themselves are in farm_camera_alerts.
 import { prisma } from '@/lib/prisma'
-import { emitGroupedNotification } from '@/lib/notifications/notification-emitter'
 import { getCameraPreferences, getFarmControlIntegration, getUserCameraAccess, isIntegrationReady, loadCameraUser } from './server'
-import { farmErrorText, farmServerCall, FarmServerError } from './server-api'
+import { farmErrorText, farmServerCall, farmServerFetch, FarmServerError } from './server-api'
+import { alertEvent, alertGoingOn, alertStopped, cleanOldAlerts, pausedCameras, triggerOf } from './alert-store'
 
-export const FARM_MOTION_NOTIFICATION_TYPE = 'FARM_CAMERA_MOTION' as const
 const FAST_MS = 5_000
 const LIST_MS = 60_000
-const SAME_THING_MS = 2 * 60_000 // an event starting this soon after a goingOn notice is the same thing
 const SEEN_KEEP_MS = 2 * 60 * 60_000
-const ROW_KEEP_MS = 24 * 60 * 60_000
+const CLEAN_MS = 60 * 60_000
 
-type Trigger = 'motion' | 'sound' | 'both'
-interface CameraFinding { cameraId: number | string; name: string; site?: { id: number | string; name: string } | null; trigger: Trigger }
+interface CameraFinding { cameraId: number | string; name: string; site?: { id: number | string; name: string } | null; trigger: string }
 interface CameraEvent extends CameraFinding { id: number | string; start: string; end?: string | null; pictureUrl?: string | null }
 
 interface Watcher {
@@ -42,7 +38,6 @@ interface Watcher {
   cameraIds: Set<string> // alerting AND allowed by MBM
   cursor: string | null // Farm Control's `now`
   goingOn: Set<string> // cameras in the last goingOn
-  notifiedAt: Map<string, number> // cameraId → when we last notified from goingOn
   seen: Map<string, number> // event id → when seen
   waitUntil: number
   error: string | null
@@ -61,22 +56,10 @@ export function getFarmMotionStatus(): MotionStatus & { people: { userId: string
   }
 }
 
-const TRIGGER_TEXT: Record<Trigger, { icon: string; text: string }> = {
-  motion: { icon: '🟠', text: 'Movement' },
-  sound: { icon: '🔵', text: 'Sound' },
-  both: { icon: '🟣', text: 'Movement and sound' },
-}
-const triggerOf = (t: unknown): Trigger => (t === 'sound' || t === 'both' ? t : 'motion')
-
-/** Opens the recording 5 s before it started (guide §7.12), or the camera live */
-function linkFor(cameraId: string, start?: string | null) {
-  const at = start ? new Date(Date.parse(start) - 5_000) : null
-  return `/cameras?open=${encodeURIComponent(cameraId)}${at && !Number.isNaN(at.getTime()) ? `&at=${encodeURIComponent(at.toISOString())}` : ''}`
-}
-
 // ── Every minute: who has alerting cameras ─────────────────────────────────
 
 let listing = false
+let lastClean = 0
 async function refreshWatchers(): Promise<void> {
   if (listing) return
   listing = true
@@ -92,7 +75,7 @@ async function refreshWatchers(): Promise<void> {
     for (const link of links) {
       try {
         const prefs = await getCameraPreferences(link.userId)
-        if (!prefs.motionAlertsBell) continue
+        if (!prefs.motionAlertsBell) continue // "Keep my camera alerts" off
         const user = await loadCameraUser(link.userId)
         if (!user) continue
         const allowed = new Set((await getUserCameraAccess(user)).cameraIds)
@@ -103,7 +86,7 @@ async function refreshWatchers(): Promise<void> {
         keep.add(link.userId)
         const w = state.watchers.get(link.userId)
         if (w) { w.cameraIds = ids; w.name = link.users.name }
-        else state.watchers.set(link.userId, { userId: link.userId, name: link.users.name, cameraIds: ids, cursor: null, goingOn: new Set(), notifiedAt: new Map(), seen: new Map(), waitUntil: 0, error: null, checkedAt: 0 })
+        else state.watchers.set(link.userId, { userId: link.userId, name: link.users.name, cameraIds: ids, cursor: null, goingOn: new Set(), seen: new Map(), waitUntil: 0, error: null, checkedAt: 0 })
       } catch (e) {
         lastError = farmErrorText(e)
         // Keep an existing watcher: a passing error shouldn't stop their alerts
@@ -114,10 +97,10 @@ async function refreshWatchers(): Promise<void> {
     state.status.watching = state.watchers.size
     if (lastError) state.status.lastError = lastError
 
-    // Bell rows for movement are short-lived: older than a day, gone
-    await prisma.appNotification.deleteMany({
-      where: { type: FARM_MOTION_NOTIFICATION_TYPE, lastOccurredAt: { lt: new Date(Date.now() - ROW_KEEP_MS) } },
-    })
+    if (Date.now() - lastClean > CLEAN_MS) {
+      lastClean = Date.now()
+      await cleanOldAlerts()
+    }
   } catch (err) {
     console.error('[farm-motion] listing failed:', err)
   } finally {
@@ -126,6 +109,8 @@ async function refreshWatchers(): Promise<void> {
 }
 
 // ── Every 5 s: what the alerting cameras find ──────────────────────────────
+
+type Integration = NonNullable<Awaited<ReturnType<typeof getFarmControlIntegration>>>
 
 let polling = false
 async function pollOnce(): Promise<void> {
@@ -145,7 +130,7 @@ async function pollOnce(): Promise<void> {
         w.cursor = d.now || new Date().toISOString()
         w.checkedAt = Date.now()
         w.error = null
-        await handle(w, d.goingOn || [], d.events || [], first)
+        await handle(integration, w, d.goingOn || [], d.events || [], first, new Date(w.cursor))
       } catch (e) {
         failures++
         w.checkedAt = Date.now()
@@ -163,13 +148,20 @@ async function pollOnce(): Promise<void> {
   }
 }
 
-async function handle(w: Watcher, goingOn: CameraFinding[], events: CameraEvent[], first: boolean) {
+/** A picture fetched by the server as this person (never through the browser) */
+function pictureFrom(integration: Integration, w: Watcher, path: string) {
+  return async () => {
+    const r = await farmServerFetch(integration, { id: w.userId, name: w.name }, path)
+    return new Uint8Array(await r.arrayBuffer())
+  }
+}
+
+async function handle(integration: Integration, w: Watcher, goingOn: CameraFinding[], events: CameraEvent[], first: boolean, farmNow: Date) {
   const now = Date.now()
   for (const [id, t] of w.seen) if (now - t > SEEN_KEEP_MS) w.seen.delete(id)
 
   // Only cameras MBM allows (Farm Control already limits to the user's own)
   const mine = (c: { cameraId: number | string }) => w.cameraIds.has(String(c.cameraId))
-
   const current = new Set(goingOn.filter(mine).map(f => String(f.cameraId)))
   if (first) {
     // Treat the first answer as known (guide §7.12 step 1)
@@ -178,58 +170,41 @@ async function handle(w: Watcher, goingOn: CameraFinding[], events: CameraEvent[
     return
   }
 
-  for (const f of goingOn.filter(mine)) {
-    const cameraId = String(f.cameraId)
-    if (w.goingOn.has(cameraId)) continue // still going on: not again
-    w.notifiedAt.set(cameraId, now)
-    await notify(w.userId, f, null)
-  }
+  const fresh = events.filter(e => mine(e) && !w.seen.has(String(e.id)))
+  const started = goingOn.filter(f => mine(f) && !w.goingOn.has(String(f.cameraId)))
+  const stopped = [...w.goingOn].filter(id => !current.has(id))
   w.goingOn = current
+  if (fresh.length === 0 && started.length === 0 && stopped.length === 0) return
 
-  for (const e of events.filter(mine)) {
+  const at = Number.isNaN(farmNow.getTime()) ? new Date() : farmNow
+  const paused = await pausedCameras(w.userId)
+
+  for (const f of started) {
+    const cameraId = String(f.cameraId)
+    if (paused.has(cameraId)) continue
+    await alertGoingOn(w.userId, {
+      cameraId, name: f.name, siteId: f.site ? String(f.site.id) : null, siteName: f.site?.name ?? null, trigger: triggerOf(f.trigger),
+    }, at, pictureFrom(integration, w, `/cameras/${encodeURIComponent(cameraId)}/picture`))
+  }
+
+  // Oldest first, so joins happen in time order
+  for (const e of fresh.sort((a, b) => Date.parse(a.start) - Date.parse(b.start))) {
     const id = String(e.id)
-    if (w.seen.has(id)) continue // the time passed is included: repeats come
-    w.seen.set(id, now)
+    w.seen.set(id, now) // the time passed is included: repeats come
     const cameraId = String(e.cameraId)
-    const told = w.notifiedAt.get(cameraId)
-    const start = Date.parse(e.start)
-    const same = told !== undefined && !Number.isNaN(start) && told >= start - 10_000 && told - start < SAME_THING_MS
-    await notify(w.userId, e, e, same)
+    if (paused.has(cameraId)) continue // nothing found while paused comes later
+    const start = new Date(e.start)
+    if (Number.isNaN(start.getTime())) continue
+    const end = e.end ? new Date(e.end) : null
+    await alertEvent(w.userId, {
+      eventId: id, cameraId, name: e.name, siteId: e.site ? String(e.site.id) : null, siteName: e.site?.name ?? null,
+      trigger: triggerOf(e.trigger), start, end: end && !Number.isNaN(end.getTime()) ? end : null, hasPicture: !!e.pictureUrl,
+    }, pictureFrom(integration, w, `/camera-events/${encodeURIComponent(id)}/picture`))
   }
-}
 
-async function notify(userId: string, f: CameraFinding, event: CameraEvent | null, update = false) {
-  const cameraId = String(f.cameraId)
-  const t = TRIGGER_TEXT[triggerOf(f.trigger)]
-  const site = f.site?.name ? ` (${f.site.name})` : ''
-  const groupKey = `farm-motion:${userId}:${cameraId}`
-  const when = event?.start ? new Date(event.start) : new Date()
-  const metadata = {
-    cameraId,
-    trigger: triggerOf(f.trigger),
-    eventId: event ? String(event.id) : null,
-    hasPicture: event ? !!event.pictureUrl : true, // going on: the camera's picture now
-    at: when.toISOString(),
+  for (const cameraId of stopped) {
+    if (!paused.has(cameraId)) await alertStopped(w.userId, cameraId, at)
   }
-  if (update) {
-    // Same thing as the goingOn notice: give that row its time and picture, no new alert
-    const row = await prisma.appNotification.findFirst({ where: { userId, groupKey }, select: { id: true } })
-    if (row) {
-      await prisma.appNotification.update({ where: { id: row.id }, data: { linkUrl: linkFor(cameraId, event?.start), metadata } })
-      return
-    }
-  }
-  const existing = await prisma.appNotification.findFirst({ where: { userId, groupKey }, select: { occurrenceCount: true } })
-  const times = (existing?.occurrenceCount ?? 0) + 1
-  await emitGroupedNotification({
-    userId,
-    type: FARM_MOTION_NOTIFICATION_TYPE,
-    title: `${t.icon} ${t.text} at ${f.name || `camera ${cameraId}`}${site}`,
-    message: `${event ? `At ${when.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}` : 'Now'}${times > 1 ? ` · ${times} times` : ''}. Tap to watch.`,
-    linkUrl: linkFor(cameraId, event?.start),
-    metadata,
-    groupKey,
-  })
 }
 
 let started = false

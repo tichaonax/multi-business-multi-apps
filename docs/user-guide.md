@@ -15274,16 +15274,31 @@ You can also be told when **a camera you choose** sees **movement** or hears **a
 
 **🔔 Alert me** only appears on cameras Farm Control lets you choose, and only while motion detection is on for that camera at the farm.
 
-**How you're told.**
+**How you're told.** The server checks every 5 seconds, **even while MBM is closed**, and keeps each alert for you with the picture taken when it started.
 
-| Where | What you see |
+- **📹 in the top bar** shows how many alerts are new. The **🔔 bell** has just one row for them ("📹 4 new camera alerts"); clicking it opens the list right where you are.
+- **A corner card** pops up for about 8 seconds when a new alert arrives (picture, camera, what and when; **▶ Play**, **✕**, **🔕**), with a short chime. A camera that keeps seeing things doesn't pop up again: it joins its alert ("Movement ×3") quietly.
+
+**The alert list (📹).** It opens down the right side over the page you're on, so you never lose your place (on a phone it fills the screen, and **Back** closes it).
+
+| Part | What it does |
 |---|---|
-| **🔔 Bell, under 📷 Farm Cameras** | "🟠 Movement at Gate (Home farm)", "🔵 Sound at …" or "🟣 Movement and sound at …", with the **picture** Farm Control took when it started. Click the row to open the camera **on its recording, 5 seconds before it started**. **One row per camera**: a camera that keeps seeing things updates its row ("· 3 times") instead of filling the bell. Rows clear themselves after a day. This works **even while MBM is closed**: the server checks every 5 seconds. |
-| **Pop-up while MBM is open** | A pop-up such as "🟠 Movement — Gate (Home farm)" and Farm Control's short chime, straight away. The camera is outlined in the strip (amber for movement, blue for sound, purple for both) until you click it. The pop-up needs the camera strip to be showing on that screen. Some browsers stay silent until you've clicked somewhere on the page once. |
+| **Tabs** | **New**, **★ Watch later** (alerts you kept), **🔕 Paused** (only while you've paused a camera). |
+| **Filters** | Find a camera, a site or **a time** ("1:38", "gate 1 pm": an hour either side; without am/pm both are shown). Pick a **day** with ‹ › (not later than today), an **hour**, a **site**, and **All / Movement / Sound / No picture**. "3 new match · Clear the filters" tells you what's hidden. Filters are forgotten when the list closes. |
+| **Each row** | The picture (framed amber for movement, blue for sound, purple for both), camera, what (×n if it kept going), day, the time or from–to ("going on" while it is), and the site. **✕** dismisses it. |
+| **▶ Play** | Plays the recording **in the row**, 5 seconds before it started, one row at a time. An alert that happened several times gets **‹ Back · 2 of 3 · Next ›**. While it plays: **↺** again, **⛶ Big** (the big viewer at that moment), **■** stop. You can keep scrolling and playing other rows. |
+| **Watch** | Opens the recording big, filling the page. The list folds into a bar at the bottom right: **▲ Camera alerts · n new · camera and time · ‹ › · ✕**. **▲** opens the list again over the playing video (the alert you're watching is outlined "in the player"); **‹ ›** go to the alert before or after; **✕** closes the video. |
+| **☆ Later** | Keeps the alert in **Watch later** (and in History beyond 30 days) until you take it off. |
+| **🔕** | Pauses alerts from that camera **for you only** (**Undo** straight away, or **Resume** in the Paused tab). The camera keeps recording and alerting everyone else. |
+| **Foot** | **Mark all seen** / **Dismiss all** (with filters on: **Mark 3 seen** / **Dismiss 5**, taking every match), **🔊 Chime on/off** for this device, **History →**. |
+
+Playing or watching an alert marks it seen. "Video no longer kept" means the camera's recordings no longer go back that far. At most two videos can play at once (Farm Control's limit): the list tells you to close the other one first.
+
+**History** (`/cameras/alerts`, or **History →** in the list): the last 30 days plus everything kept for later, as **New / All / Seen / Dismissed**, with the same filters, larger pictures, pages of 50, and **Mark seen**, **Dismiss** / **Undismiss** per row.
 
 **Your switches** (My Cameras → **Movement & sound alerts**):
-- **In notifications**: the bell rows. Off means the server stops checking for you.
-- **Pop-up with sound while MBM is open**: the pop-up and the chime.
+- **Keep my camera alerts**: off means the server stops checking for you.
+- **Corner card when one arrives**: the pop-up card. The chime is switched in the list's foot, per device.
 
 ### Setting Up — Camera Admin (Admin → Farm Cameras)
 
@@ -15345,4 +15360,4 @@ Farm Control system administrators can't be linked. Each user links to an ordina
 | "Too many cameras are open" | Close one of the cameras open large. The farm limits live views per person. |
 | Recording saves as WebM instead of MP4 | Update the desktop app. Recording in MP4 needs a recent version. |
 | No **🔔 Alert me** on a camera | Motion detection is off for it at the farm, or Farm Control doesn't let you choose it. |
-| Alerts in the bell but no pop-up or sound | The pop-up needs the camera strip showing; check **Pop-up with sound** is on, and click once in the page (browsers block sound until then). |
+| Alerts in 📹 but no corner card or chime | Check **Corner card when one arrives** is on (My Cameras) and **🔊 Chime on** in the list's foot; click once in the page (browsers block sound until then). |

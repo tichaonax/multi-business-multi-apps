@@ -21,6 +21,8 @@ interface FarmCameraViewsValue {
   /** Open these cameras in the enlarged view (added to the ones already open).
    *  MBM-339: `at` (ISO time) opens them on their recordings at that moment. */
   open: (cameraIds: string[], at?: string) => void
+  /** MBM-340: close every enlarged camera (the alert viewer needs the place) */
+  closeAll: () => void
   isOpen: boolean
   /** The user's name for a camera, else Farm Control's, else its id */
   cameraName: (cameraId: string) => string
@@ -104,7 +106,7 @@ export function FarmCameraViewsProvider({ children }: { children: React.ReactNod
   }, [allowed, farm?.status])
 
   const value = useMemo<FarmCameraViewsValue>(
-    () => ({ open, isOpen: openIds.length > 0, cameraName, farmName, rememberNames }),
+    () => ({ open, closeAll: () => setOpenIds([]), isOpen: openIds.length > 0, cameraName, farmName, rememberNames }),
     [open, openIds.length, cameraName, farmName, rememberNames]
   )
 

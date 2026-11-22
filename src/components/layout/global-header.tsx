@@ -23,6 +23,7 @@ import { useActiveServerLabel } from '@/hooks/use-active-server-label'
 import { getDefaultPagePath } from '@/lib/business-default-pages'
 import { subscribeChatBadge, ChatBadgeState } from '@/lib/chat-badge'
 import { FarmCameraStrip } from '@/components/farm-cameras/farm-camera-strip'
+import { FarmAlertButton } from '@/components/farm-cameras/farm-alert-button'
 import { ComplianceDigestSections, parseComplianceDigest, formatAlertTimestamp } from '@/components/vehicles/license-compliance-digest'
 
 interface GlobalHeaderProps {
@@ -1359,6 +1360,9 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                   </Link>
                 )}
 
+                {/* MBM-340: 📹 camera alerts with the new count */}
+                <FarmAlertButton />
+
                 {/* Notifications Bell — shows personal notification history */}
                 {(notifUnreadCount > 0 || notifList.length > 0) && (
                   <div
@@ -1535,7 +1539,12 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                                     : n.type === 'COMBO_REQUEST_RESUBMITTED' ? 'bg-purple-50/70 dark:bg-purple-900/20 border-l-2 border-purple-500'
                                     : !n.isRead ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''
                                 }`}
-                                onClick={() => { markRead(n.id); setShowNotifPanel(false); if (n.linkUrl) window.location.href = n.linkUrl }}
+                                onClick={() => {
+                                  markRead(n.id); setShowNotifPanel(false)
+                                  // MBM-340: the camera alerts' count row opens the 📹 panel right here, no navigation
+                                  if (n.type === 'FARM_CAMERA_MOTION') { window.dispatchEvent(new CustomEvent('farm-alerts:open')); return }
+                                  if (n.linkUrl) window.location.href = n.linkUrl
+                                }}
                               >
                                 <span className="mt-0.5 shrink-0 text-base">
                                   {isUrgent ? '🚨' : n.type.startsWith('FARM_CAMERA') ? '📷' : n.type === 'PAYMENT_APPROVED' ? '✅' : n.type === 'PAYMENT_REJECTED' ? '↩️' : n.type === 'PAYMENT_SUBMITTED' ? '📋' : n.type === 'PAYMENT_PAID' ? '💰' : n.type === 'PETTY_CASH_SUBMITTED' ? '💸' : n.type === 'PETTY_CASH_APPROVED' ? '🪙' : n.type === 'PETTY_CASH_REJECTED' ? '❌' : n.type === 'CHAT_MESSAGE' ? '💬' : n.type === 'LOW_STOCK' ? '📦' : n.type === 'COMBO_REQUEST_SUBMITTED' ? '📋' : n.type === 'COMBO_REQUEST_RESUBMITTED' ? '🔁' : n.type === 'COMBO_REQUEST_APPROVED' ? '✅' : n.type === 'COMBO_REQUEST_PARTIALLY_APPROVED' ? '⚠️' : n.type === 'COMBO_REQUEST_CANCELLED' ? '❌' : n.type === 'COMBO_REQUEST_PAID' ? '💯' : n.type === 'JOB_BILLED_AWAITING_PAYMENT' ? '🧾' : n.type === 'JOB_START_ESCALATION' ? '⏰' : '🔔'}
@@ -1543,17 +1552,6 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                                 <div className="min-w-0 flex-1">
                                   <p className={`font-medium truncate ${isUrgent ? 'text-red-700 dark:text-red-300' : n.type === 'COMBO_REQUEST_RESUBMITTED' ? 'text-purple-700 dark:text-purple-300' : !n.isRead ? 'text-blue-700 dark:text-blue-300' : 'text-primary'}`}>{n.title}</p>
                                   <p className="text-secondary line-clamp-2">{n.message}</p>
-                                  {/* MBM-339: the picture Farm Control took when the camera found it */}
-                                  {n.type === 'FARM_CAMERA_MOTION' && n.metadata?.cameraId != null && n.metadata?.hasPicture !== false && (
-                                    // eslint-disable-next-line @next/next/no-img-element
-                                    <img
-                                      src={`/api/farm-control/picture?camera=${encodeURIComponent(String(n.metadata.cameraId))}${n.metadata.eventId ? `&event=${encodeURIComponent(String(n.metadata.eventId))}` : ''}`}
-                                      alt=""
-                                      loading="lazy"
-                                      className="mt-1 w-40 h-[90px] object-cover rounded bg-black"
-                                      onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
-                                    />
-                                  )}
                                   {showBadges && (
                                     <div className="flex items-center gap-1 mt-1 flex-wrap">
                                       {isUrgent && <span className="bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300 font-bold px-1.5 py-0.5 rounded text-[10px]">URGENT</span>}

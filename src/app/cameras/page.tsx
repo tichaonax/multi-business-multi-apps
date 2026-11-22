@@ -210,13 +210,13 @@ export default function CamerasPage() {
               <span className="text-sm font-medium text-primary">Movement &amp; sound alerts</span>
               <label className="flex items-center gap-2 text-sm text-primary">
                 <input type="checkbox" checked={prefs.motionAlertsBell !== false} onChange={e => save({ motionAlertsBell: e.target.checked })} />
-                In notifications (🔔 Farm Cameras), also while MBM is closed
+                Keep my camera alerts (📹 list), also while MBM is closed
               </label>
               <label className="flex items-center gap-2 text-sm text-primary">
                 <input type="checkbox" checked={prefs.motionAlertsSound !== false} onChange={e => save({ motionAlertsSound: e.target.checked })} />
-                Pop-up with sound while MBM is open (needs the camera strip showing)
+                Corner card when one arrives (the chime is switched in the 📹 list, per device)
               </label>
-              <p className="text-xs text-secondary">Choose the cameras below with 🔔 Alert me. It&apos;s the same list as in Farm Control: a camera you pause there is off here too.</p>
+              <p className="text-xs text-secondary">Choose the cameras below with 🔔 Alert me (the same list as in Farm Control). Alerts appear under 📹 in the top bar; <a href="/cameras/alerts" className="text-blue-600 dark:text-blue-400 hover:underline">History</a> has the last 30 days.</p>
             </div>
           )}
         </div>

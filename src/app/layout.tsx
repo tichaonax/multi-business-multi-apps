@@ -26,6 +26,7 @@ import { PolicyGuard } from '@/components/policies/PolicyGuard'
 import { ScaleProvider } from '@/contexts/ScaleContext'
 import { FarmControlProvider } from '@/components/farm-cameras/farm-control-provider'
 import { FarmCameraViewsProvider } from '@/components/farm-cameras/farm-camera-views'
+import { FarmAlertsProvider } from '@/components/farm-cameras/farm-alerts-provider'
 
 export const metadata: Metadata = {
   title: 'Multi-Business Management Platform',
@@ -84,6 +85,8 @@ export default function RootLayout({
                             and the enlarged camera view the header strip and camera screen open */}
                         <FarmControlProvider>
                         <FarmCameraViewsProvider>
+                        {/* MBM-340: the 📹 camera alerts panel, big viewer and corner card, on every page */}
+                        <FarmAlertsProvider>
                           <div className="min-h-screen w-full [overflow-x:clip]">
                             <ConditionalGlobalHeader />
                             <ConfirmProvider>
@@ -107,6 +110,7 @@ export default function RootLayout({
                               like the old (permanently-disabled) placement below the tree. */}
                           <ConditionalHealthIndicator />
                           <ConditionalServerIndicator />
+                        </FarmAlertsProvider>
                         </FarmCameraViewsProvider>
                         </FarmControlProvider>
                         </GlobalBarcodeProvider>
