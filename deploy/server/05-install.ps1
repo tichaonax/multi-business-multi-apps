@@ -59,7 +59,7 @@ $svc = Get-CimInstance Win32_Service -Filter "Name='$Service'" -ErrorAction Sile
 $elsewhere = $svc -and ($svc.PathName -notlike "*$App\*")
 if ($elsewhere) { Write-Host ("  The MBM service runs another folder: " + $svc.PathName) }
 if ($svc -and -not $elsewhere) { Ok ("installed: " + $svc.PathName) }
-elseif (Ask $(if ($elsewhere) { "Replace it with one that runs $App? (the old folder is left as it is)" } else { "Install the MBM Windows service (starts at boot, after PostgreSQL)?" })) {
+elseif (Ask $(if ($elsewhere) { "Replace it with one that runs ${App}? (the old folder is left as it is)" } else { "Install the MBM Windows service (starts at boot, after PostgreSQL)?" })) {
   Push-Location $App; try { & node windows-service\force-install-hybrid.js } finally { Pop-Location }
   $svc = Get-CimInstance Win32_Service -Filter "Name='$Service'" -ErrorAction SilentlyContinue
   if (-not $svc) { Halt "the service was not installed (above)." }
@@ -78,7 +78,11 @@ elseif (Ask "Let the tills and other computers on the network reach MBM on port 
 Step "Certificates"
 # Sign-in needs HTTPS: in production MBM's sign-in cookies are Secure, and a
 # browser drops them over plain http (found on MBM-SRV1, 2026-11-23)
-$own = Test-Path (Join-Path $App 'certs\rootCA.pem')
+# The server's own certificate: a cert + key pair in certs\ (as server.ts
+# picks it), whether or not its rootCA.pem came along
+$certsDir = Join-Path $App 'certs'
+$own = (@(Get-ChildItem $certsDir -Filter '*.pem' -File -ErrorAction SilentlyContinue | Where-Object { $_.Name -notlike '*-key.pem' -and $_.Name -notin 'rootCA.pem', 'qz-certificate.pem' }).Count -gt 0) -and
+       (@(Get-ChildItem $certsDir -Filter '*-key.pem' -File -ErrorAction SilentlyContinue).Count -gt 0)
 $tsCert = Test-Path (Join-Path $App 'certs\tailscale\cert.pem')
 if ($own) { Ok "certs\ is there: HTTPS at the IP" }
 if ($tsCert) { Ok "Tailscale certificate: HTTPS at the tailnet name" }

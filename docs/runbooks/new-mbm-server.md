@@ -4,6 +4,15 @@ MBM is set up the same way as Farm Control's new server: numbered scripts you
 run as administrator, one line each, and releases built off the server and
 installed with one script that you or the AI run the same way.
 
+**No git, no `npm install`, no build on a server.** A server only holds
+releases (zips built on the build machine) in `C:\MBM`. The old way, a git
+checkout that pulls and builds in place (`ADMIN-INSTALLATION-GUIDE.md` §2–6),
+is for development machines; an old server is converted with §9 below.
+
+Once step 1 is done, the AI does the rest over SSH (the scripts take `-Yes`
+where they ask y/n), except what needs you: passwords, and approving changes
+to a live server.
+
 Every script in `deploy/server/`:
 - checks first and leaves alone what's done, so it can be run again;
 - asks y/n before each change (except `install-release`, `rollback-release`
@@ -40,7 +49,7 @@ release: `.env.local`, `certs\`, `data\` (Farm Control's signing key),
 | # | Step | Where | Done |
 |---|------|-------|------|
 | 0 | Firmware, Windows, your accounts | By hand (§0) | |
-| 1 | Tailscale and the AI's SSH | `01-tailscale-and-ssh.ps1` (USB stick) | |
+| 1 | Tailscale and the AI's SSH | `01-tailscale-and-ssh.ps1` (+ `mbm-ai.pub`, by any means: USB, Remote Desktop) | |
 | – | The AI checks and copies the scripts | The AI | |
 | 2 | Windows | `02-windows.ps1` | |
 | 3 | Node, PostgreSQL 18, the database | `03-prerequisites.ps1` | |
@@ -72,6 +81,14 @@ Send the AI the lines it prints. In the Tailscale console: this machine →
 **Disable key expiry**. The AI connects, checks the host key, copies the
 other scripts to `C:\MBM\setup\` and runs `00-status.ps1`.
 
+Each server has its own key (`~/.ssh/mbm_<server>_ed25519`). `01` checks
+that Tailscale is **unattended**: otherwise only the Windows account that
+signed it in can use it, and after a restart nobody can reach the server
+until someone signs in at its keyboard. If it stops there, as that account:
+`tailscale set --unattended`. If the AI can't reach the server even though
+it shows on the tailnet (Tailscale's own ping gets no answer), the server's
+network is blocking Tailscale: try another network.
+
 ## 2 to 5
 
 ```powershell
@@ -83,12 +100,22 @@ powershell -ExecutionPolicy Bypass -File C:\MBM\setup\restore.ps1 -Dump C:\MBM\i
 powershell -ExecutionPolicy Bypass -File C:\MBM\setup\05-install.ps1
 ```
 
-- **3** asks for the postgres superuser password once, makes the database and
+- **3** installs Node 24 (from nodejs.org, SHA-256 checked; with nvm when the
+  server has nvm), Chrome and PostgreSQL 18. winget installs PostgreSQL
+  silently with the superuser password `postgres`: 3 then has you choose
+  your own (typed twice; paste with right-click). It makes the database and
   its own user with a random password, and keeps the address for step 4.
 - **4, replacing a server**: `C:\MBM\from-old` holds the old server's
-  `.env.local`, `certs\` and `data\`. Its **ENCRYPTION_KEY must come along**:
-  with a new one, the restored encrypted fields can't be read. Keep a copy of
-  `.env.local` in your password manager.
+  `.env.local`, `certs\`, `data\`, `public\uploads\` and `public\exports\`
+  (the AI copies them straight from the old server over the tailnet). Its
+  **ENCRYPTION_KEY must come along**: with a new one, the restored encrypted
+  fields can't be read. Keep a copy of `.env.local` in your password manager.
+  Product, category and employee photos are in the database (the `images`
+  table), so they come with the backup; only the files in `public\uploads\`
+  (employee and vehicle documents, a few older images) live on disk.
+- **Sign-in needs HTTPS**: MBM's sign-in cookies are Secure, and browsers
+  drop them on `http://`. Until step 6 (or the old server's `certs\`) a
+  server answers but nobody can sign in.
 - **R** goes into the empty database only, in one transaction, and shows
   counts to compare with the old server.
 - **5** installs the newest release from `C:\MBM\incoming`, makes the first
@@ -100,12 +127,12 @@ powershell -ExecutionPolicy Bypass -File C:\MBM\setup\05-install.ps1
 Tailscale admin console → DNS: **MagicDNS** and **HTTPS Certificates** on. Then:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File C:\MBM\setup-tailscale-certificate.ps1
+powershell -ExecutionPolicy Bypass -File C:\MBM\setup\06-tailscale-certificate.ps1
 ```
 
 Run once (as Farm Control's `certificate -auto`). It gets a Let's Encrypt
 certificate for `<server>.<tailnet>.ts.net` from Tailscale into
-`C:\MBMpp\certs	ailscale\` and sets up the task **MBM certificate**: as
+`C:\MBM\app\certs\tailscale\` and sets up the task **MBM certificate**: as
 SYSTEM, every 15 minutes, it renews when under 30 days are left (90-day
 certificates) and otherwise only notes the check. Nobody renews by hand;
 `00-status.ps1` shows the days left and the last renewal.
@@ -183,15 +210,68 @@ so the tills need nothing.
 1. Tell people: MBM is unavailable for about 30 minutes.
 2. Old server: stop the MBM service; `backup-now.ps1 -App <its folder>`.
 3. Copy that `.dump` + `.sha256` to the new server's `C:\MBM\incoming\`.
-4. New server: drop and re-make the empty database (the AI walks you through),
-   `restore.ps1`, then `install-release.ps1`. Compare the counts.
+4. New server: stop its service, empty its database (the AI, at your word:
+   everything in it is replaced), `restore.ps1`, then `install-release.ps1`.
+   Compare the counts. Copy `public\uploads\` and `public\exports\` again.
 5. Give the new server the old one's address on the router (or point the
    tills' bookmarks and printers at the new one). Farm Control: the same
    signing key came along in `data\`, so nothing changes for FarmNet unless the
    server's address changed (then FarmNet registers the new address).
 6. Keep the old server switched off but intact for two weeks.
 
+## 9. Converting an old server in place (a git checkout → `C:\MBM`)
+
+An old server runs MBM from a git checkout (e.g.
+`C:\Users\user\apps\multi-business-multi-apps`), with Node from nvm and a
+service that pulls and builds. It keeps its database; only the way MBM is
+installed changes. Test on a spare server first.
+
+1. Step 1 (`01-tailscale-and-ssh.ps1`), then the AI: `00-status.ps1` and
+   `backup-now.ps1 -App <checkout>` (read-only for MBM; it keeps running).
+2. The AI copies the release to `C:\MBM\incoming\` (allow for a slow line:
+   ~650 MB).
+3. `03-prerequisites.ps1 -ProgramsOnly` (the server keeps its database, so
+   no new one): Node 24 with nvm when nvm is installed for the whole machine
+   (`nvm use 24`: the running MBM keeps its Node until it restarts;
+   `nvm use 20` goes back); otherwise (no nvm, or nvm only in one user's
+   profile, as on MBM-DEV1) Node 24 for the whole machine from nodejs.org,
+   next to the old one, which the old service goes on using.
+4. `04-configure.ps1 -From <checkout>`: the same settings and keys, the
+   **same database** (its address from the checkout's `.env.local`), and
+   `certs\`, `data\`, `public\uploads\`, `public\exports\` copied.
+5. **Downtime starts** — `05-install.ps1`: backup, the release into
+   `C:\MBM\app`, migrations, then it **replaces the service** that ran the
+   checkout with one that runs `C:\MBM\app`, starts it and checks the
+   release that answers. A few minutes.
+6. `06-tailscale-certificate.ps1`; check sign-in at the IP and the name, a
+   sale, a receipt print.
+
+The checkout is left as it is at first: it is the way back. To go back:
+`nvm use 20`, then in the checkout `node windows-service\force-install-hybrid.js`
+(the old service again). The newer migrations stay; the old code runs on
+them.
+
+7. When the converted server has run well (a few days of real use, an
+   update by `install-release.ps1`): remove the checkout. Servers no longer
+   use git, and the checkout (node_modules, the build, git history) is
+   several GB:
+
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File C:\MBM\setup\remove-old-checkout.ps1 -Checkout <checkout>
+   ```
+
+   It refuses unless the service runs `C:\MBM\app` and answers, nothing runs
+   from the checkout, and every file the server keeps is in `C:\MBM\app`.
+   It moves the checkout's in-app backups to `C:\MBM\backups\from-checkout`
+   (not deleted), then asks before removing. After this the way back is
+   `rollback-release.ps1` only. Git itself stays installed unless
+   `-RemoveGit` (other programs on the machine may use it).
+
 ## Releases installed
 
 | Date | Release | Server | Notes |
 |---|---|---|---|
+| 2026-11-23 | `cfac0518` | MBM-SRV1 | First install, trial settings |
+| 2026-11-23 | `bdfa2c68` | MBM-SRV1 | First update by `install-release.ps1`; rollback and forward tested |
+| 2026-11-23 | `bdfa2c68` | MBM-SRV1 | Production's data (backup of 20:53), settings and files; counts and image bytes equal |
+| 2026-11-23 | `bdfa2c68` | MBM-DEV1 (was desktop-4us91kl) | Converted in place from its git checkout (§9), by the AI as `mbm-ai`; same database (13 users); tailnet name kept for Farm Control |

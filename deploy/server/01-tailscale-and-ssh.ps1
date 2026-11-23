@@ -16,7 +16,10 @@
   PowerShell as administrator:
     powershell -ExecutionPolicy Bypass -File .\01-tailscale-and-ssh.ps1
 #>
-param([string]$PublicKeyFile = (Join-Path $PSScriptRoot 'mbm-ai.pub'))
+# -RandomPassword: mbm-ai gets a random password nobody sees (run over SSH by
+# the AI from another administrator account, where nobody can type one; the
+# account only signs in with its key; an administrator can reset it)
+param([string]$PublicKeyFile = (Join-Path $PSScriptRoot 'mbm-ai.pub'), [switch]$RandomPassword)
 $ErrorActionPreference = 'Stop'
 
 function Step($t) { Write-Host ""; Write-Host "== $t" -ForegroundColor Cyan }
@@ -43,17 +46,33 @@ if (-not (Test-Path $ts)) {
 }
 Ok "installed"
 $state = ''
-try { $state = (& $ts status --json | ConvertFrom-Json).BackendState } catch { $state = '' }
-if ($state -ne 'Running') {
+$ErrorActionPreference = 'Continue'
+$raw = & $ts status --json 2>&1 | Out-String
+$ErrorActionPreference = 'Stop'
+# While another Windows account is signed in to the Tailscale app, only that
+# account and SYSTEM may use its command line, unattended or not (seen on
+# MBM-SRV1 and desktop-4us91kl, 2026-11-23). It is running, then: this
+# account can't check unattended, so that account confirms it.
+# Two wordings: "already in use by <user>" (signed in, not unattended) and
+# "running in server mode ("<user>"); connection from ... not allowed" (unattended)
+$inUseBy = if ($raw -match '(?:already in use by |running in server mode \(")([^\s,")]+)') { $Matches[1] -replace '\\\\', '\' } else { $null }
+try { $state = ($raw | ConvertFrom-Json).BackendState } catch { $state = '' }
+if ($inUseBy) {
+  $tsIf = Get-NetAdapter -ErrorAction SilentlyContinue | Where-Object { $_.InterfaceDescription -like '*Tailscale*' -and $_.Status -eq 'Up' }
+  $ip = if ($tsIf) { (Get-NetIPAddress -InterfaceIndex $tsIf.ifIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue).IPAddress } else { $null }
+  if (-not $ip) { Halt "Tailscale is signed in by $inUseBy but not connected: as $inUseBy, open Tailscale and connect." }
+  Ok "connected: $ip (signed in by $inUseBy)"
+  Todo "as $inUseBy, check: tailscale debug prefs shows ""ForceDaemon"": true (else: tailscale set --unattended)"
+}
+elseif ($state -ne 'Running') {
   Write-Host "  Sign in: a sign-in link follows (or a browser opens). Use the tailnet's account (the same as Farm Control's)."
   & $ts up --unattended --accept-routes
   try { $state = (& $ts status --json | ConvertFrom-Json).BackendState } catch { $state = '' }
   if ($state -ne 'Running') { Halt "Tailscale is not signed in yet. Sign in, then run this script again." }
 }
 # Its answer is shown, and then checked (as Farm Control's 01): unattended
-# lets the AI's account and the SYSTEM certificate task use Tailscale too.
-# On MBM-SRV1 it didn't take, and everyone but the signed-in user got
-# "401 Unauthorized: Tailscale already in use by ..." (2026-11-23).
+# keeps Tailscale up after a restart with nobody signed in.
+if (-not $inUseBy) {
 $ErrorActionPreference = 'Continue'
 $said = & $ts set --unattended --accept-routes 2>&1 | Out-String
 $setExit = $LASTEXITCODE
@@ -66,6 +85,7 @@ if ($setExit -ne 0 -or $unattended -ne $true) {
 }
 $ip = (& $ts ip -4 | Select-Object -First 1).Trim()
 Ok "signed in, unattended: $ip"
+}
 
 Step "OpenSSH Server"
 $cap = Get-WindowsCapability -Online -Name 'OpenSSH.Server*' | Select-Object -First 1
@@ -89,9 +109,15 @@ Ok "sshd running, starts at boot"
 
 Step "The mbm-ai account"
 if (-not (Get-LocalUser mbm-ai -ErrorAction SilentlyContinue)) {
-  Write-Host "  Choose a password for mbm-ai and keep it in your password manager."
-  Write-Host "  It is never used over SSH and never given to the AI."
-  $pw = Read-Host -AsSecureString "Password for mbm-ai"
+  if ($RandomPassword) {
+    $bytes = New-Object byte[] 24; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
+    $pw = ConvertTo-SecureString ('Aa1!' + [Convert]::ToBase64String($bytes)) -AsPlainText -Force
+    Write-Host "  mbm-ai gets a random password nobody sees (it signs in with its key only)."
+  } else {
+    Write-Host "  Choose a password for mbm-ai and keep it in your password manager."
+    Write-Host "  It is never used over SSH and never given to the AI."
+    $pw = Read-Host -AsSecureString "Password for mbm-ai"
+  }
   New-LocalUser mbm-ai -Password $pw -FullName "MBM AI" -Description "Key-only SSH for the AI (MBM-341)" -PasswordNeverExpires | Out-Null
 }
 if (-not (Get-LocalGroupMember -Group Administrators | Where-Object { $_.Name -like '*\mbm-ai' })) {

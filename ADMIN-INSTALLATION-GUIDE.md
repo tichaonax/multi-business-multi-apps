@@ -5,6 +5,35 @@
 
 ---
 
+## Servers: installed from releases, not from git (MBM-341)
+
+**A server no longer has a git checkout.** It never runs `git pull`,
+`npm install` or `npm run build`. Releases are built on the build machine
+(`npm run release` → `releases/mbm-<date>-<commit>.zip` + `.sha256`) and a
+server installs them with scripts in `C:\MBM\setup`, which you or the AI
+(over SSH, on the tailnet) run the same way:
+
+| What | Script |
+|---|---|
+| What's done, what's next (read-only) | `00-status.ps1` |
+| A new server, once | `01` Tailscale + the AI's SSH → `02` Windows → `03` Node 24, Chrome, PostgreSQL 18, the database → `04` settings → (`restore.ps1`) → `05` first install, service, firewall → `06` trusted certificate for the tailnet name |
+| Every update | `install-release.ps1` (backup first, previous release kept) |
+| Undo the last update | `rollback-release.ps1` |
+| A database backup | `backup-now.ps1` |
+| An old server converted to releases: remove its git checkout (after testing) | `remove-old-checkout.ps1 -Checkout <folder>` |
+| A till: POS app / printing | `deploy/workstation/install-pos.ps1`, `setup-printing.ps1` |
+
+**The step-by-step is `docs/runbooks/new-mbm-server.md`**, including moving
+to a new server (§8) and converting an old git-checkout server in place (§9).
+
+§1–6 and §11 below describe the **git checkout**: still how a development
+machine runs MBM, and how the old servers ran it until converted. On a
+server, use the scripts above instead. §7–10 and §12–13 still apply (§7's
+certificates come along with `04-configure.ps1 -From`; a server also gets a
+trusted tailnet certificate from `06`).
+
+---
+
 ## Table of Contents
 
 1. [Prerequisites](#1-prerequisites)
@@ -32,12 +61,12 @@ Install the following on the server machine before proceeding.
 Use [nvm-windows](https://github.com/coreybutler/nvm-windows) to manage Node.js versions.
 
 ```powershell
-# After installing nvm-windows, install and use Node.js 20
-nvm install 20
-nvm use 20
+# After installing nvm-windows, install and use Node.js 24 (the version releases are built and run with)
+nvm install 24
+nvm use 24
 
 # Verify
-node --version   # v20.x.x
+node --version   # v24.x.x
 npm --version
 ```
 
@@ -555,6 +584,26 @@ Each client machine that prints needs:
 
 ## 11. Deploying Updates
 
+**On a server (releases):** build on the build machine, copy, install:
+
+```bash
+npm run release                       # build machine: the commit checked out
+```
+```powershell
+# the zip + .sha256 into C:\MBM\incoming on the server (the AI copies them over the tailnet), then on the server:
+powershell -ExecutionPolicy Bypass -File C:\MBM\setup\install-release.ps1
+# something wrong after it:
+powershell -ExecutionPolicy Bypass -File C:\MBM\setup\rollback-release.ps1
+```
+
+`install-release.ps1` checks the SHA-256, backs up the database, stops the
+service, keeps the running release in `C:\MBM\previous`, switches, applies
+migrations (`migrate deploy`, never `db push`), starts the service and checks
+that the server answers with the new version. Nothing is built on the server.
+See `docs/runbooks/new-mbm-server.md`.
+
+**On a development machine (git checkout)**, as before:
+
 **Stop the service first.** `npm install` (its `postinstall` hook runs `prisma generate`) and `npm run build` (which also runs `prisma generate`) both need to overwrite the Prisma query engine DLL — and Windows refuses to do that while any running process, including this app's own service, still has it loaded. Building before stopping the service fails with an `EPERM`/file-lock error on that DLL.
 
 ```bash
@@ -711,6 +760,10 @@ Old session cookies become invalid when `NEXTAUTH_SECRET` changes or the server 
 ---
 
 ## Quick Reference — Fresh Server Setup
+
+**A server:** the scripts in the table at the top of this guide, step by
+step in `docs/runbooks/new-mbm-server.md`. What follows is the git-checkout
+setup, for a **development machine**:
 
 ```bash
 # 1. Install Node.js (via nvm), PostgreSQL 18, Git

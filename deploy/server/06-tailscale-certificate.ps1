@@ -85,7 +85,9 @@ $ErrorActionPreference = 'Stop'
 # While someone is signed in to the Tailscale app, Windows' Tailscale takes
 # commands only from that account and SYSTEM: not from another
 # administrator (the AI over SSH). Then the SYSTEM task does the work.
-$viaTask = (-not $Renew) -and ($raw -match 'already in use by')
+# Two wordings: "already in use by <user>" (signed in, not unattended) and
+# "running in server mode (<user>); connection from <other> not allowed" (unattended)
+$viaTask = (-not $Renew) -and ($raw -match 'already in use by|running in server mode')
 $name = ''
 if ($viaTask) {
   Ok "Tailscale answers only its signed-in user and SYSTEM here: the SYSTEM task gets the certificate"

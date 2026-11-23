@@ -13,14 +13,15 @@
 
     powershell -ExecutionPolicy Bypass -File C:\MBM\setup\03-prerequisites.ps1
 #>
-param([int]$NodeMajor = 24, [string]$Database = 'multi_business_db', [string]$DbUser = 'mbm_app')
+param([int]$NodeMajor = 24, [string]$Database = 'multi_business_db', [string]$DbUser = 'mbm_app', [switch]$Yes, [switch]$ProgramsOnly)
 $ErrorActionPreference = 'Stop'
 
 function Step($t) { Write-Host ""; Write-Host "== $t" -ForegroundColor Cyan }
 function Ok($t) { Write-Host "  OK    $t" -ForegroundColor Green }
 function Todo($t) { Write-Host "  TODO  $t" -ForegroundColor Yellow }
 function Halt($t) { Write-Host ""; Write-Host "  STOP  $t" -ForegroundColor Red; exit 1 }
-function Ask($q) { (Read-Host "$q [y/n]") -match '^[yY]' }
+# -Yes: answered y (the AI over SSH); the question is still printed
+function Ask($q) { if ($Yes) { Write-Host "$q [y/n]: y (-Yes)"; return $true }; (Read-Host "$q [y/n]") -match '^[yY]' }
 function Refresh-Path { $env:Path = [Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [Environment]::GetEnvironmentVariable('Path', 'User') }
 
 Step "Node.js $NodeMajor"
@@ -97,6 +98,9 @@ Ok "postgresql-x64-18 running, starts at boot"
 $bin = 'C:\Program Files\PostgreSQL\18\bin'
 if (-not (Test-Path "$bin\psql.exe")) { Halt "$bin\psql.exe is missing." }
 Ok ((& "$bin\psql.exe" --version))
+
+# -ProgramsOnly: a server converted in place keeps its database (runbook section 9)
+if ($ProgramsOnly) { Write-Host ""; Write-Host "Programs done; the database is the server's own (-ProgramsOnly). Next: 04-configure.ps1 -From <checkout>" -ForegroundColor Cyan; exit 0 }
 
 Step "The database"
 $urlFile = 'C:\MBM\setup\.database-url'
