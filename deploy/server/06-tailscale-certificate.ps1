@@ -20,7 +20,7 @@
   Every attempt is noted in certs\tailscale\status.json; 00-status.ps1
   shows it. -AutoOff removes the task.
 
-  Needs, in the Tailscale admin console → DNS: MagicDNS and HTTPS
+  Needs, in the Tailscale admin console > DNS: MagicDNS and HTTPS
   Certificates both on.
 #>
 param([string]$Root = 'C:\MBM', [string]$App = '', [switch]$Renew, [switch]$AutoOff)
@@ -83,7 +83,7 @@ $st = (& $ts status --json) | ConvertFrom-Json
 $name = ([string]$st.Self.DNSName).TrimEnd('.')
 if ($st.BackendState -ne 'Running' -or -not $name) { Fail "Tailscale isn't connected (state $($st.BackendState))." }
 if (@($st.CertDomains) -notcontains $name) {
-  Fail "the tailnet doesn't give HTTPS certificates. Tailscale admin console → DNS: turn on MagicDNS and HTTPS Certificates."
+  Fail "the tailnet doesn't give HTTPS certificates. Tailscale admin console > DNS: turn on MagicDNS and HTTPS Certificates."
 }
 Ok "tailnet name: $name"
 

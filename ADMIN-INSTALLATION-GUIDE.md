@@ -393,6 +393,14 @@ Restart the service after this change.
 
 QZ Tray is a Java desktop app that lets the browser print to local/network printers without browser print dialogs.
 
+> **The quick way (MBM-341):** after installing QZ Tray on a till, run, as administrator,
+> `powershell -ExecutionPolicy Bypass -File deploy\workstation\setup-printing.ps1 -Server https://<server>:8080`.
+> It fetches MBM's QZ signing certificate from the server and installs it as QZ's
+> `override.crt` (no Allow/Deny popup, no USB stick, no Site Manager), trusts the
+> server's root certificate when the till uses its IP (no `setup-ssl.bat`), and
+> restarts QZ. Safe to run again. The manual steps below still work.
+> QZ Tray 2.2 brings its own Java: no separate Java install.
+
 ### Install QZ Tray
 
 Download version **2.2.6** from [qz.io](https://qz.io/download/) and install on each machine that will print receipts. Start QZ Tray — it runs in the system tray.
@@ -518,6 +526,11 @@ certificate separately (see [§10](#10-client-machine-setup)).
 
 Every Windows machine that opens the app in Chrome or Edge needs to trust the SSL certificate once.
 
+> **Simplest:** open MBM by the server's tailnet name (`https://<server>.<tailnet>.ts.net:8080`,
+> see `docs/runbooks/new-mbm-server.md` step 6): its certificate is trusted
+> everywhere, so nothing to install. By IP, `deploy\workstation\setup-printing.ps1`
+> installs the root certificate for you (Option A/B below are the manual way).
+
 ### Option A — One-click (recommended)
 
 1. Copy `certs/setup-ssl.bat` and `certs/rootCA.pem` to the client machine
@@ -535,9 +548,8 @@ Every Windows machine that opens the app in Chrome or Edge needs to trust the SS
 ### QZ Tray on client machines
 
 Each client machine that prints needs:
-1. Java 11+ installed
-2. QZ Tray 2.2.6 installed and running
-3. `certs/qz-certificate.pem` added to QZ Tray (see Section 8 Step 2)
+1. QZ Tray 2.2.6 installed and running (it brings its own Java)
+2. MBM's QZ certificate trusted by QZ: `deploy\workstation\setup-printing.ps1` (or Section 8 Step 3 by hand)
 
 ---
 

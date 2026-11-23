@@ -156,6 +156,22 @@ has that version; otherwise downloads, checks the SHA-256, installs silently
 doesn't trust the server's certificate yet. On the sign-in screen, an
 "update available" badge has a **Download** link to the same installer.
 
+### Printing (QZ Tray) on a till
+
+Install QZ Tray 2.2.6 (https://qz.io/download; it brings its own Java), then, as administrator:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\setup-printing.ps1 -Server https://<server>.<tailnet>.ts.net:8080
+```
+
+(`deploy/workstation/setup-printing.ps1`.) It makes QZ trust MBM's signing
+certificate (`override.crt`: no Allow/Deny popup), restarts QZ, and, when
+given the server's IP instead of its name, trusts the server's root
+certificate. QZ trusts the certificate, not the address: printing works
+from the name and the IP alike. Moving servers keeps the same QZ
+certificate (`QZ_*` in `.env.local`, carried by `04-configure.ps1 -From`),
+so the tills need nothing.
+
 ## Backups
 
 `backup-now.ps1`: the whole database (`pg_dump`), read back before it counts.

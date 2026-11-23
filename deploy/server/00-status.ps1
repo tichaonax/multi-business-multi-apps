@@ -91,6 +91,9 @@ if ($health) {
 $fw = Get-NetFirewallRule -DisplayName 'MBM app*' -ErrorAction SilentlyContinue | Where-Object Enabled -eq 'True'
 if ($fw) { Ok "firewall rule for the app" } else { Todo "no 'MBM app' firewall rule (other computers can't reach it)" '05-install.ps1' }
 
+$rootCa = Join-Path $App 'certs\rootCA.pem'
+if (Test-Path $rootCa) { Info ("root certificate for tills on the IP (setup-printing.ps1 shows it): SHA-1 " + (New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($rootCa)).Thumbprint) }
+
 Step "Tailscale certificate (the tailnet name)"
 $tsCert = Join-Path $App 'certs\tailscale\cert.pem'
 if (Test-Path $tsCert) {
