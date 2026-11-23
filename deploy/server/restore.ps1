@@ -12,14 +12,15 @@
   - shows the counts of a few main tables, to compare with the old server.
   05-install.ps1 then applies only the migrations newer than the backup.
 #>
-param([Parameter(Mandatory = $true)][string]$Dump, [string]$Root = 'C:\MBM')
+param([Parameter(Mandatory = $true)][string]$Dump, [string]$Root = 'C:\MBM', [switch]$Yes)
 $ErrorActionPreference = 'Stop'
 $App = Join-Path $Root 'app'
 
 function Step($t) { Write-Host ""; Write-Host "== $t" -ForegroundColor Cyan }
 function Ok($t) { Write-Host "  OK    $t" -ForegroundColor Green }
 function Halt($t) { Write-Host ""; Write-Host "  STOP  $t" -ForegroundColor Red; exit 1 }
-function Ask($q) { (Read-Host "$q [y/n]") -match '^[yY]' }
+# -Yes: answered y (the AI over SSH); the question is still printed
+function Ask($q) { if ($Yes) { Write-Host "$q [y/n]: y (-Yes)"; return $true }; (Read-Host "$q [y/n]") -match '^[yY]' }
 
 Step "The backup"
 if (-not (Test-Path $Dump)) { Halt "$Dump is missing" }

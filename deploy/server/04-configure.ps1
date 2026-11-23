@@ -44,7 +44,9 @@ if (Test-Path $envFile) {
 
 Step "The database address (step 3)"
 $urlFile = Join-Path $Root 'setup\.database-url'
+$current = if (Test-Path $envFile) { Select-String -Path $envFile -Pattern '^\s*DATABASE_URL\s*=\s*"?([^"]+)' | Select-Object -Last 1 } else { $null }
 if (Test-Path $urlFile) { $dbUrl = (Get-Content -Raw $urlFile).Trim(); Ok "from step 3" }
+elseif ($current) { $dbUrl = $current.Matches[0].Groups[1].Value.Trim(); Ok "kept from the current .env.local (step 3's note was used by an earlier run)" }
 else {
   Todo "no address from step 3"
   $s = Read-Host -AsSecureString "DATABASE_URL (postgresql://user:password@localhost:5432/multi_business_db)"
@@ -62,7 +64,10 @@ if ($From) {
   Ok ("kept " + $settings.Count + " settings, among them ENCRYPTION_KEY and NEXTAUTH_SECRET")
   foreach ($d in 'certs', 'data') {
     $src = Join-Path $From $d
-    if (Test-Path $src) { Copy-Item $src (Join-Path $App $d) -Recurse -Force; Ok "$d\ copied" } else { Todo "the old server had no $d\" }
+    # Its contents into $App\$d: copying the folder itself into an existing
+    # one (certs\tailscale from 06) nested it as certs\certs (MBM-SRV1, 2026-11-23)
+    $dst = Join-Path $App $d
+    if (Test-Path $src) { New-Item -ItemType Directory $dst -Force | Out-Null; Copy-Item (Join-Path $src '*') $dst -Recurse -Force; Ok "$d\ copied" } else { Todo "the old server had no $d\" }
   }
 } else {
   Step "New secrets"
