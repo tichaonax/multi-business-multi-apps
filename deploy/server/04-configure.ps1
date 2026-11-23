@@ -73,6 +73,9 @@ if ($From) {
 $settings['DATABASE_URL'] = '"' + $dbUrl + '"'
 $settings['NODE_ENV'] = '"production"'
 if (-not $settings.Contains('PORT')) { $settings['PORT'] = "$Port" }
+# Sign-in at any of the server's addresses (the tailnet name with its trusted
+# certificate, the IP, localhost): NextAuth takes the address from the request
+$settings['AUTH_TRUST_HOST'] = 'true'
 
 Step "Write .env.local"
 $lines = @("# MBM settings, written by 04-configure.ps1 on $(Get-Date -Format 'yyyy-MM-dd HH:mm'). Never commit or send this file.")

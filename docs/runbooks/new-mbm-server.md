@@ -47,8 +47,9 @@ release: `.env.local`, `certs\`, `data\` (Farm Control's signing key),
 | 4 | Settings (new, or the old server's) | `04-configure.ps1 [-From …]` | |
 | R | Restore the old server's backup (replacing a server) | `restore.ps1 -Dump …` | |
 | 5 | First install: release, service, firewall | `05-install.ps1` | |
-| 6 | Test: an update and a rollback | `install-release.ps1`, `rollback-release.ps1` | |
-| 7 | Cut-over (§7) | By hand, the AI checks | |
+| 6 | Trusted certificate for the tailnet name, renewed by itself | `06-tailscale-certificate.ps1` | |
+| 7 | Test: an update and a rollback | `install-release.ps1`, `rollback-release.ps1` | |
+| 8 | Cut-over (§8) | By hand, the AI checks | |
 
 ## 0. By hand
 
@@ -94,6 +95,30 @@ powershell -ExecutionPolicy Bypass -File C:\MBM\setup\05-install.ps1
   administrator only on an empty database, installs the service and the
   firewall rule, and checks the release that answers.
 
+## 6. The tailnet name, with a trusted certificate
+
+Tailscale admin console → DNS: **MagicDNS** and **HTTPS Certificates** on. Then:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File C:\MBM\setup-tailscale-certificate.ps1
+```
+
+Run once (as Farm Control's `certificate -auto`). It gets a Let's Encrypt
+certificate for `<server>.<tailnet>.ts.net` from Tailscale into
+`C:\MBMpp\certs	ailscale\` and sets up the task **MBM certificate**: as
+SYSTEM, every 15 minutes, it renews when under 30 days are left (90-day
+certificates) and otherwise only notes the check. Nobody renews by hand;
+`00-status.ps1` shows the days left and the last renewal.
+
+Then MBM answers on both:
+- `https://<server>.<tailnet>.ts.net:8080`: trusted, no warning, on any
+  device on the tailnet (tills, phones, FarmNet);
+- `https://<IP>:8080`: as before, with the server's own certificate.
+
+MBM picks the certificate by the name asked for and reloads it after a
+renewal with no restart. Sign-in works at both (`AUTH_TRUST_HOST=true`, set
+by step 4).
+
 ## Every release after that
 
 On the build machine (this repo, Windows, the same Node as the server):
@@ -137,7 +162,7 @@ doesn't trust the server's certificate yet. On the sign-in screen, an
 `install-release.ps1` makes one before every install. The in-app backup
 (Admin → Data Management) stays for business-level backups and restores.
 
-## 7. Cut-over (replacing the old Zimbabwe server)
+## 8. Cut-over (replacing the old Zimbabwe server)
 
 1. Tell people: MBM is unavailable for about 30 minutes.
 2. Old server: stop the MBM service; `backup-now.ps1 -App <its folder>`.

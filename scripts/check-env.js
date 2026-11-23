@@ -65,7 +65,8 @@ if (has('QZ_PRIVATE_KEY') !== has('QZ_CERTIFICATE')) fail('QZ_PRIVATE_KEY / QZ_C
 else if (!has('QZ_PRIVATE_KEY')) warn('QZ_PRIVATE_KEY / QZ_CERTIFICATE', 'not set: QZ Tray printing uses its demo certificate (npm run qz:generate-cert)')
 else ok('QZ_PRIVATE_KEY / QZ_CERTIFICATE')
 
-if (has('NEXTAUTH_URL')) ok('NEXTAUTH_URL', 'set (sign-in only at that address)')
+if (env.AUTH_TRUST_HOST === 'true') ok('AUTH_TRUST_HOST', 'true (sign-in at any of this server’s addresses: tailnet name, IP, localhost)')
+else if (has('NEXTAUTH_URL')) warn('NEXTAUTH_URL', 'sign-in only at that address. AUTH_TRUST_HOST=true allows the tailnet name and the IP both (04-configure.ps1 sets it)')
 if (env.FORCE_HTTPS === 'true') ok('FORCE_HTTPS', 'true (certificates needed)')
 
 console.log(lines.join('\n'))

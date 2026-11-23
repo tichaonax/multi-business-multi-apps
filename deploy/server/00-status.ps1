@@ -91,6 +91,26 @@ if ($health) {
 $fw = Get-NetFirewallRule -DisplayName 'MBM app*' -ErrorAction SilentlyContinue | Where-Object Enabled -eq 'True'
 if ($fw) { Ok "firewall rule for the app" } else { Todo "no 'MBM app' firewall rule (other computers can't reach it)" '05-install.ps1' }
 
+Step "Tailscale certificate (the tailnet name)"
+$tsCert = Join-Path $App 'certs\tailscale\cert.pem'
+if (Test-Path $tsCert) {
+  $c = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($tsCert)
+  $days = [int]($c.NotAfter - (Get-Date)).TotalDays
+  $line = $c.GetNameInfo('DnsName', $false) + ", $days days left (until " + $c.NotAfter.ToString('yyyy-MM-dd') + ")"
+  if ($days -gt 14) { Ok $line } else { Bad $line '06-tailscale-certificate.ps1' }
+} else { Todo "none: only the IP has HTTPS (with the server's own certificate)" '06-tailscale-certificate.ps1' }
+if (Get-ScheduledTask -TaskName 'MBM certificate' -ErrorAction SilentlyContinue) { Ok "renewed by itself (task 'MBM certificate', every 15 minutes)" }
+elseif (Test-Path $tsCert) { Todo "no renewal task" '06-tailscale-certificate.ps1' }
+$tsStatus = Join-Path $App 'certs\tailscale\status.json'
+if (Test-Path $tsStatus) {
+  $s = Get-Content -Raw $tsStatus | ConvertFrom-Json
+  if ($s.checkedAt) { Info ("last checked " + ([datetime]$s.checkedAt).ToLocalTime().ToString('yyyy-MM-dd HH:mm')) }
+  if ($s.lastAttempt) {
+    $a = $s.lastAttempt; $when = ([datetime]$a.at).ToLocalTime().ToString('yyyy-MM-dd HH:mm')
+    if ($a.ok) { Info ("last renewal $when ($($a.by)): $($a.message)") } else { Bad ("last renewal $when ($($a.by)) failed: $($a.message)") $null }
+  }
+}
+
 Step "Backups"
 $bk = Get-ChildItem (Join-Path $Root 'backups') -Filter '*.dump' -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
 if ($bk) { Ok ("last database backup: " + $bk.Name + " (" + [math]::Round($bk.Length / 1MB) + " MB, " + $bk.LastWriteTime.ToString('yyyy-MM-dd HH:mm') + ")") }
