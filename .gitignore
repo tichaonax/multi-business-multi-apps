@@ -172,3 +172,6 @@ electron/node_modules/
 # MBM-294: extracted source-catalog category images (copy to server manually
 # via the installer, never commit — see project-plan §3.6)
 scripts/mbm294-extracted/
+
+# MBM-341: release packages (npm run release)
+/releases/

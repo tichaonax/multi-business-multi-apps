@@ -36,7 +36,7 @@
     "db:clear-locks": "node scripts/clear-migration-locks.js",
     "db:backfill-shortname": "ts-node --transpile-only scripts/backfill-business-shortname.ts",
     "db:pull": "npx prisma db pull",
-    "db:push": "npx prisma db push",
+    "db:push": "node -e \"console.error('db:push is retired (MBM-341): never use prisma db push. Create a migration with prisma migrate dev --name <name>.');process.exit(1)\"",
     "install:full": "node scripts/install/install.js",
     "install:dev": "node scripts/install/install.js --dev-mode",
     "install:database": "node scripts/install/install-database.js",
@@ -90,6 +90,8 @@
     "diagnose:database": "node scripts/diagnose-database.js",
     "verify:service-wrapper": "node scripts/verify-service-wrapper.js",
     "test:service-wrapper": "node scripts/test-service-wrapper.js",
+    "release": "node scripts/release.js",
+    "check:env": "node scripts/check-env.js",
     "deploy": "npm run setup:update && npm run service:restart",
     "deploy:upgrade": "node scripts/production-upgrade.js",
     "deploy:fresh": "node scripts/fresh-install.js",
@@ -188,5 +190,22 @@
     "typescript": "5.9.3",
     "wait-on": "^9.0.3",
     "xml2js": "^0.6.2"
+  },
+  "allowScripts": {
+    "@prisma/client": true,
+    "@prisma/engines": true,
+    "prisma": true,
+    "bcrypt": true,
+    "canvas": true,
+    "core-js": true,
+    "ffmpeg-static": true,
+    "printer": true,
+    "protobufjs": true,
+    "sharp": true,
+    "unrs-resolver": true,
+    "usb": true,
+    "puppeteer": false,
+    "esbuild": true,
+    "@serialport/bindings-cpp": true
   }
 }
