@@ -23,6 +23,7 @@ import { useActiveServerLabel } from '@/hooks/use-active-server-label'
 import { getDefaultPagePath } from '@/lib/business-default-pages'
 import { subscribeChatBadge, ChatBadgeState } from '@/lib/chat-badge'
 import { FarmCameraStrip } from '@/components/farm-cameras/farm-camera-strip'
+import { FarmAlertButton } from '@/components/farm-cameras/farm-alert-button'
 import { ComplianceDigestSections, parseComplianceDigest, formatAlertTimestamp } from '@/components/vehicles/license-compliance-digest'
 
 interface GlobalHeaderProps {
@@ -1359,6 +1360,9 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                   </Link>
                 )}
 
+                {/* MBM-340: 📹 camera alerts with the new count */}
+                <FarmAlertButton />
+
                 {/* Notifications Bell — shows personal notification history */}
                 {(notifUnreadCount > 0 || notifList.length > 0) && (
                   <div
@@ -1535,10 +1539,15 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
                                     : n.type === 'COMBO_REQUEST_RESUBMITTED' ? 'bg-purple-50/70 dark:bg-purple-900/20 border-l-2 border-purple-500'
                                     : !n.isRead ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''
                                 }`}
-                                onClick={() => { markRead(n.id); setShowNotifPanel(false); if (n.linkUrl) window.location.href = n.linkUrl }}
+                                onClick={() => {
+                                  markRead(n.id); setShowNotifPanel(false)
+                                  // MBM-340: the camera alerts' count row opens the 📹 panel right here, no navigation
+                                  if (n.type === 'FARM_CAMERA_MOTION') { window.dispatchEvent(new CustomEvent('farm-alerts:open')); return }
+                                  if (n.linkUrl) window.location.href = n.linkUrl
+                                }}
                               >
                                 <span className="mt-0.5 shrink-0 text-base">
-                                  {isUrgent ? '🚨' : n.type === 'PAYMENT_APPROVED' ? '✅' : n.type === 'PAYMENT_REJECTED' ? '↩️' : n.type === 'PAYMENT_SUBMITTED' ? '📋' : n.type === 'PAYMENT_PAID' ? '💰' : n.type === 'PETTY_CASH_SUBMITTED' ? '💸' : n.type === 'PETTY_CASH_APPROVED' ? '🪙' : n.type === 'PETTY_CASH_REJECTED' ? '❌' : n.type === 'CHAT_MESSAGE' ? '💬' : n.type === 'LOW_STOCK' ? '📦' : n.type === 'COMBO_REQUEST_SUBMITTED' ? '📋' : n.type === 'COMBO_REQUEST_RESUBMITTED' ? '🔁' : n.type === 'COMBO_REQUEST_APPROVED' ? '✅' : n.type === 'COMBO_REQUEST_PARTIALLY_APPROVED' ? '⚠️' : n.type === 'COMBO_REQUEST_CANCELLED' ? '❌' : n.type === 'COMBO_REQUEST_PAID' ? '💯' : n.type === 'JOB_BILLED_AWAITING_PAYMENT' ? '🧾' : n.type === 'JOB_START_ESCALATION' ? '⏰' : '🔔'}
+                                  {isUrgent ? '🚨' : n.type.startsWith('FARM_CAMERA') ? '📷' : n.type === 'PAYMENT_APPROVED' ? '✅' : n.type === 'PAYMENT_REJECTED' ? '↩️' : n.type === 'PAYMENT_SUBMITTED' ? '📋' : n.type === 'PAYMENT_PAID' ? '💰' : n.type === 'PETTY_CASH_SUBMITTED' ? '💸' : n.type === 'PETTY_CASH_APPROVED' ? '🪙' : n.type === 'PETTY_CASH_REJECTED' ? '❌' : n.type === 'CHAT_MESSAGE' ? '💬' : n.type === 'LOW_STOCK' ? '📦' : n.type === 'COMBO_REQUEST_SUBMITTED' ? '📋' : n.type === 'COMBO_REQUEST_RESUBMITTED' ? '🔁' : n.type === 'COMBO_REQUEST_APPROVED' ? '✅' : n.type === 'COMBO_REQUEST_PARTIALLY_APPROVED' ? '⚠️' : n.type === 'COMBO_REQUEST_CANCELLED' ? '❌' : n.type === 'COMBO_REQUEST_PAID' ? '💯' : n.type === 'JOB_BILLED_AWAITING_PAYMENT' ? '🧾' : n.type === 'JOB_START_ESCALATION' ? '⏰' : '🔔'}
                                 </span>
                                 <div className="min-w-0 flex-1">
                                   <p className={`font-medium truncate ${isUrgent ? 'text-red-700 dark:text-red-300' : n.type === 'COMBO_REQUEST_RESUBMITTED' ? 'text-purple-700 dark:text-purple-300' : !n.isRead ? 'text-blue-700 dark:text-blue-300' : 'text-primary'}`}>{n.title}</p>
@@ -1826,7 +1835,7 @@ function formatBusinessTypeLabel(businessType: string): string {
 // unmatched types fall into "Other". Not collapsible by design — this is
 // visual segmentation only, not hiding anything.
 const NOTIF_SEGMENTS: { key: string; label: string; icon: string; types: string[] }[] = [
-  { key: 'farm-cameras', label: 'Farm Cameras', icon: '📷', types: ['FARM_CAMERA_ALERT'] },
+  { key: 'farm-cameras', label: 'Farm Cameras', icon: '📷', types: ['FARM_CAMERA_ALERT', 'FARM_CAMERA_MOTION'] },
   { key: 'vehicle', label: 'Vehicle & Licensing', icon: '🚗', types: ['VEHICLE_LICENSE_EXPIRING', 'VEHICLE_LICENSE_OVERDUE'] },
   { key: 'payments', label: 'Payments', icon: '💰', types: ['PAYMENT_SUBMITTED', 'PAYMENT_APPROVED', 'PAYMENT_REJECTED', 'PAYMENT_PAID', 'BATCH_READY', 'PAYMENTS_REVERSED_TO_PETTY_CASH', 'PAYMENT_RETURN_REQUESTED', 'PAYMENT_RETURN_CONFIRMED'] },
   { key: 'withdrawals', label: 'Withdrawals', icon: '🏦', types: ['WITHDRAWAL_SUBMITTED', 'WITHDRAWAL_ADMIN_APPROVED', 'WITHDRAWAL_DENIED_LENDER', 'WITHDRAWAL_DENIED_ADMIN', 'WITHDRAWAL_PAID', 'WITHDRAWAL_CASHIER_ALERT'] },

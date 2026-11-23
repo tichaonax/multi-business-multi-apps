@@ -118,6 +118,7 @@ export function FarmCameraStrip({ placement }: { placement: 'inline' | 'row' }) 
         showNames={prefs.showNamesOnStrip}
         labels={labels}
         stillCameras={liveBelow}
+        alertSound={false /* MBM-340: MBM's own chime plays with the corner card */}
         onOpen={onStripClick}
         onNames={views.rememberNames}
       />
@@ -145,6 +146,7 @@ function StripFrame({
   showNames,
   labels,
   stillCameras,
+  alertSound,
   onOpen,
   onNames,
 }: {
@@ -153,15 +155,17 @@ function StripFrame({
   showNames: boolean
   labels: Record<string, string>
   stillCameras: string[]
+  /** MBM-339: Farm Control's chime for camera alerts (the user's "pop-up with sound") */
+  alertSound: boolean
   onOpen: (cameraId: string) => void
   onNames: (cameras: unknown) => void
 }) {
   const farm = useFarmControl()
   const frame = useRef<HTMLIFrameElement | null>(null)
   const [src] = useState(() =>
-    farm?.frameSrc('previews', { cameras: ids.join(','), names: showNames ? undefined : '0', mode: mode === 'pictures' ? 'pictures' : undefined })
+    farm?.frameSrc('previews', { cameras: ids.join(','), names: showNames ? undefined : '0', mode: mode === 'pictures' ? 'pictures' : undefined, alertSound: alertSound ? '1' : undefined })
   )
-  const options = { type: 'previews.options', showNames, labels, mode, stillCameras: stillCameras.map(toFarmId) }
+  const options = { type: 'previews.options', showNames, labels, mode, stillCameras: stillCameras.map(toFarmId), alertSound }
   const optionsKey = JSON.stringify(options)
   const idsKey = ids.join(',')
   const sent = useRef({ ids: idsKey, options: optionsKey })
@@ -180,6 +184,8 @@ function StripFrame({
 
   const onMessage = (m: FarmMessage) => {
     if (m.type === 'camera.open' && m.cameraId !== undefined) onOpen(String(m.cameraId))
+    // MBM-340: `camera.alert` needs nothing here: the strip outlines the camera by
+    // itself, and the corner card + chime come from the server's alert (one per alert)
     else if (m.type === 'previews') {
       onNames(m.cameras)
       // A (re)loaded strip starts without labels: send the current options again

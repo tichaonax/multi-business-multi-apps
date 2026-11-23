@@ -15,6 +15,8 @@ export interface AppNotification {
   linkUrl?: string | null
   isRead: boolean
   createdAt: string
+  /** MBM-339: only on FARM_CAMERA_MOTION rows (camera id, event id for the picture) */
+  metadata?: Record<string, unknown> | null
 }
 
 interface NotificationContextValue {
@@ -49,6 +51,8 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const toastBufferRef = useRef<{ title: string; message: string }[]>([])
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [notifications, setNotifications] = useState<AppNotification[]>([])
+  const notificationsRef = useRef<AppNotification[]>([])
+  notificationsRef.current = notifications
   const [unreadCount, setUnreadCount] = useState(0)
 
   const userId = (session?.user as any)?.id as string | undefined
@@ -102,6 +106,11 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       socket.emit('join-notification-room', { userId })
     })
 
+    // MBM-340: camera alerts for the 📹 panel (farm-alerts-provider listens on window)
+    socket.on('farm-alert', (payload: unknown) => {
+      window.dispatchEvent(new CustomEvent('farm-alert', { detail: payload }))
+    })
+
     // Toasts for a burst of notifications (e.g. a scheduled sweep that
     // generates several at once) are coalesced into one popup instead of
     // stacking a separate toast per event — each one still lands in the
@@ -131,12 +140,17 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     }
 
     socket.on('notification:new', (payload: Omit<AppNotification, 'isRead'>) => {
-      // Add to local list and bump unread count
-      setNotifications(prev => [{ ...payload, isRead: false }, ...prev].slice(0, 30))
-      setUnreadCount(prev => prev + 1)
+      // Add to local list and bump unread count. A grouped row that was
+      // refreshed (same id) moves to the top instead of appearing twice.
+      const wasUnread = notificationsRef.current.some(n => n.id === payload.id && !n.isRead)
+      setNotifications(prev => [{ ...payload, isRead: false }, ...prev.filter(n => n.id !== payload.id)].slice(0, 30))
+      if (!wasUnread) setUnreadCount(prev => prev + 1)
 
       // Dispatch the existing event so pending-actions hooks re-fetch
       window.dispatchEvent(new CustomEvent('pending-actions:refresh'))
+
+      // MBM-340: the camera alerts' count row needs no toast: the corner card shows the alert
+      if (payload.type === 'FARM_CAMERA_MOTION') return
 
       // Buffer the toast instead of showing it immediately — see flushToasts.
       toastBufferRef.current.push({ title: payload.title, message: payload.message })

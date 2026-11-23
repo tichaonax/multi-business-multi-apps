@@ -14,6 +14,7 @@ import { emitToUser } from '@/lib/customer-display/socket-server'
 
 export type NotificationType =
   | 'FARM_CAMERA_ALERT' // MBM-332
+  | 'FARM_CAMERA_MOTION' // MBM-339: movement / sound from a camera the user chose
   | 'PAYMENT_SUBMITTED'
   | 'PAYMENT_APPROVED'
   | 'PAYMENT_REJECTED'
@@ -169,6 +170,8 @@ export async function emitGroupedNotification(payload: GroupedNotificationPayloa
       message: notif.message,
       linkUrl: notif.linkUrl,
       createdAt: notif.createdAt.toISOString(),
+      // MBM-339: camera-alert rows carry their camera / picture
+      ...(notif.type === 'FARM_CAMERA_MOTION' ? { metadata: metadata ?? null } : {}),
     })
   } catch (err) {
     console.error('[notification-emitter] Failed to emit grouped notification:', err)

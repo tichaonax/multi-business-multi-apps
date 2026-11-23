@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { hasUserPermission } from '@/lib/permission-utils'
 import { getFarmControlIntegration, hasPrivateKey } from '@/lib/farm-control/server'
+import { getFarmMotionStatus } from '@/lib/farm-control/camera-events-poller'
 
 /**
  * MBM-331 — GET/PUT /api/admin/farm-control/config
@@ -17,12 +18,18 @@ async function guard() {
   return { user }
 }
 
+/** MBM-339: the camera-alerts (movement / sound) check, from the server's memory */
+function motionStatus() {
+  const m = getFarmMotionStatus()
+  return { lastRunAt: m.lastRunAt ? new Date(m.lastRunAt).toISOString() : null, watching: m.watching, lastError: m.lastError }
+}
+
 async function view() {
   const i = await getFarmControlIntegration()
   return {
     success: true,
     data: i
-      ? { ...i, hasPrivateKey: await hasPrivateKey(i.keyId) }
+      ? { ...i, hasPrivateKey: await hasPrivateKey(i.keyId), motion: motionStatus() }
       : { isEnabled: false, baseUrl: '', integrationId: '', audience: '', keyId: '', publicKeyPem: '', allowedOrigins: [], maxLargeViews: 2, hasPrivateKey: false },
   }
 }

@@ -580,10 +580,6 @@ export function MobileSidebar() {
                 <Link href="/admin/workstation-agents" className={sectionLinkClass} onClick={close}>🔌 Workstation Agents</Link>
               )}
 
-              {hasFarmCameras && (
-                <Link href="/cameras" className={sectionLinkClass} onClick={close}>📹 My Cameras</Link>
-              )}
-
               {hasUserPermission(user, 'canManageFarmControl') && (
                 <Link href="/admin/farm-control" className={sectionLinkClass} onClick={close}>📷 Farm Cameras</Link>
               )}
@@ -678,6 +674,11 @@ export function MobileSidebar() {
                   >
                     🧾 Receipt History
                   </Link>
+
+                  {/* MBM-339: My Cameras lives in Tools, so everyone with cameras finds it */}
+                  {hasFarmCameras && (
+                    <Link href="/cameras" className={sectionLinkClass} onClick={close}>📹 My Cameras</Link>
+                  )}
 
                   {(isAdmin || hasUserPermission(user, 'canCreateBusinessCategories') || hasUserPermission(user, 'canEditBusinessCategories')) && (
                     <Link href="/business/categories" className={sectionLinkClass} onClick={close}>📁 Business Categories</Link>

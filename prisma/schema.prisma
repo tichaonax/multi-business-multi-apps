@@ -3992,6 +3992,8 @@ model Users {
   farm_control_user_link                                          FarmControlUserLinks?
   farm_camera_user_preferences                                    FarmCameraUserPreferences?
   farm_control_alert_deliveries                                   FarmControlAlertDeliveries[]
+  farm_camera_alerts                                              FarmCameraAlerts[]
+  farm_camera_alert_pauses                                        FarmCameraAlertPauses[]
 
   @@map("users")
 }
@@ -9291,6 +9293,8 @@ model FarmCameraUserPreferences {
   cameraLabels     Json     @default("{}") // { cameraId: { name, showName } }
   alertsBell       Boolean  @default(true) // MBM-332: camera alerts in the notification bell
   alertsChat       Boolean  @default(true) // MBM-332: camera alerts in the Farm Camera Alerts chat
+  motionAlertsBell  Boolean @default(true) // MBM-339: movement / sound alerts in the notification bell
+  motionAlertsSound Boolean @default(true) // MBM-339: pop-up with Farm Control's chime while MBM is open
   updatedAt        DateTime @updatedAt
 
   users Users @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -9327,4 +9331,49 @@ model FarmControlAlertDeliveries {
   @@unique([userId, alertId])
   @@index([alertId])
   @@map("farm_control_alert_deliveries")
+}
+
+// MBM-340: each person's camera alerts (movement / sound), kept by MBM because
+// Farm Control's /camera-events reaches only an hour back. Back-to-back
+// findings from one camera are joined (times, findings). Transient: not backed
+// up; cleaned after 30 days except watch later.
+model FarmCameraAlerts {
+  id               String    @id @default(uuid())
+  userId           String
+  cameraId         String
+  cameraName       String
+  siteId           String?
+  siteName         String?
+  trigger          String // motion | sound | both
+  start            DateTime
+  end              DateTime? // null while going on
+  times            Int       @default(1)
+  lastAt           DateTime
+  findings         Json      @default("[]") // [{ eventId, start, end, trigger }], in time order
+  picture          Bytes?
+  pictureFromEvent Boolean   @default(false)
+  seenAt           DateTime?
+  dismissedAt      DateTime?
+  laterAt          DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  users Users @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, dismissedAt, start])
+  @@index([userId, cameraId, start])
+  @@map("farm_camera_alerts")
+}
+
+// MBM-340: cameras a person paused (🔕) in MBM; their findings are dropped
+model FarmCameraAlertPauses {
+  id       String   @id @default(uuid())
+  userId   String
+  cameraId String
+  pausedAt DateTime @default(now())
+
+  users Users @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, cameraId])
+  @@map("farm_camera_alert_pauses")
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { getCameraPreferences, getUserCameraAccess } from '@/lib/farm-control/server'
+import { refreshFarmMotionSoon } from '@/lib/farm-control/camera-events-poller'
 
 /**
  * MBM-331 — PUT /api/farm-control/preferences
@@ -23,7 +24,7 @@ export async function PUT(request: NextRequest) {
     if (ids.length > 4) return NextResponse.json({ error: 'At most 4 cameras in the strip' }, { status: 400 })
     data.stripCameraIds = ids
   }
-  for (const k of ['stripVisible', 'showNamesOnStrip', 'showStripOnPos', 'alertsBell', 'alertsChat']) {
+  for (const k of ['stripVisible', 'showNamesOnStrip', 'showStripOnPos', 'alertsBell', 'alertsChat', 'motionAlertsBell', 'motionAlertsSound']) {
     if (typeof body[k] === 'boolean') data[k] = body[k]
   }
   for (const k of ['stripMode', 'posStripMode']) {
@@ -41,10 +42,15 @@ export async function PUT(request: NextRequest) {
     data.cameraLabels = labels
   }
 
+  // MBM-339: alerting cameras changed in Farm Control (My Cameras) or a
+  // motion switch changed: the server's camera-alert check picks it up now
+  const motionChanged = body.alertingChanged === true || typeof body.motionAlertsBell === 'boolean'
+
   await prisma.farmCameraUserPreferences.upsert({
     where: { userId: user.id },
     create: { userId: user.id, ...data },
     update: data,
   })
+  if (motionChanged) refreshFarmMotionSoon()
   return NextResponse.json({ success: true, data: await getCameraPreferences(user.id) })
 }

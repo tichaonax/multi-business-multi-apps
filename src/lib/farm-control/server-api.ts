@@ -14,6 +14,8 @@ const RENEW_BEFORE_MS = 120_000
 const TIMEOUT_MS = 15_000
 
 export class FarmServerError extends Error {
+  /** MBM-339: on 429 `limit`, seconds to wait (guide §10) */
+  public retryAfter?: number
   constructor(public status: number, public code: string, message: string) {
     super(message)
   }
@@ -22,7 +24,7 @@ export class FarmServerError extends Error {
 const sessions = new Map<string, { token: string; expiresAt: number }>()
 const keyFor = (i: Integration, userId: string) => `${i.id}|${i.baseUrl}|${i.integrationId}|${userId}`
 
-async function request(i: Integration, method: string, path: string, body?: unknown, token?: string) {
+async function request(i: Integration, method: string, path: string, body?: unknown, token?: string, raw = false): Promise<any> {
   const origin = i.allowedOrigins[0]
   if (!origin) throw new FarmServerError(0, 'no-origin', "Add this MBM server's address on the Connection tab (it must be registered with FarmNet)")
   const headers: Record<string, string> = { Origin: origin, Accept: 'application/json' }
@@ -40,8 +42,13 @@ async function request(i: Integration, method: string, path: string, body?: unkn
     throw new FarmServerError(0, 'unreachable', `This server can't reach Farm Control at ${i.baseUrl}. It must be on the farm's tailnet and use the address by name.`)
   }
   if (r.status === 204) return null
+  if (raw && r.ok) return r
   const d = await r.json().catch(() => ({}))
-  if (!r.ok) throw new FarmServerError(r.status, d.code || '', d.error || r.statusText)
+  if (!r.ok) {
+    const err = new FarmServerError(r.status, d.code || '', d.error || r.statusText)
+    if (r.status === 429) err.retryAfter = Number(d.retryAfter ?? r.headers.get('Retry-After')) || 5
+    throw err
+  }
   return d
 }
 
@@ -76,16 +83,25 @@ async function session(i: Integration, user: { id: string; name?: string | null 
 }
 
 /** A Farm Control API call as this user, from MBM's server. */
-export async function farmServerCall<T = any>(i: Integration, user: { id: string; name?: string | null }, method: string, path: string): Promise<T> {
+export async function farmServerCall<T = any>(i: Integration, user: { id: string; name?: string | null }, method: string, path: string, body?: unknown): Promise<T> {
+  return withSession(i, user, token => request(i, method, path, body, token))
+}
+
+/** MBM-339 — a picture (or other non-JSON answer) as this user: the raw Response. */
+export async function farmServerFetch(i: Integration, user: { id: string; name?: string | null }, path: string): Promise<Response> {
+  return withSession(i, user, token => request(i, 'GET', path, undefined, token, true))
+}
+
+async function withSession<T>(i: Integration, user: { id: string; name?: string | null }, run: (token: string) => Promise<T>): Promise<T> {
   const s = await session(i, user)
   try {
-    return await request(i, method, path, undefined, s.token)
+    return await run(s.token)
   } catch (e) {
     if (!(e instanceof FarmServerError) || e.status !== 401) throw e
     // The session ended: sign in again once (guide §4.4)
     sessions.delete(keyFor(i, user.id))
     const again = await signIn(i, user)
-    return request(i, method, path, undefined, again.token)
+    return run(again.token)
   }
 }
 
