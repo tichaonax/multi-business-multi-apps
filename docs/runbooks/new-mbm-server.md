@@ -274,4 +274,4 @@ them.
 | 2026-11-23 | `cfac0518` | MBM-SRV1 | First install, trial settings |
 | 2026-11-23 | `bdfa2c68` | MBM-SRV1 | First update by `install-release.ps1`; rollback and forward tested |
 | 2026-11-23 | `bdfa2c68` | MBM-SRV1 | Production's data (backup of 20:53), settings and files; counts and image bytes equal |
-| 2026-11-23 | `bdfa2c68` | MBM-DEV1 (was desktop-4us91kl) | Converted in place from its git checkout (§9), by the AI as `mbm-ai`; same database (13 users); tailnet name kept for Farm Control |
+| 2026-11-23 | `bdfa2c68` | MBM-DEV1 (was desktop-4us91kl) | Converted in place from its git checkout (§9), by the AI as `mbm-ai`; same database (13 users). 2026-11-24: tailnet name too, now `mbm-dev1.tail2cac9d.ts.net` (Farm Control on it updated by the user) |

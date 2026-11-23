@@ -66,10 +66,15 @@ if ($AutoOff) {
 }
 
 # The task's quick path: nothing to do while the certificate has time left
+# AND is still for this machine's tailnet name (a renamed machine needs a
+# new one at once: desktop-4us91kl -> mbm-dev1, 2026-11-24)
 if ($Renew -and (Test-Path $CertFile) -and (Test-Path $KeyFile)) {
   try {
     $c = Read-Cert $CertFile
-    if (($c.NotAfter - (Get-Date)).TotalDays -gt $RenewWithinDays) { Note $null $null $null; exit 0 }
+    $tsExe = Join-Path $env:ProgramFiles 'Tailscale\tailscale.exe'
+    $nowName = ([string]((& $tsExe status --json 2>$null | Out-String | ConvertFrom-Json).Self.DNSName)).TrimEnd('.')
+    $sameName = (-not $nowName) -or ($c.GetNameInfo('DnsName', $false) -eq $nowName)
+    if ($sameName -and ($c.NotAfter - (Get-Date)).TotalDays -gt $RenewWithinDays) { Note $null $null $null; exit 0 }
   } catch { }
 }
 
