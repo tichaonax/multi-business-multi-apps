@@ -5,8 +5,11 @@
 // - ▶ Play swaps the row's picture for a larger video: Farm Control's
 //   `player` frame on the recording, 5 s before the finding, no buttons of its
 //   own (`controls=0`). Scrolled into view. One row at a time.
-// - A joined alert (×n) gets ‹ Back · n of m · Next › over the video; "n"
-//   follows the video as it plays on.
+// - The clip player (integration guide rev 6 §5): `mode=recordings&controls=0`
+//   from 5 s before to 3 s after (`until`); muted at first, click to pause,
+//   2 minutes at a time with ▶ Play on — all inside Farm Control's frame.
+// - A joined alert (×n) gets ‹ Back · n of m · Next › over the video: they
+//   send `player.seek` (no reload); "n" follows `player.position`.
 // - Playing: ↺ replay · ⛶ Big · ■ stop · Watch · ☆ Later · 🔕.
 //   Otherwise: ▶ Play (only when there's video to play) · Watch · ☆ Later · 🔕.
 // - `limit` (two videos open already) → "Close the other video first";
@@ -59,30 +62,39 @@ export interface AlertPlayer {
   play: (a: FarmAlert, step?: number) => void
   stop: () => void
   render: (a: FarmAlert) => React.ReactNode
-  /** The finding playing now (for ⛶ Big at that moment) */
+  /** Where the clip has reached (for ⛶ Big at that moment) */
   currentAt: () => string | null
 }
+
+/** The clip's end: 3 s after the alert's end; none while it's going on (guide rev 6 §5) */
+const untilFor = (a: FarmAlert) => (a.end ? new Date(Date.parse(a.end) + 3_000).toISOString() : undefined)
 
 export function useAlertPlayer(): AlertPlayer {
   const farm = useFarmControl()
   const toast = useToastContext()
-  const [playing, setPlaying] = useState<{ alert: FarmAlert; step: number; at: string; key: number } | null>(null)
-  const [shownStep, setShownStep] = useState(0)
+  // One clip player frame per playing alert; Back / Next / ↺ seek inside it
+  const [playing, setPlaying] = useState<{ alert: FarmAlert; at: string; key: number } | null>(null)
+  const [step, setStep] = useState(0)
   const [problem, setProblem] = useState<string | null>(null)
-  const startedAt = useRef(0) // when the video started (ms), paused time left out
-  const pausedAt = useRef<number | null>(null)
+  const position = useRef<number | null>(null) // the clip's time from player.position
+  const frameRef = useRef<HTMLIFrameElement | null>(null)
   const wrapRef = useRef<HTMLDivElement | null>(null)
 
-  const play = useCallback((a: FarmAlert, step = 0) => {
+  const play = useCallback((a: FarmAlert, toStep = 0) => {
     const steps = stepsOf(a)
-    const i = Math.max(0, Math.min(step, steps.length - 1))
+    const i = Math.max(0, Math.min(toStep, steps.length - 1))
+    const at = atFor(steps[i].start)
     setProblem(null)
-    setPlaying({ alert: a, step: i, at: atFor(steps[i].start), key: Date.now() })
-    setShownStep(i)
-    startedAt.current = Date.now()
-    pausedAt.current = null
+    setStep(i)
+    position.current = null
+    if (playing?.alert.id === a.id && frameRef.current) {
+      // Same alert: play from there in the same frame, no reload, no second place (guide §6)
+      farm?.send(frameRef.current, { type: 'player.seek', at, ...(untilFor(a) ? { until: untilFor(a) } : {}) })
+      return
+    }
+    setPlaying({ alert: a, at, key: Date.now() })
     markSeen(a)
-  }, [])
+  }, [playing, farm])
   const stop = useCallback(() => { setPlaying(null); setProblem(null) }, [])
 
   // Scroll the playing row into view once it opens (guide §2.2)
@@ -92,53 +104,49 @@ export function useAlertPlayer(): AlertPlayer {
     return () => clearTimeout(t)
   }, [playing?.key]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // "n of m" follows the video: the last finding whose start − 5 s is before the video's time
-  useEffect(() => {
-    if (!playing) return
-    const steps = stepsOf(playing.alert)
-    if (steps.length < 2) return
-    const t = setInterval(() => {
-      if (pausedAt.current !== null) return
-      const videoTime = Date.parse(playing.at) + (Date.now() - startedAt.current)
-      let n = 0
-      steps.forEach((s, i) => { if (Date.parse(s.start) - 5_000 <= videoTime) n = i })
-      setShownStep(n)
-    }, 1000)
-    return () => clearInterval(t)
-  }, [playing])
-
   const onMessage = useCallback((m: FarmMessage) => {
+    if (m.type === 'player.position' && typeof m.at === 'string' && playing) {
+      // "n of m" follows the video's real position (guide §3.3)
+      const p = Date.parse(m.at)
+      if (Number.isNaN(p)) return
+      position.current = p
+      const steps = stepsOf(playing.alert)
+      if (steps.length < 2) return
+      let n = 0
+      steps.forEach((s, i) => { if (Date.parse(s.start) - 5_000 <= p) n = i })
+      setStep(n)
+      return
+    }
     if (m.type !== 'state' || typeof m.code !== 'string') return
-    if (m.code === 'paused' && pausedAt.current === null) pausedAt.current = Date.now()
-    else if (m.code === 'playing' && pausedAt.current !== null) { startedAt.current += Date.now() - pausedAt.current; pausedAt.current = null }
-    else if (m.code === 'limit') { toast.push('Close the other video first (two can play at once)', { type: 'warning' }); setPlaying(null) }
+    if (m.code === 'limit') { toast.push('Close the other video first (two can play at once)', { type: 'warning' }); setPlaying(null) }
     else if (m.code === 'denied') setProblem('You can no longer watch this camera')
-  }, [toast])
+  }, [toast, playing])
 
   const render = useCallback((a: FarmAlert) => {
     if (!playing || playing.alert.id !== a.id || !farm) return null
     const steps = stepsOf(a)
-    const src = farm.frameSrc('player', { camera: a.cameraId, mode: 'recordings', at: playing.at, controls: '0' })
+    const src = farm.frameSrc('player', { camera: a.cameraId, mode: 'recordings', controls: '0', at: playing.at, until: untilFor(a) })
     return (
       <div ref={wrapRef} className="relative w-full aspect-video bg-black rounded overflow-hidden">
-        {src && <FarmFrame key={playing.key} src={src} title={a.cameraName} className="absolute inset-0 w-full h-full" onMessage={onMessage} />}
+        {src && <FarmFrame key={playing.key} src={src} title={a.cameraName} className="absolute inset-0 w-full h-full" onMessage={onMessage} onFrame={f => { frameRef.current = f }} />}
         {steps.length > 1 && (
           <div className="absolute top-1.5 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded bg-black/70 text-white text-xs px-2 py-1">
-            <button disabled={shownStep === 0} className="disabled:opacity-40 hover:underline" onClick={() => play(a, shownStep - 1)}>‹ Back</button>
-            <span className="font-semibold">{shownStep + 1} of {steps.length}</span>
-            <button disabled={shownStep >= steps.length - 1} className="disabled:opacity-40 hover:underline" onClick={() => play(a, shownStep + 1)}>Next ›</button>
+            <button disabled={step === 0} className="disabled:opacity-40 hover:underline" onClick={() => play(a, step - 1)}>‹ Back</button>
+            <span className="font-semibold">{step + 1} of {steps.length}</span>
+            <button disabled={step >= steps.length - 1} className="disabled:opacity-40 hover:underline" onClick={() => play(a, step + 1)}>Next ›</button>
           </div>
         )}
         {problem && <div className="absolute inset-x-0 bottom-0 bg-black/80 text-red-300 text-xs px-2 py-1">{problem}</div>}
       </div>
     )
-  }, [playing, shownStep, problem, farm, onMessage, play])
+  }, [playing, step, problem, farm, onMessage, play])
 
   const currentAt = useCallback(() => {
     if (!playing) return null
+    if (position.current !== null) return new Date(position.current).toISOString()
     const steps = stepsOf(playing.alert)
-    return atFor(steps[Math.min(shownStep, steps.length - 1)].start)
-  }, [playing, shownStep])
+    return atFor(steps[Math.min(step, steps.length - 1)].start)
+  }, [playing, step])
 
   return { playingId: playing?.alert.id ?? null, play, stop, render, currentAt }
 }

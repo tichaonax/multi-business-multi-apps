@@ -1,13 +1,15 @@
 # Building a camera alert list like Farm Control's
 
 **For third-party applications using the Farm Control integration,
-contract version 1, revision 5 (feature `cameraAlerts`).** A companion to
+contract version 1, revision 6 (feature `cameraAlerts`; the clip player
+from revision 6).** A companion to
 the *Farm Control integration guide*; section numbers (§) refer to it.
 
 This describes the alert list in Farm Control itself (the 📹 list, as of
-0.5.0-rc205): what the user sees, how it behaves, and how to build the
-same with the calls you already have. Nothing here is a new call or a
-change to the contract. Where Farm Control keeps something on its own
+0.5.0-rc206): what the user sees, how it behaves, and how to build the
+same with the calls and frames of version 1. The clip player that plays an
+alert in a row (§2.2) came in revision 6, at FarmNet's request from your
+side; everything else was already there. Where Farm Control keeps something on its own
 server that the integration does not give you (the list of alerts, seen
 and dismissed, watch later, paused), this says what to keep on yours.
 
@@ -87,16 +89,27 @@ The things users noticed most, in order:
  │ └───────────────────────┘                                         │
 ```
 
-- **▶ Play** replaces that row's picture with a **player frame** in the
-  same place, a little larger, starting **5 seconds before** the finding.
+- **▶ Play** replaces that row's picture with the **clip player** (the
+  player frame with `mode=recordings&controls=0`, guide §5, revision 6) in
+  the same place, a little larger, from **5 seconds before** the finding to
+  **3 seconds after** its end (`&until=`). It is the same player as Farm
+  Control's own list:
+  - the video only, muted at first with a small 🔇/🔊, and a click pauses
+    and resumes it;
+  - 2 minutes at a time, then **▶ Play on**.
 - **Only one plays at a time.** Playing another row stops the first. This
   is also needed for the limit of 2 viewers and players per user (§10).
 - **Scroll the playing row into view:** after it opens, use
   `element.scrollIntoView({block: "nearest", behavior: "smooth"})`, on
   desktop and phone. Without this the video often opens half hidden.
-- **A joined alert** shows **‹ Back · n of m · Next ›** over the video.
-  Next plays the next finding from 5 seconds before it. The "n" follows
-  the video, so letting it run on moves the count by itself.
+- **A joined alert** shows **‹ Back · n of m · Next ›** over the video
+  (yours, over the frame).
+  - Next plays the next finding from 5 seconds before it: send the frame
+    `player.seek` (guide §6). It plays there without reloading and without
+    taking a second place (§10).
+  - The "n" follows the video's real position, from the frame's
+    `player.position` messages (§3.3), so letting it run on moves the
+    count by itself.
 - **■ Stop**, closing the list, or switching tabs **removes the frame**
   (§5: removing a frame frees its place at once).
 
@@ -169,7 +182,9 @@ The things users noticed most, in order:
 | The alert itself (camera, site, what, start, end) | `events` in `GET /camera-events?since=` (§7.12): `CameraEvent` `{id, cameraId, name, site {id, name}, trigger, start, end, pictureUrl}` (§8) |
 | The picture | `GET` the event's `pictureUrl` **from your server, with the user's token** (§7.12). About 320 wide and 10–20 KB: **keep a copy** with your alert, and serve it to your page yourself |
 | The picture for one going on (no event yet) | `GET /cameras/{id}/picture` (§7.3), the camera now |
-| ▶ Play in the row | **Player frame**: `/embed/v1/player?integration=ID&camera=C&mode=recordings&at=<start − 5 s>&controls=0` (§5) |
+| ▶ Play in the row | **The clip player**: `/embed/v1/player?integration=ID&camera=C&mode=recordings&controls=0&at=<start − 5 s>&until=<end + 3 s>` (guide §5, revision 6); `until` left out while the alert is still going on |
+| Where the clip has reached | `player.position` `{cameraId, at}` from the frame, about once a second (guide §6) |
+| Back and Next in a joined alert | `player.seek` `{at, until}` to the frame (guide §6) |
 | ⛶ Big | **Viewer frame**: `/embed/v1/modal?integration=ID&camera=C&tab=recordings&at=<start − 5 s>&alerts=0` (§5; `alerts=0` when your screen has its own 🔔) |
 | Turn a camera's alerts on or off | `PUT` / `DELETE /cameras/{id}/alert` (§7.12) |
 | Whether video is still kept | `GET /cameras/{id}/coverage` (§7.5): `oldest`. An alert before it has no video; say "Video no longer kept" and hide ▶ Play |
@@ -220,11 +235,13 @@ Farm Control's farms may set the join time per site or camera. The
 integration doesn't say what it is, so use **2 minutes**, or a setting of
 your own.
 
-**Back and Next** step through `eventIds` in time order. Play each from
-its `start` minus 5 seconds. To show "n of m" while it plays, take the
-last event whose `start − 5 s` is before the video's time. For that time,
-use the time of the `at` you opened the frame with, plus how long it has
-played.
+**Back and Next** step through `eventIds` in time order:
+- **To step:** send `{type: "player.seek", at: <that event's start − 5 s>,
+  until: <the alert's end + 3 s>}` to the clip player.
+- **For "n of m":** take the last event whose `start − 5 s` is at or
+  before the `at` of the frame's latest `player.position`. Don't estimate
+  it from a clock: a paused or waiting video would leave the count wrong.
+- Disable ‹ Back on the first and Next › on the last.
 
 ### 3.4 Something going on, then kept
 

@@ -2,12 +2,23 @@
 
 **For third-party applications. Integration contract version 1 (complete).**
 
-Status: **ready to build against, revision 5, 2026-11-22.** This is the
+Status: **ready to build against, revision 6, 2026-11-23.** This is the
 whole of version 1: every feature the integration offers. Farm Control
 0.5.0-rc57 and later serve all of it except two-way audio (§1.2). It
 becomes final once FarmNet's own end-to-end checks with a test host pass;
 your FarmNet contact will tell you. A change after that becomes version 2,
 and version 1 keeps working.
+
+**New in revision 6** (additions only; nothing in revision 5 changed):
+**the clip player**, for playing an alert in your own list. The player
+frame with `mode=recordings&controls=0` now plays **only the recorded
+video**, filling the frame, as §5 always said for `controls=0`: until
+revision 6 it showed the recordings timeline. It plays 2 minutes at a time
+with **▶ Play on**, starts muted, and pauses and resumes with a click; the
+new `&until=` stops it at a time of yours. It sends `state` (with a new
+`reason` on `paused`) and the new **`player.position`**, about once a
+second, and takes the new **`player.seek`** to play from another time
+without reloading (§5, §6, §9.2, §12, from rc206).
 
 **New in revision 5** (additions only; nothing in revision 4 changed):
 **camera alerts**, for your own notifications and sound when a camera
@@ -300,7 +311,7 @@ assertions or user ids.
 |---|---|---|
 | **Preview strip** | `/embed/v1/previews?integration=ID&cameras=12,7,31,4` (and optionally `&names=0`, `&mode=pictures`) | Up to 4 live pictures (small streams, no sound), the cameras **you name**, in that order. Without `cameras`: the user's pinned cameras, then the ones they opened recently. Change them at any time with `previews.set` (§6). With `names=0`, no names on the pictures (§5.1); with `mode=pictures`, still pictures instead of live video (§5.2). A click sends `camera.open` |
 | **Viewer** | `/embed/v1/modal?integration=ID&camera=12` (and optionally `&tab=live` or `recordings`, `&at=<ISO time>`, `&capture=0`) | One camera, large: live with full quality and sound on request; recordings with timeline, events and playback; controls, capture and two-way audio where the features and the user's permissions allow. With `capture=0`, no capture buttons (below). Counts against the per-user limit of viewers and players (§10) |
-| **Player** | `/embed/v1/player?integration=ID&camera=12&mode=live` or `&mode=recordings&at=<ISO time>` (optionally `&controls=0`, `&capture=0`, `&quality=small`) | One camera, for placing beside your own content (for example next to an event in your list). Live or recordings from a time. **With buttons** (the default), live is the same as the viewer's live tab: it starts on the small stream with **Full quality, with sound**, and has **Record** and **Take picture** (`capture`) and camera control (`controls`) where allowed; recordings have the timeline, and download and protect (`capture`) where allowed. **With `controls=0`**, the video only, no buttons: live on the full-quality stream, or with `quality=small` on the small stream (no sound; full quality if the camera has no small stream). With `capture=0`, no capture buttons. Counts against the per-user limit of viewers and players (§10) |
+| **Player** | `/embed/v1/player?integration=ID&camera=12&mode=live` or `&mode=recordings&at=<ISO time>` (optionally `&controls=0`, `&capture=0`, `&quality=small`) | One camera, for placing beside your own content (for example next to an event in your list). Live or recordings from a time. **With buttons** (the default), live is the same as the viewer's live tab: it starts on the small stream with **Full quality, with sound**, and has **Record** and **Take picture** (`capture`) and camera control (`controls`) where allowed; recordings have the timeline, and download and protect (`capture`) where allowed. **With `controls=0`**, the video only, no buttons: live on the full-quality stream, or with `quality=small` on the small stream (no sound; full quality if the camera has no small stream); recordings as **the clip player** (below, revision 6). With `capture=0`, no capture buttons. Counts against the per-user limit of viewers and players (§10) |
 
 **Camera alerts in the frames** (`cameraAlerts`, revision 5). The
 **viewer** shows a 🔕/🔔 by the camera's name: the user turns their alert
@@ -314,6 +325,30 @@ both) until it is clicked. With `&alertSound=1` in its address, or
 `previews.options {alertSound: true}`, the strip also plays Farm Control's
 short chime (off by default, so your page can play its own sound); a
 browser may keep it silent until the user has clicked in your page once.
+
+**The clip player** (revision 6, from rc206): `/embed/v1/player?integration=ID&camera=12&mode=recordings&controls=0&at=<ISO time>` and optionally `&until=<ISO time>`. For an alert in your own list, played where its picture was.
+- **The recorded video only**, filling the frame: no timeline, day picker
+  or buttons, in your look (§5.3). Without `at`, the last minute.
+- **2 minutes at a time**, or up to `until` when sooner (for an alert: its
+  end plus a few seconds). Then it stops (`state` `ended`) and shows a
+  small **▶ Play on** that plays the next 2 minutes. It doesn't go past
+  the recording: where the recording ends, it ends, with no Play on.
+- **Starts muted**, with a small 🔇/🔊 at the bottom right and a small
+  ❚❚/▶ at the bottom left. A **click on the video** also pauses and
+  resumes it.
+- **`player.position`** (§6) about once a second while it plays, and once
+  soon after each start or seek: the time the video has reached. Use it
+  for your own "2 of 3" and ‹ Back · Next ›.
+- **`player.seek`** (§6) plays from another time (and to another
+  `until`), in the same frame without reloading it.
+- The recordings permission is checked as for any player. A refusal shows
+  its reason in the frame and is sent as `state` `denied`.
+- It is **one player** for the limit (§10) while open, also across seeks,
+  and its place is free as soon as it is closed (`close`) or removed. When
+  the place is taken, it waits for about 30 seconds for one to free, then
+  sends `state` `limit`.
+- Hidden (`visibility` false), it stops and sends `state` `paused` with
+  `reason` `hidden`. Shown again, it goes on from where it was.
 
 **`capture=0`** on a viewer or a player hides only the capture buttons
 (Record, Take picture, Download clip, Protect), for example for a user your
@@ -467,6 +502,7 @@ From the frames:
 | `resize` | `height` | Preferred height in pixels, a suggestion (useful for the approvals panel; the strip fills whatever size you give it) |
 | `device.changed` | `deviceId`, `state` | An approval action was done in the approvals panel |
 | `camera.alert` | `cameraId`, `name`, `site`, `trigger` (motion, sound, both), `at`, `start` (null while going on) | From the strip, with `cameraAlerts` (revision 5): one of the user's alerting cameras found something. Show your own banner, badge or sound. Once per thing found |
+| `player.position` | `cameraId`, `at` (ISO time) | From the clip player (§5, revision 6): the time the video has reached. About once a second while it plays, and once soon after each start or seek |
 
 To the frames:
 
@@ -476,6 +512,7 @@ To the frames:
 | `previews.set` | `cameraIds` (at most 4) | Show these cameras in the strip, in this order. Cameras the user may not watch live are left out and reported in the `previews` reply |
 | `previews.options` | `showNames` (true or false), `labels` (`{cameraId: text}`), `mode` (`live` or `pictures`), `stillCameras` (camera ids), `alertSound` (true or false, revision 5); any of them | Names on the strip's pictures on or off, your own names for cameras (§5.1), live video or still pictures, and single cameras as still pictures (§5.2), Farm Control's chime for camera alerts (§5); at once, without reloading |
 | `visibility` | `visible` | Your area with the frame is shown or hidden |
+| `player.seek` | `at` (ISO time), `until` (ISO time, optional) | To the clip player (§5, revision 6): play from `at`, up to `until` (or 2 minutes), without reloading. A `until` not after `at` is left out; without a usable `at`, and to any other frame, it is ignored |
 | `theme` | `theme` (`light`, `dark`, `auto`), `accent`, `accentText`, `bg`, `panel` (six hex digits); any of them | Your look changed: the frame follows at once (§5.3, from revision 4) |
 | `close` | | End the frame's sessions at once (before removing it, and on sign-out) |
 
@@ -854,10 +891,13 @@ false, the device is approved only on Farm Control's Approvals screen
 
 `{type: "state", cameraId, code}`, `code` one of: `loading`, `playing`,
 `paused` (the page hidden for 10 seconds; in the strip also a camera open
-in the viewer or a live player, showing its still picture), `reconnecting` (no picture for
+in the viewer or a live player, showing its still picture; from the clip
+player, revision 6, with `reason`: `user` when the user clicked the video,
+`hidden` when your page hid it), `reconnecting` (no picture for
 the moment; retried for about 2 minutes, the reason shown on the picture),
 `denied` (the user may no longer watch it), `limit` (too many cameras open,
-§10), `ended` (stopped; the reason shown on the picture), `still` (a still
+§10), `ended` (stopped; the reason shown on the picture; from the clip
+player also at `until`, at each 2 minutes, and where the recording ends), `still` (a still
 picture arrived, in a strip showing still pictures, §5.2). A frame never
 shows a still picture as if it were live: each one carries its time.
 
@@ -930,6 +970,11 @@ users:
 10. A viewer or player with `capture=0` has no Record, Take picture,
     Download clip or Protect, but keeps full quality and camera control; a
     player with `controls=0&quality=small` plays the small stream.
+11. The clip player (`mode=recordings&controls=0&at=&until=`): only the
+    video; it stops at `until` with `ended`; `player.position` comes about
+    once a second and follows a click to pause (`paused`, `reason` `user`);
+    `player.seek` plays another time without a reload and without a second
+    place (§10); a user without recordings gets `denied`.
 
 Farm Control has a reference host page for its administrators that shows
 the frames and calls the API with a test user, so a problem can be placed
@@ -939,13 +984,13 @@ on the farm's side or yours.
 
 | | |
 |---|---|
-| Frames | `/embed/v1/previews?integration=&cameras=&names=&mode=&alertSound=`, `/embed/v1/modal?integration=&camera=&capture=&alerts=`, `/embed/v1/player?integration=&camera=&mode=&controls=&capture=&quality=`, `/embed/v1/approvals?integration=` |
+| Frames | `/embed/v1/previews?integration=&cameras=&names=&mode=&alertSound=`, `/embed/v1/modal?integration=&camera=&capture=&alerts=`, `/embed/v1/player?integration=&camera=&mode=&controls=&capture=&quality=&at=&until=`, `/embed/v1/approvals?integration=` |
 | API base | `/api/integration/v1`, `Authorization: Bearer <token>` |
 | Assertion | JWT EdDSA, `kid`; `iss`, `aud`, `sub`, `perm`, `iat`, `exp` (≤ 60 s), `jti`, `name` |
 | Features | viewing, recordings, controls, capture, configuration, deviceApprovals, alerts, cameraAlerts, twoWayAudio |
 | Alerts | `GET /alerts`, `?changedSince=` with the last answer's `now`, `?state=resolved` (§7.11) |
 | Camera alerts | `PUT`/`DELETE /cameras/{id}/alert`, `GET /camera-events?since=` with the last answer's `now`, at most every 5 s; `GET /camera-events/{id}/picture` (§7.12) |
 | Look (every frame) | `&theme=light\|dark\|auto&accent=&accentText=&bg=&panel=` (six hex digits, no #); the `theme` message (§5.3) |
-| Messages in | `assertion`, `previews.set`, `previews.options`, `visibility`, `theme`, `close` |
-| Messages out | `ready`, `assertion.needed`, `camera.open`, `modal.closed`, `state`, `previews`, `session.ended`, `resize`, `device.changed`, `camera.alert` |
+| Messages in | `assertion`, `previews.set`, `previews.options`, `visibility`, `theme`, `close`, `player.seek` |
+| Messages out | `ready`, `assertion.needed`, `camera.open`, `modal.closed`, `state`, `previews`, `session.ended`, `resize`, `device.changed`, `camera.alert`, `player.position` |
 | Never | camera addresses, passwords, stream addresses; adding or removing cameras; access rules; users |
