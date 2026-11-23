@@ -27,6 +27,19 @@ Step "Node.js $NodeMajor"
 $node = Get-Command node -ErrorAction SilentlyContinue
 $have = if ($node) { [int]((& node -v).TrimStart('v').Split('.')[0]) } else { 0 }
 if ($have -eq $NodeMajor) { Ok ("Node " + (& node -v)) }
+elseif (Get-Command nvm -ErrorAction SilentlyContinue) {
+  # nvm for Windows (the old git-checkout servers): it switches C:\nvm4w\nodejs,
+  # the Node every program finds, the MBM service included. A running Node
+  # keeps the version it started with until it restarts.
+  Write-Host "  Node $(& node -v) is installed with nvm; releases need Node $NodeMajor."
+  if (-not (Ask "Install the newest Node $NodeMajor with nvm and make it the one in use? (nvm keeps the old one: nvm use <version> goes back)")) { Halt "Node $NodeMajor is needed." }
+  & nvm install $NodeMajor | Out-Host
+  & nvm use $NodeMajor | Out-Host
+  Refresh-Path
+  $have = [int]((& node -v).TrimStart('v').Split('.')[0])
+  if ($have -ne $NodeMajor) { Halt "Node $(& node -v) answers, not ${NodeMajor}: nvm list, then nvm use <the $NodeMajor version>." }
+  Ok ("Node " + (& node -v) + " (nvm)")
+}
 else {
   # Not winget's "LTS": it moves on (it became 26) while releases are built with $NodeMajor
   if ($have) {

@@ -54,8 +54,12 @@ elseif (Ask "No users yet. Make the first administrator (admin@business.local)?"
 
 Step "The MBM service"
 $svc = Get-CimInstance Win32_Service -Filter "Name='$Service'" -ErrorAction SilentlyContinue
-if ($svc) { Ok ("installed: " + $svc.PathName) }
-elseif (Ask "Install the MBM Windows service (starts at boot, after PostgreSQL)?") {
+# A service from somewhere else (an old server's git checkout) would go on
+# starting that old code: it is replaced by one that runs $App
+$elsewhere = $svc -and ($svc.PathName -notlike "*$App\*")
+if ($elsewhere) { Write-Host ("  The MBM service runs another folder: " + $svc.PathName) }
+if ($svc -and -not $elsewhere) { Ok ("installed: " + $svc.PathName) }
+elseif (Ask $(if ($elsewhere) { "Replace it with one that runs $App? (the old folder is left as it is)" } else { "Install the MBM Windows service (starts at boot, after PostgreSQL)?" })) {
   Push-Location $App; try { & node windows-service\force-install-hybrid.js } finally { Pop-Location }
   $svc = Get-CimInstance Win32_Service -Filter "Name='$Service'" -ErrorAction SilentlyContinue
   if (-not $svc) { Halt "the service was not installed (above)." }

@@ -47,6 +47,10 @@ $urlFile = Join-Path $Root 'setup\.database-url'
 $current = if (Test-Path $envFile) { Select-String -Path $envFile -Pattern '^\s*DATABASE_URL\s*=\s*"?([^"]+)' | Select-Object -Last 1 } else { $null }
 if (Test-Path $urlFile) { $dbUrl = (Get-Content -Raw $urlFile).Trim(); Ok "from step 3" }
 elseif ($current) { $dbUrl = $current.Matches[0].Groups[1].Value.Trim(); Ok "kept from the current .env.local (step 3's note was used by an earlier run)" }
+elseif ($From -and (Test-Path (Join-Path $From '.env.local')) -and ($old = Select-String -Path (Join-Path $From '.env.local') -Pattern '^\s*DATABASE_URL\s*=\s*"?([^"]+)' | Select-Object -Last 1)) {
+  # Converting a server in place (its git checkout as -From): same database
+  $dbUrl = $old.Matches[0].Groups[1].Value.Trim(); Ok "the same database as $From (this server keeps its database)"
+}
 else {
   Todo "no address from step 3"
   $s = Read-Host -AsSecureString "DATABASE_URL (postgresql://user:password@localhost:5432/multi_business_db)"
@@ -62,7 +66,9 @@ if ($From) {
   $settings = Read-Env $oldEnv
   if (-not $settings.Contains('ENCRYPTION_KEY')) { Halt "the old .env.local has no ENCRYPTION_KEY: ask the AI before going on" }
   Ok ("kept " + $settings.Count + " settings, among them ENCRYPTION_KEY and NEXTAUTH_SECRET")
-  foreach ($d in 'certs', 'data') {
+  # Files MBM keeps on disk, not in the database: uploaded documents and
+  # images, payroll exports (install-release.ps1 keeps the same ones)
+  foreach ($d in 'certs', 'data', 'public\uploads', 'public\exports') {
     $src = Join-Path $From $d
     # Its contents into $App\$d: copying the folder itself into an existing
     # one (certs\tailscale from 06) nested it as certs\certs (MBM-SRV1, 2026-11-23)
