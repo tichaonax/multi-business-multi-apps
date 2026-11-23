@@ -8,7 +8,7 @@
 /.pnp
 .pnp.js
 .yarn/install-state.gz
-package-lock.json
+# package-lock.json is committed (MBM-341): every build and server installs the same versions
 
 # testing
 /coverage
