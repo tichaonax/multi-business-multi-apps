@@ -1216,6 +1216,13 @@ class HybridServiceWrapper extends EventEmitter {
       console.log('SYNC_START_ELECTRON=0: skipping Electron startup');
       return;
     }
+    // MBM-341 (D6): a service runs in Session 0 and can't show a window, so on
+    // a packaged release it never launches Electron; a server with a screen
+    // installs the POS app like a till (deploy/workstation/install-pos.ps1).
+    if (fs.existsSync(path.join(__dirname, '..', 'release.json'))) {
+      console.log('📦 Packaged release: the POS app is installed per screen, not launched by the service');
+      return;
+    }
 
     console.log('🖥️  Starting Electron kiosk application...');
 

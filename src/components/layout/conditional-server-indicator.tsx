@@ -39,6 +39,11 @@ export function ConditionalServerIndicator() {
       {label && <span>Connected to: {label}</span>}
       {label && version && <span aria-hidden>·</span>}
       {version && <span>v{version}{isOutdated ? ' — update available' : ''}</span>}
+      {isOutdated && (
+        <a href="/api/public/electron/download" className="underline" title="Or, as administrator on this till: deploy\workstation\install-pos.ps1">
+          Download
+        </a>
+      )}
     </div>
   )
 }

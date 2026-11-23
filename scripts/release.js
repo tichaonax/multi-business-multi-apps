@@ -109,6 +109,26 @@ try {
   ok('built')
   run('npm prune --omit=dev --legacy-peer-deps --no-audit --no-fund', work)
 
+  // 2b. The POS app (Electron) installer, from the same commit. The server
+  // serves it at /api/public/electron/download; tills install it with
+  // deploy/workstation/install-pos.ps1. Its node_modules aren't shipped.
+  const ew = path.join(work, 'electron')
+  const epkg = JSON.parse(fs.readFileSync(path.join(ew, 'package.json'), 'utf8'))
+  const eout = path.join(work, 'electron-build')
+  npmCi(ew)
+  run(`npx electron-builder --win --publish never --config.directories.output="${eout}"`, ew)
+  const setup = fs.readdirSync(eout).find(f => /\.exe$/i.test(f) && f.includes(epkg.version))
+  if (!setup) throw new Error(`electron-builder left no installer for ${epkg.version} in ${eout}`)
+  const instDir = path.join(work, 'electron-installer')
+  fs.mkdirSync(instDir, { recursive: true })
+  const instName = `Multi-Business-POS-Setup-${epkg.version}.exe`
+  fs.copyFileSync(path.join(eout, setup), path.join(instDir, instName))
+  const instHash = crypto.createHash('sha256').update(fs.readFileSync(path.join(instDir, instName))).digest('hex')
+  fs.writeFileSync(path.join(instDir, `${instName}.sha256`), `${instHash}  ${instName}\n`)
+  for (const d of [eout, path.join(ew, 'node_modules')]) fs.rmSync(d, { recursive: true, force: true })
+  var electronInfo = { version: epkg.version, installer: `electron-installer/${instName}`, sha256: instHash }
+  ok(`POS app installer ${instName}`)
+
   // 3. Never ship secrets or the build cache (the worktree's .git link is left
   // for git to remove the worktree, and kept out of the zip below)
   for (const f of ['.env.local', '.env', '.next/cache']) fs.rmSync(path.join(work, f), { recursive: true, force: true })
@@ -128,6 +148,7 @@ try {
     platform: `${process.platform}-${process.arch}`,
     migrations: { count: migrations.length, last: migrations[migrations.length - 1] },
     lockfile,
+    electron: electronInfo,
   }
   fs.writeFileSync(path.join(work, 'release.json'), JSON.stringify(info, null, 2))
   ok(`release.json: ${info.version}, ${info.migrations.count} migrations (last ${info.migrations.last})`)

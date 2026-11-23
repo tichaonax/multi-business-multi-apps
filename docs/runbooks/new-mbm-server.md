@@ -114,6 +114,23 @@ powershell -ExecutionPolicy Bypass -File C:\MBM\setup\install-release.ps1
 Backup first → switch (previous kept) → migrations → start → "the server
 answers <version>". Something wrong: `rollback-release.ps1`.
 
+## Tills: the POS app (Electron)
+
+Every release carries the POS app installer built from the same commit; the
+server hands it out at `/api/public/electron/download`. On each till (and on
+the server, if it has its own screen; the service no longer launches the app),
+as administrator:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\install-pos.ps1 -Server https://MBM-SRV1:8080
+```
+
+(`deploy/workstation/install-pos.ps1`.) It does nothing when the till already
+has that version; otherwise downloads, checks the SHA-256, installs silently
+(the app closes and comes back) and says old → new. `-Insecure` when the till
+doesn't trust the server's certificate yet. On the sign-in screen, an
+"update available" badge has a **Download** link to the same installer.
+
 ## Backups
 
 `backup-now.ps1`: the whole database (`pg_dump`), read back before it counts.
