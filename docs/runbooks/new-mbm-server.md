@@ -66,6 +66,35 @@ Firmware: power on after power loss. Windows 11 Pro, Windows Update until
 nothing is left, your administrator account. UPS with its USB cable and
 shutdown software. Network cable.
 
+**Names**: `MBM-SRV<n>` for a server people work on, `MBM-DEV<n>` for a
+development/test server. The Windows name and the tailnet name are the same
+(`mbm-srv1.tail2cac9d.ts.net`); renaming later: §10.
+
+**Accounts**: your own administrator account (in Terminal (Admin)):
+
+```powershell
+$name = '<you>'
+New-LocalUser $name -FullName '<Your Name>' -Password (Read-Host -AsSecureString "Password for $name") -PasswordNeverExpires
+Add-LocalGroupMember -Group Administrators -Member $name
+```
+
+Sign in with it once, then remove or disable the vendor's account (or give
+it a password). **Nobody signs in by itself**: a server runs everything as
+services, so it must come back after a restart with the sign-in screen up.
+Two things sign an account in by themselves:
+- an account **with no password** (Windows signs it straight in; found on
+  MBM-DEV1's `pcuser`): `net user <account> *` gives it one;
+- Windows' "use my sign-in info to finish setting up after an update or
+  restart", off for everyone with:
+
+```powershell
+New-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System' -Name DisableAutomaticRestartSignOn -Value 1 -PropertyType DWord -Force | Out-Null
+Set-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' -Name AutoAdminLogon -Value '0'
+```
+
+Test it: restart with nobody signed in; the AI checks that Tailscale, SSH
+and the services came back.
+
 ## 1. Tailscale and the AI's SSH
 
 The AI makes a key for this server only (`~/.ssh/mbm_srv1_ed25519`, at your
@@ -88,6 +117,25 @@ until someone signs in at its keyboard. If it stops there, as that account:
 `tailscale set --unattended`. If the AI can't reach the server even though
 it shows on the tailnet (Tailscale's own ping gets no answer), the server's
 network is blocking Tailscale: try another network.
+
+When the server already has another administrator the AI can use (as
+MBM-DEV1 had Farm Control's `farmnet-ai`), the AI runs `01` itself with
+`-RandomPassword`: `mbm-ai` then gets a random password nobody sees. To
+know it, set your own: `net user mbm-ai *`.
+
+**Tailscale belongs to the Windows account that signed it in** (the
+"owner"). Unattended, its tunnel serves the whole machine, whoever is
+signed in, but only the owner and SYSTEM may give it commands. Everyone
+else gets "already in use by <owner>" or "running in server mode
+(<owner>)", and their tray icon shows a sign-in or error message: that is
+expected and harmless, the connection is fine. So:
+- the owner account keeps a password and never has to be signed in;
+- **don't sign Tailscale in again from another account**: Windows keeps
+  Tailscale sign-ins per account, so that would most likely add a second
+  machine to the tailnet, with a new address (the AI's SSH and Farm
+  Control's agents use the old one);
+- the AI gives Tailscale commands (the certificate, a name) through a
+  one-off task that runs as SYSTEM, as `06` does.
 
 ## 2 to 5
 
@@ -165,6 +213,11 @@ powershell -ExecutionPolicy Bypass -File C:\MBM\setup\install-release.ps1
 
 Backup first → switch (previous kept) → migrations → start → "the server
 answers <version>". Something wrong: `rollback-release.ps1`.
+
+A copy stopped half-way (or cut by a restart) can leave the partial zip
+locked on the server, and the next copy then fails: delete it after a
+restart, then copy again. `install-release.ps1` checks the SHA-256, so a
+damaged copy is never installed.
 
 ## Tills: the POS app (Electron)
 
@@ -266,6 +319,33 @@ them.
    (not deleted), then asks before removing. After this the way back is
    `rollback-release.ps1` only. Git itself stays installed unless
    `-RemoveGit` (other programs on the machine may use it).
+
+## 10. Renaming a server
+
+Done on MBM-DEV1 (was `desktop-4us91kl`), 2026-11-23/24.
+
+1. **Windows** (the AI, as `mbm-ai`): `Rename-Computer -NewName MBM-DEV1`;
+   it takes effect at the next restart. Account names follow
+   (`MBM-DEV1\<account>`); nothing else on the machine changes.
+2. **The tailnet name** (the AI, through a one-off SYSTEM task):
+   `tailscale set --hostname=mbm-dev1`. Same tailnet address; the new name
+   resolves within seconds. In the Tailscale console, rename the machine
+   too if its name was ever set there by hand. (To rename Windows only and
+   keep the old tailnet name, set `--hostname=<old name>` instead, before
+   the restart.)
+3. **MBM's certificate**: `06-tailscale-certificate.ps1` (or wait: its
+   task notices the name changed and gets a new one within 15 minutes).
+4. **Everything that uses the old name**, outside MBM's server:
+   - MBM on other machines that link to this one, e.g. Farm Control's
+     address in Admin → Farm Control;
+   - Farm Control, when it runs on this machine: its own certificate, the
+     Pi agents' controller address, the site configs that name the server,
+     and its list of MBM addresses allowed to show it (`frame-ancestors`:
+     every address MBM is opened at, e.g. `https://<pc>.tail2cac9d.ts.net:8080`,
+     needs to be in it);
+   - bookmarks, `install-pos.ps1` / `setup-printing.ps1 -Server` on tills.
+
+The AI's SSH uses the tailnet address, which doesn't change.
 
 ## Releases installed
 

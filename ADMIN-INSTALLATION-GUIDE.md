@@ -21,6 +21,7 @@ server installs them with scripts in `C:\MBM\setup`, which you or the AI
 | Undo the last update | `rollback-release.ps1` |
 | A database backup | `backup-now.ps1` |
 | An old server converted to releases: remove its git checkout (after testing) | `remove-old-checkout.ps1 -Checkout <folder>` |
+| Rename a server (Windows and tailnet name) / accounts and no automatic sign-in | runbook §10 / §0 |
 | A till: POS app / printing | `deploy/workstation/install-pos.ps1`, `setup-printing.ps1` |
 
 **The step-by-step is `docs/runbooks/new-mbm-server.md`**, including moving
