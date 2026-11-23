@@ -15252,6 +15252,7 @@ Files never pass through this system, and Farm Control keeps its own record of e
 - **Show camera strip on POS screens**.
 - **Camera alerts**: switch problem alerts on or off **in notifications** and **in chat** (see below).
 - **🔔 Alert me** on each camera: **Off**, **Movement**, **Sound** or **Movement or sound** (see [Movement & Sound Alerts](#movement--sound-alerts)).
+- **Movement & sound alerts**: **Keep my camera alerts** and **Corner card when one arrives**, plus a link to your alert **History** (`/cameras/alerts`).
 - **⤢ Open large**: opens a camera in the enlarged viewer.
 
 ### Camera Alerts
@@ -15286,7 +15287,7 @@ You can also be told when **a camera you choose** sees **movement** or hears **a
 | **Tabs** | **New**, **★ Watch later** (alerts you kept), **🔕 Paused** (only while you've paused a camera). |
 | **Filters** | Find a camera, a site or **a time** ("1:38", "gate 1 pm": an hour either side; without am/pm both are shown). Pick a **day** with ‹ › (not later than today), an **hour**, a **site**, and **All / Movement / Sound / No picture**. "3 new match · Clear the filters" tells you what's hidden. Filters are forgotten when the list closes. |
 | **Each row** | The picture (framed amber for movement, blue for sound, purple for both), camera, what (×n if it kept going), day, the time or from–to ("going on" while it is), and the site. **✕** dismisses it. |
-| **▶ Play** | Plays just the video **in the row**, from 5 seconds before it started to 3 seconds after it ended, one row at a time. It starts muted (🔇/🔊 at the bottom right); click the video to pause or go on; it plays 2 minutes at a time, then **▶ Play on**. An alert that happened several times gets **‹ Back · 2 of 3 · Next ›**, and the count follows the video. While it plays: **↺** from the start, **⛶ Big** (the big viewer at the moment it has reached), **■** stop. You can keep scrolling and playing other rows. |
+| **▶ Play** | Plays just the video **in the row**, from 5 seconds before it started to 3 seconds after it ended, one row at a time. It starts muted (🔇/🔊 at the bottom right); pause with ❚❚ at the bottom left or a click on the video; it plays 2 minutes at a time, then **▶ Play on**. An alert that happened several times gets **‹ Back · 2 of 3 · Next ›**, and the count follows the video. While it plays: **↺** from the start, **⛶ Big** (the big viewer at the moment it has reached), **■** stop. You can keep scrolling and playing other rows. |
 | **Watch** | Opens the recording big, filling the page. The list folds into a bar at the bottom right: **▲ Camera alerts · n new · camera and time · ‹ › · ✕**. **▲** opens the list again over the playing video (the alert you're watching is outlined "in the player"); **‹ ›** go to the alert before or after; **✕** closes the video. |
 | **☆ Later** | Keeps the alert in **Watch later** (and in History beyond 30 days) until you take it off. |
 | **🔕** | Pauses alerts from that camera **for you only** (**Undo** straight away, or **Resume** in the Paused tab). The camera keeps recording and alerting everyone else. |
@@ -15348,7 +15349,10 @@ Farm Control system administrators can't be linked. Each user links to an ordina
 | Linking users to Farm Control people | Id and status | ✅ The linking itself |
 | What each person may do per camera, clip limits, sites, live-view limits | – | ✅ |
 | Strip cameras, order, names, live/stills, strip on POS, alert switches | ✅ Per user (My Cameras) | – |
-| Which cameras alert a person (movement / sound), pausing | ✅ My Cameras (🔔 Alert me) | ✅ The same list; pausing is only there |
+| Which cameras alert a person (movement / sound) | ✅ My Cameras (🔔 Alert me) | ✅ The same list |
+| 🔕 Pausing a camera's alerts | ✅ For you in MBM only (📹 list) | ✅ Farm Control's own pause (shows **Off** here) |
+| Your alerts: seen, dismissed, watch later; History (30 days) | ✅ Per user, kept by MBM | – |
+| 🔊 Chime on/off | ✅ Per device (📹 list foot) | – |
 
 ### Troubleshooting
 
@@ -15360,4 +15364,7 @@ Farm Control system administrators can't be linked. Each user links to an ordina
 | "Too many cameras are open" | Close one of the cameras open large. The farm limits live views per person. |
 | Recording saves as WebM instead of MP4 | Update the desktop app. Recording in MP4 needs a recent version. |
 | No **🔔 Alert me** on a camera | Motion detection is off for it at the farm, or Farm Control doesn't let you choose it. |
+| ▶ Play in a row shows a timeline and day picker instead of just the video | Farm Control on the farm server is older than 0.5.0-rc206; ask FarmNet to update it (rc207 adds the ❚❚ button). |
+| "Close the other video first (two can play at once)" | Farm Control allows two videos per person: stop the row video (■), close the big viewer, or close a camera open large on another page or device. |
+| An alert says **Video no longer kept** | The camera's recordings no longer reach back that far; only the picture remains. |
 | Alerts in 📹 but no corner card or chime | Check **Corner card when one arrives** is on (My Cameras) and **🔊 Chime on** in the list's foot; click once in the page (browsers block sound until then). |
