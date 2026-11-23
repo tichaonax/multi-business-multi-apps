@@ -37,8 +37,12 @@ function run(cmd, cwd, extraEnv = {}) {
 // them (native parts, Prisma's engines, ffmpeg; not puppeteer's Chrome download:
 // MBM uses the installed Chrome). npm 11 lists the ones nobody reviewed; a
 // release with any STOPS (a later npm skips them, and they'd be missing).
-// Windows' own tar (bsdtar) makes zips; Git's GNU tar on the PATH can't
-const TAR = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'tar.exe')
+// Zips are made and unpacked with .NET's ZipFile (UTF-8 names): Windows' tar
+// crashes on file names with emoji (the repo has some), Git's tar can't zip.
+function zipDir(dir, zip) {
+  const ps = `Add-Type -A System.IO.Compression.FileSystem; [IO.Compression.ZipFile]::CreateFromDirectory('${dir}', '${zip}', 'Optimal', $false)`
+  run(`powershell -NoProfile -Command "${ps}"`, ROOT)
+}
 
 function npmCi(cwd) {
   const cmd = 'npm ci --legacy-peer-deps --no-audit --no-fund'
@@ -108,6 +112,20 @@ try {
   }
   ok('built')
   run('npm prune --omit=dev --legacy-peer-deps --no-audit --no-fund', work)
+  // The custom server (dist/) loads its packages from node_modules at run
+  // time: each one must have survived the prune (a devDependency it needs
+  // would only fail on the server, at start)
+  const builtins = new Set(require('module').builtinModules)
+  const needed = new Set()
+  const walk = d => { for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+    const f = path.join(d, e.name)
+    if (e.isDirectory()) walk(f)
+    else if (f.endsWith('.js')) for (const m of fs.readFileSync(f, 'utf8').matchAll(/require\(["']([^"'./@][^"']*|@[^/"'][^"']*)["']\)/g)) needed.add(m[1].match(/^(@[^/]+\/[^/]+|[^/]+)/)[1])
+  } }
+  walk(path.join(work, 'dist'))
+  const gone = [...needed].filter(m => !builtins.has(m) && !m.startsWith('node:') && !fs.existsSync(path.join(work, 'node_modules', m)))
+  if (gone.length) throw new Error(`the server needs ${gone.join(', ')}, but they are devDependencies (pruned): move them to dependencies in package.json`)
+  ok(`the server's ${needed.size} packages are all in the release`)
 
   // 2b. The POS app (Electron) installer, from the same commit. The server
   // serves it at /api/public/electron/download; tills install it with
@@ -153,9 +171,12 @@ try {
   fs.writeFileSync(path.join(work, 'release.json'), JSON.stringify(info, null, 2))
   ok(`release.json: ${info.version}, ${info.migrations.count} migrations (last ${info.migrations.last})`)
 
-  // 5. Zip (Windows' tar makes a .zip from the extension) and its SHA-256
+  // 5. Zip and its SHA-256
   const zip = path.join(OUT, `${name}.zip`)
-  run(`"${TAR}" -a -c -f "${zip}" --exclude ./.git -C "${work}" .`, ROOT)
+  // The worktree's .git link stays out of the zip (and comes back for git to remove the worktree)
+  const gitLink = `${work}.gitlink`
+  fs.renameSync(path.join(work, '.git'), gitLink)
+  try { zipDir(work, zip) } finally { fs.renameSync(gitLink, path.join(work, '.git')) }
   const sha = crypto.createHash('sha256')
   const fd = fs.openSync(zip, 'r'); const buf = Buffer.alloc(8 << 20); let n
   while ((n = fs.readSync(fd, buf, 0, buf.length, null)) > 0) sha.update(buf.subarray(0, n))

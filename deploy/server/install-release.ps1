@@ -86,8 +86,9 @@ if ($got -ne $want) { Halt "SHA-256 differs: $got, expected $want. Do not instal
 Ok ("SHA-256 " + $got)
 if (Test-Path $Stage) { Remove-Item $Stage -Recurse -Force }
 New-Item -ItemType Directory $Stage | Out-Null
-& "$env:SystemRoot\System32\tar.exe" -x -f $Zip -C $Stage
-if ($LASTEXITCODE -ne 0) { Halt "could not unpack $Zip" }
+# .NET, not tar: Windows' tar can't unpack file names with emoji
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+try { [IO.Compression.ZipFile]::ExtractToDirectory($Zip, $Stage) } catch { Halt "could not unpack ${Zip}: $($_.Exception.Message)" }
 $relFile = Join-Path $Stage 'release.json'
 if (-not (Test-Path $relFile)) { Halt "the zip has no release.json: not a release from npm run release." }
 $new = Get-Content -Raw $relFile | ConvertFrom-Json
