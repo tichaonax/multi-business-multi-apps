@@ -50,9 +50,20 @@ if ($state -ne 'Running') {
   try { $state = (& $ts status --json | ConvertFrom-Json).BackendState } catch { $state = '' }
   if ($state -ne 'Running') { Halt "Tailscale is not signed in yet. Sign in, then run this script again." }
 }
+# Its answer is shown, and then checked (as Farm Control's 01): unattended
+# lets the AI's account and the SYSTEM certificate task use Tailscale too.
+# On MBM-SRV1 it didn't take, and everyone but the signed-in user got
+# "401 Unauthorized: Tailscale already in use by ..." (2026-11-23).
 $ErrorActionPreference = 'Continue'
-& $ts set --unattended --accept-routes 2>&1 | Out-Null
+$said = & $ts set --unattended --accept-routes 2>&1 | Out-String
+$setExit = $LASTEXITCODE
+$unattended = $null
+try { $unattended = (& $ts debug prefs 2>$null | Out-String | ConvertFrom-Json).ForceDaemon } catch { $unattended = $null }
 $ErrorActionPreference = 'Stop'
+if ($setExit -ne 0 -or $unattended -ne $true) {
+  if ($said.Trim()) { Write-Host ("  Tailscale said: " + $said.Trim()) }
+  Halt "Tailscale is not unattended: only the Windows account that signed it in can use it. Run this script in Terminal (Admin) as that account, or there: tailscale set --unattended (or the Tailscale menu: Run unattended)"
+}
 $ip = (& $ts ip -4 | Select-Object -First 1).Trim()
 Ok "signed in, unattended: $ip"
 

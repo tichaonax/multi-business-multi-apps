@@ -12,7 +12,7 @@
 
     powershell -ExecutionPolicy Bypass -File C:\MBM\setup\05-install.ps1
 #>
-param([string]$Root = 'C:\MBM', [string]$Service = 'multibusinesssyncservice.exe')
+param([string]$Root = 'C:\MBM', [string]$Service = 'multibusinesssyncservice.exe', [switch]$Yes)
 $ErrorActionPreference = 'Stop'
 $App = Join-Path $Root 'app'
 $envFile = Join-Path $App '.env.local'
@@ -21,7 +21,8 @@ function Step($t) { Write-Host ""; Write-Host "== $t" -ForegroundColor Cyan }
 function Ok($t) { Write-Host "  OK    $t" -ForegroundColor Green }
 function Todo($t) { Write-Host "  TODO  $t" -ForegroundColor Yellow }
 function Halt($t) { Write-Host ""; Write-Host "  STOP  $t" -ForegroundColor Red; exit 1 }
-function Ask($q) { (Read-Host "$q [y/n]") -match '^[yY]' }
+# -Yes: every question answered y (the AI over SSH, where nobody can answer); each one is still printed
+function Ask($q) { if ($Yes) { Write-Host "$q [y/n]: y (-Yes)"; return $true }; (Read-Host "$q [y/n]") -match '^[yY]' }
 function EnvValue($name) {
   $m = Select-String -Path $envFile -Pattern "^\s*$name\s*=\s*(.*)$" | Select-Object -Last 1
   if ($m) { $m.Matches[0].Groups[1].Value.Trim().Trim('"').Trim("'") } else { $null }
@@ -65,14 +66,20 @@ if ($svc -and $svc.StartMode -ne 'Auto') { Set-Service $Service -StartupType Aut
 Step "Firewall"
 $rule = "MBM app (TCP $port)"
 if (Get-NetFirewallRule -DisplayName $rule -ErrorAction SilentlyContinue) { Ok $rule }
-elseif (Ask "Let the tills and other computers on the network reach MBM on port $port?") {
+elseif (Ask "Let the tills and other computers on the network reach MBM on port ${port}?") {
   New-NetFirewallRule -DisplayName $rule -Direction Inbound -Protocol TCP -LocalPort $port -Action Allow -Profile Domain, Private | Out-Null
   Ok "$rule (private and domain networks)"
 } else { Todo "other computers can't reach MBM" }
 
 Step "Certificates"
-if (Test-Path (Join-Path $App 'certs\rootCA.pem')) { Ok "certs\ is there (HTTPS)" }
-else { Todo "no certs\: HTTPS needs them (docs/TECHNICAL-DEPLOYMENT-GUIDE.md section 7.1; scripts\install-server-cert.ps1). Plain HTTP works meanwhile." }
+# Sign-in needs HTTPS: in production MBM's sign-in cookies are Secure, and a
+# browser drops them over plain http (found on MBM-SRV1, 2026-11-23)
+$own = Test-Path (Join-Path $App 'certs\rootCA.pem')
+$tsCert = Test-Path (Join-Path $App 'certs\tailscale\cert.pem')
+if ($own) { Ok "certs\ is there: HTTPS at the IP" }
+if ($tsCert) { Ok "Tailscale certificate: HTTPS at the tailnet name" }
+if (-not $own -and -not $tsCert) { Todo "no certificate, and sign-in needs HTTPS: run 06-tailscale-certificate.ps1 (the tailnet name); for the IP, certs\ from the old server (04-configure.ps1 -From) or scripts\install-server-cert.ps1" }
+elseif (-not $own) { Todo "the IP has no certificate of its own (by IP, browsers warn): certs\ from the old server (04-configure.ps1 -From)" }
 
 Step "Start"
 if ($svc) {

@@ -79,16 +79,28 @@ $ts = Join-Path $env:ProgramFiles 'Tailscale\tailscale.exe'
 if (-not (Test-Path $ts)) { $ts = (Get-Command tailscale.exe -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1).Source }
 if (-not $ts) { $ts = 'missing' }
 if (-not (Test-Path $ts)) { Fail "Tailscale isn't installed: 01-tailscale-and-ssh.ps1 first." }
-$st = (& $ts status --json) | ConvertFrom-Json
-$name = ([string]$st.Self.DNSName).TrimEnd('.')
-if ($st.BackendState -ne 'Running' -or -not $name) { Fail "Tailscale isn't connected (state $($st.BackendState))." }
-if (@($st.CertDomains) -notcontains $name) {
-  Fail "the tailnet doesn't give HTTPS certificates. Tailscale admin console > DNS: turn on MagicDNS and HTTPS Certificates."
+$ErrorActionPreference = 'Continue'
+$raw = (& $ts status --json 2>&1 | Out-String)
+$ErrorActionPreference = 'Stop'
+# While someone is signed in to the Tailscale app, Windows' Tailscale takes
+# commands only from that account and SYSTEM: not from another
+# administrator (the AI over SSH). Then the SYSTEM task does the work.
+$viaTask = (-not $Renew) -and ($raw -match 'already in use by')
+$name = ''
+if ($viaTask) {
+  Ok "Tailscale answers only its signed-in user and SYSTEM here: the SYSTEM task gets the certificate"
+} else {
+  try { $st = $raw | ConvertFrom-Json } catch { Fail ("Tailscale: " + $raw.Trim()) }
+  $name = ([string]$st.Self.DNSName).TrimEnd('.')
+  if ($st.BackendState -ne 'Running' -or -not $name) { Fail "Tailscale isn't connected (state $($st.BackendState))." }
+  if (@($st.CertDomains) -notcontains $name) {
+    Fail "the tailnet doesn't give HTTPS certificates. Tailscale admin console > DNS: turn on MagicDNS and HTTPS Certificates."
+  }
+  Ok "tailnet name: $name"
 }
-Ok "tailnet name: $name"
 
 Step "The certificate"
-$need = $true
+$need = -not $viaTask
 if ((Test-Path $CertFile) -and (Test-Path $KeyFile)) {
   $c = Read-Cert $CertFile
   $days = [int]($c.NotAfter - (Get-Date)).TotalDays
@@ -131,6 +143,18 @@ if ($script -like "$App\*" -and $script -notlike '*\deploy\server\*') {
     Start-ScheduledTask -TaskName $Task
   } catch { Fail ("could not set up the task: " + $_.Exception.Message) }
   Ok "the task '$Task' checks every 15 minutes as SYSTEM and renews when under $RenewWithinDays days are left (off: -AutoOff)"
+  if ($viaTask) {
+    # Its first run, started just now: wait for it and say what it did
+    $deadline = (Get-Date).AddSeconds(120)
+    do { Start-Sleep 3 } while ((Get-ScheduledTask -TaskName $Task).State -eq 'Running' -and (Get-Date) -lt $deadline)
+    $s = if (Test-Path $StatusFile) { Get-Content -Raw $StatusFile | ConvertFrom-Json } else { $null }
+    if ((Test-Path $CertFile) -and (Test-Path $KeyFile)) {
+      $c = Read-Cert $CertFile; $name = $c.GetNameInfo('DnsName', $false)
+      Ok "the task's run: certificate for $name until $($c.NotAfter.ToString('yyyy-MM-dd')), in $Dir"
+    } elseif ($s -and $s.lastAttempt -and -not $s.lastAttempt.ok) {
+      Fail ("the task's run failed: " + $s.lastAttempt.message)
+    } else { Fail "the task's run made no certificate: see 00-status.ps1, or run this in Terminal (Admin) as the account signed in to Tailscale" }
+  }
 }
 
 Step "Sign-in at this address"

@@ -15,7 +15,7 @@
 
     powershell -ExecutionPolicy Bypass -File C:\MBM\setup\04-configure.ps1 [-From C:\MBM\from-old]
 #>
-param([string]$Root = 'C:\MBM', [string]$From = '', [int]$Port = 8080)
+param([string]$Root = 'C:\MBM', [string]$From = '', [int]$Port = 8080, [switch]$Yes)
 $ErrorActionPreference = 'Stop'
 $App = Join-Path $Root 'app'
 $envFile = Join-Path $App '.env.local'
@@ -24,7 +24,8 @@ function Step($t) { Write-Host ""; Write-Host "== $t" -ForegroundColor Cyan }
 function Ok($t) { Write-Host "  OK    $t" -ForegroundColor Green }
 function Todo($t) { Write-Host "  TODO  $t" -ForegroundColor Yellow }
 function Halt($t) { Write-Host ""; Write-Host "  STOP  $t" -ForegroundColor Red; exit 1 }
-function Ask($q) { (Read-Host "$q [y/n]") -match '^[yY]' }
+# -Yes: every question answered y (the AI over SSH, where nobody can answer); each one is still printed
+function Ask($q) { if ($Yes) { Write-Host "$q [y/n]: y (-Yes)"; return $true }; (Read-Host "$q [y/n]") -match '^[yY]' }
 function RandomHex($n) { $b = New-Object byte[] $n; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b); ($b | ForEach-Object { $_.ToString('x2') }) -join '' }
 function RandomB64($n) { $b = New-Object byte[] $n; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b); [Convert]::ToBase64String($b) }
 function Read-Env($file) {
