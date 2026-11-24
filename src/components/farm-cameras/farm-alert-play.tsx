@@ -109,22 +109,21 @@ export function useAlertPlayer(): AlertPlayer {
   }, [playing, farm])
   const stop = useCallback(() => { setPlaying(null); setProblem(null) }, [])
 
-  // Scroll the playing row into view once it opens (guide §2.2). On a phone
-  // (MBM-343, as Farm Control's rowTop): its top just below the day heading,
-  // up or down, so its buttons show below the video; again once the video
-  // has its size. A computer is unchanged.
+  // Scroll the playing row fully into view once it has grown (guide §2.2),
+  // exactly as Farm Control's AlertInbox (MBM-343; the owner, 2026-11-24:
+  // "it misses either top or bottom"): after two frames and again at 450 ms
+  // when the video has its size; the WHOLE row (video, name, buttons), not
+  // the video alone. A computer: scrollIntoView nearest. A phone: rowTop,
+  // its top just below the day heading, up or down.
   useEffect(() => {
     if (!playing) return
     const go = () => {
       const wrap = wrapRef.current
       if (!wrap) return
-      const row = wrap.closest<HTMLElement>('[data-alert-row]')
-      const list = row?.closest<HTMLElement>('[data-alert-list]')
-      if (!row || !list || !window.matchMedia('(max-width: 639px)').matches) {
-        wrap.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
-        return
-      }
-      list.scrollTo({ top: rowTop(list, row), behavior: 'smooth' })
+      const row = wrap.closest<HTMLElement>('[data-alert-row]') || wrap
+      const list = row.closest<HTMLElement>('[data-alert-list]')
+      if (!list || !window.matchMedia('(max-width: 639px)').matches) row.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+      else list.scrollTo({ top: rowTop(list, row), behavior: 'smooth' })
     }
     let f2 = 0
     const f1 = requestAnimationFrame(() => { f2 = requestAnimationFrame(go) })
