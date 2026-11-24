@@ -91,6 +91,7 @@
     "verify:service-wrapper": "node scripts/verify-service-wrapper.js",
     "test:service-wrapper": "node scripts/test-service-wrapper.js",
     "release": "node scripts/release.js",
+    "deploy": "powershell -NoProfile -ExecutionPolicy Bypass -File deploy/deploy.ps1",
     "check:env": "node scripts/check-env.js",
     "deploy": "npm run setup:update && npm run service:restart",
     "deploy:upgrade": "node scripts/production-upgrade.js",

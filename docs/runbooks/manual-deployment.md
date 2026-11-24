@@ -10,6 +10,44 @@ The same four steps everywhere: **build → copy → install → check**. The or
 is always local → dev server → production, with the same zip: what reaches
 production is exactly what was tested.
 
+## The one command (MBM-342)
+
+`deploy\deploy.ps1` does all of the steps below, from the workstation:
+
+```powershell
+npm run deploy                                    # guided: pick a server (remembered), a branch
+.\deploy\deploy.ps1 -Target dev                   # the current branch to the dev server
+.\deploy\deploy.ps1 -Target dev -Branch main      # a named branch (local, or origin/<branch>)
+.\deploy\deploy.ps1 -Target prod -Release <name>  # the zip already tested on dev: no build
+.\deploy\deploy.ps1 -Status                       # what every remembered server runs
+.\deploy\deploy.ps1 -Target dev -Rollback         # the previous release back
+```
+
+1. Checks the server (read-only): it runs releases, its Node, free space, the service.
+2. Builds the release, or reuses the zip already built for that commit
+   (`-Rebuild` builds again). Uncommitted changes are never in it.
+3. Shows what changes: release old → new, new migrations, **the POS app
+   version** (and warns when `electron/` changed without a version bump).
+4. Asks: y/n, or for **production, its name typed in**. In guided mode,
+   production is offered the release last deployed successfully to a test server.
+5. Copies as `.part`, renamed only when complete, SHA-256 checked; skipped
+   when the server already has it.
+6. Runs `install-release.ps1`, its output live with elapsed times.
+7. Checks the new version answers at the server's address.
+8. **On a failure after the switch it rolls back at once** (`rollback-release.ps1`)
+   and checks the old version answers again.
+9. Summary: result, old → new, migrations, backup file, downtime, time per
+   phase, **whether the tills need the new POS app** (with the
+   `install-pos.ps1` line), how to undo, and the next step (production).
+   Each run's log: `releases\deploy-logs\`.
+
+Servers are remembered in `%USERPROFILE%\.mbm\deploy-targets.json` (name,
+address, key file, URL, production or not, the last releases and results):
+a new one is added the first time (`[n]` in the list); its host key must
+already be in `~/.ssh/known_hosts_mbm`.
+
+The manual steps follow, for when you want to do it by hand.
+
 ## The environments
 
 | Environment | Where MBM runs | Reached at | AI's SSH (from the workstation) |
