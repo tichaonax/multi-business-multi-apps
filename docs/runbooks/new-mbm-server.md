@@ -6,7 +6,7 @@ installed with one script that you or the AI run the same way.
 
 **No git, no `npm install`, no build on a server.** A server only holds
 releases (zips built on the build machine) in `C:\MBM`. The old way, a git
-checkout that pulls and builds in place (`ADMIN-INSTALLATION-GUIDE.md` §2–6),
+checkout that pulls and builds in place,
 is for development machines; an old server is converted with §9 below.
 
 Once step 1 is done, the AI does the rest over SSH (the scripts take `-Yes`
