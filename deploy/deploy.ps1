@@ -79,6 +79,8 @@ function RemoteStream($t, $command) {
   $script:streamed = New-Object System.Collections.ArrayList
   & ssh.exe @(SshArgs $t) "$($t.user)@$($t.host)" $command 2>&1 | ForEach-Object {
     $l = "$_"
+    # an empty line on the server's error stream shows as this: not an error
+    if ($l -eq 'System.Management.Automation.RemoteException') { $l = '' }
     [void]$script:streamed.Add([pscustomobject]@{ at = Get-Date; line = $l })
     if ($l.Trim()) { Write-Host ("  [" + (Took $t0) + "] " + $l) }
   }
