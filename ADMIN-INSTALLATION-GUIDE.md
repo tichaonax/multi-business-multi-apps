@@ -1,106 +1,60 @@
-# Multi-Business Management Platform — Production Installation Guide
+# Multi-Business Management Platform — Server Installation Guide
 
-> **Platform:** Windows 10/11 (production target)
-> **Architecture:** Next.js app running as a Windows service via node-windows, with optional Electron desktop wrapper
+> **Platform:** Windows 10/11 Pro
+> **Architecture:** a release (built on the build machine) in `C:\MBM\app`, run as a Windows service; tills run the POS app (Electron)
+> **Step by step:** `docs/runbooks/new-mbm-server.md` (servers), `docs/runbooks/manual-deployment.md` (a release to a server, by hand)
+
+---
+
+## Servers: installed from releases, not from git (MBM-341)
+
+**A server no longer has a git checkout.** It never runs `git pull`,
+`npm install` or `npm run build`. Releases are built on the build machine
+(`npm run release` → `releases/mbm-<date>-<commit>.zip` + `.sha256`) and a
+server installs them with scripts in `C:\MBM\setup`, which you or the AI
+(over SSH, on the tailnet) run the same way:
+
+| What | Script |
+|---|---|
+| What's done, what's next (read-only) | `00-status.ps1` |
+| A new server, once | `01` Tailscale + the AI's SSH → `02` Windows → `03` Node 24, Chrome, PostgreSQL 18, the database → `04` settings → (`restore.ps1`) → `05` first install, service, firewall → `06` trusted certificate for the tailnet name |
+| Every update | `install-release.ps1` (backup first, previous release kept) |
+| Undo the last update | `rollback-release.ps1` |
+| A database backup | `backup-now.ps1` |
+| An old server converted to releases: remove its git checkout (after testing) | `remove-old-checkout.ps1 -Checkout <folder>` |
+| Rename a server (Windows and tailnet name) / accounts and no automatic sign-in | runbook §10 / §0 |
+| A till: POS app / printing | `deploy/workstation/install-pos.ps1`, `setup-printing.ps1` |
+
+**The step-by-step is `docs/runbooks/new-mbm-server.md`**, including moving
+to a new server (§8) and converting an old git-checkout server in place (§9).
+
+A **development machine** runs MBM from its git checkout (`npm run dev`);
+see `README.md`. It is also the build machine (`npm run release`) and the
+certificate authority (§2).
 
 ---
 
 ## Table of Contents
 
-1. [Prerequisites](#1-prerequisites)
-2. [Clone and Install](#2-clone-and-install)
-3. [Environment Configuration](#3-environment-configuration)
-4. [Database Setup](#4-database-setup)
-5. [Build](#5-build)
-6. [Windows Service Installation](#6-windows-service-installation)
-7. [SSL Certificates (HTTPS)](#7-ssl-certificates-https)
-8. [QZ Tray Receipt Printing](#8-qz-tray-receipt-printing)
-9. [Electron Desktop App](#9-electron-desktop-app)
-10. [Client Machine Setup](#10-client-machine-setup)
-11. [Deploying Updates](#11-deploying-updates)
-12. [Troubleshooting](#12-troubleshooting)
-13. [Service Management Reference](#13-service-management-reference)
+1. [Settings (`.env.local`)](#1-settings-envlocal)
+2. [SSL Certificates (HTTPS)](#2-ssl-certificates-https)
+3. [QZ Tray Receipt Printing](#3-qz-tray-receipt-printing)
+4. [The POS App on Tills](#4-the-pos-app-on-tills)
+5. [Client Machines](#5-client-machines)
+6. [Deploying Updates](#6-deploying-updates)
+7. [Troubleshooting](#7-troubleshooting)
+8. [Service and Scripts Reference](#8-service-and-scripts-reference)
 
 ---
 
-## 1. Prerequisites
+## 1. Settings (`.env.local`)
 
-Install the following on the server machine before proceeding.
+`04-configure.ps1` writes `C:\MBM\app\.env.local` (administrators and SYSTEM
+only): new secrets for a new server, or the old server's settings with
+`-From`. It is never in a release; `install-release.ps1` carries it from one
+release to the next. What it holds:
 
-### Node.js (via nvm for Windows)
-
-Use [nvm-windows](https://github.com/coreybutler/nvm-windows) to manage Node.js versions.
-
-```powershell
-# After installing nvm-windows, install and use Node.js 20
-nvm install 20
-nvm use 20
-
-# Verify
-node --version   # v20.x.x
-npm --version
-```
-
-### PostgreSQL 18
-
-Download and install from [postgresql.org](https://www.postgresql.org/download/windows/).
-
-- Default port: `5432`
-- Note the password you set for the `postgres` user
-- Ensure the service name is `postgresql-x64-18` (the app depends on this)
-
-Verify:
-```powershell
-& "C:\Program Files\PostgreSQL\18\bin\psql.exe" -U postgres -c "SELECT version();"
-```
-(The leading `&` is PowerShell's call operator — required to execute a quoted path; omitting it produces a confusing `Unexpected token '-U'` parser error instead of running psql at all.)
-
-### Git
-
-Download from [git-scm.com](https://git-scm.com/download/win). Git also installs `openssl` which is required for certificate generation.
-
-### Java (for QZ Tray printing)
-
-Required only on machines that will print receipts via QZ Tray.
-
-Download from [adoptium.net](https://adoptium.net/) (Java 11+ LTS recommended).
-
-```bash
-java -version  # verify
-```
-
----
-
-## 2. Clone and Install
-
-```bash
-git clone <your-repository-url> multi-business-multi-apps
-cd multi-business-multi-apps
-
-npm install
-```
-
-> **Note:** `npm install` triggers a `postinstall` script. This is expected and safe.
-
-### Known issue: `printer` package's postinstall fails with ERESOLVE
-
-On a fresh install you may see `npm error ... path .../node_modules/printer` followed by an `ERESOLVE unable to resolve dependency tree` mentioning `grunt-node-gyp` and `grunt`. This is a broken dependency inside the third-party `printer` package's own postinstall build step (its `grunt-node-gyp` devDependency demands `grunt@~0.4`, but it also depends on a newer grunt) — not something specific to this server or this project's own `package.json`. It happens under npm 7+'s stricter peer-dependency resolution on any machine.
-
-**Fix (one-time per machine):**
-```powershell
-npm config set legacy-peer-deps true
-npm install
-```
-This writes to your user-level npm config, so it's also picked up by the nested `npm install` that `printer`'s postinstall spawns internally (a `--legacy-peer-deps` flag on just the outer command won't reach that child process, since it runs with its own working directory). The repo's own `.npmrc` sets this for the top-level install already, but can't reach into that nested call on its own — the command above is still needed once per machine.
-
-You can safely ignore any `npm warn cleanup ... EPERM` warnings before this error — those are just leftover files from a prior partial install that npm couldn't delete (often an antivirus or search-indexer file lock), and npm proceeds past them regardless.
-
----
-
-## 3. Environment Configuration
-
-Create `.env.local` in the project root (this file is never committed to git):
-
+```env
 ```env
 # ── Database ──────────────────────────────────────────────────────────────────
 DATABASE_URL="postgresql://postgres:YOUR_PASSWORD@localhost:5432/multi_business_db"
@@ -108,7 +62,7 @@ DATABASE_URL="postgresql://postgres:YOUR_PASSWORD@localhost:5432/multi_business_
 # ── Auth ──────────────────────────────────────────────────────────────────────
 # Generate a secret: node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 NEXTAUTH_SECRET="your-generated-secret-here"
-NEXTAUTH_URL="http://localhost:8080"   # update to https:// after SSL is set up
+NEXTAUTH_URL="https://<server>:8080"
 
 # ── App ───────────────────────────────────────────────────────────────────────
 PORT=8080
@@ -171,128 +125,10 @@ security boundary until it's actually wired into `next.config.js`.
 
 ---
 
-## 4. Database Setup
+## 2. SSL Certificates (HTTPS)
 
-### Create the database
-
-```powershell
-& "C:\Program Files\PostgreSQL\18\bin\psql.exe" -U postgres -c "CREATE DATABASE multi_business_db;"
-```
-
-### Run migrations
-
-```bash
-npm run db:deploy
-```
-
-> **Critical:** Never use `prisma db push` on production. Always use `db:deploy` which runs `prisma migrate deploy`.
-
-### Verify
-
-```bash
-npm run db:status
-```
-
-Expected: `Database schema is up to date!`
-
----
-
-## 5. Build
-
-```bash
-npm run build
-```
-
-This runs:
-1. `prisma generate` — generates the Prisma client
-2. `next build` — compiles the Next.js app into `.next/`
-3. `tsc --project tsconfig.server.json` — compiles `server.ts` into `dist/server.js`
-
-> **Important:** `dist/server.js` must exist for the service to start. If it's missing after a `git pull` on an **existing** install, don't just run `npm run build:server` on its own — the service needs to be stopped first, or the build can fail with an `EPERM`/file-lock error. See §11 "Deploying Updates" for the full stop → rebuild → start sequence. (On a brand-new install, the service doesn't exist yet, so this section's plain `npm run build` above is fine as-is.)
-
----
-
-## 6. Windows Service Installation
-
-The app runs as a Windows service via `node-windows`. The service starts PostgreSQL → runs migrations → seeds reference data (including the default `admin@business.local` / `admin123` login — no separate step needed) → starts the Next.js app.
-
-> Install this **before** setting up SSL certificates in [§7](#7-ssl-certificates-https) —
-> `npm run cert:install` tries to restart the service to apply the cert, and
-> there's nothing to restart yet if the service isn't installed.
-
-### Install (run as Administrator)
-
-```bash
-npm run service:install
-```
-
-This registers the `MultiBusinessSyncService` in Windows Services and creates the daemon files in `windows-service/daemon/`.
-
-> The service depends on `postgresql-x64-18`. PostgreSQL must be installed and its service name must match.
-
-### Start
-
-```bash
-npm run service:start
-```
-
-### Verify it's running
-
-```bash
-npm run service:status
-# or
-sc query "MultiBusinessSyncService"
-```
-
-### View logs
-
-```powershell
-# Live tail of application output
-Get-Content "windows-service\daemon\multibusinesssyncservice.out.log" -Wait -Tail 30
-
-# Live tail of errors
-Get-Content "windows-service\daemon\multibusinesssyncservice.err.log" -Wait -Tail 30
-```
-
-Healthy startup sequence ends with:
-```
-[Server] HTTPS enabled — cert: <filename>.pem, key: <filename>-key.pem
-[Server] listening on https://localhost:8080
-```
-
-### Open the firewall port (for LAN access)
-
-The app binds `0.0.0.0:8080`, so it's reachable from other machines as soon
-as the service is running — **provided Windows Firewall allows it.** This is
-easy to miss because `https://localhost:8080` on the server itself works
-fine either way (loopback traffic never passes through the firewall's
-inbound filtering), which can make it look like everything's working right
-up until someone tries it from another PC on the network.
-
-**Run as Administrator, on the server:**
-```powershell
-New-NetFirewallRule -DisplayName "Multi-Business App" -Direction Inbound -Protocol TCP -LocalPort 8080 -Action Allow
-```
-
-**Verify from another machine on the LAN:**
-```powershell
-Test-NetConnection -ComputerName <this-server-ip> -Port 8080
-```
-`TcpTestSucceeded : True` confirms the port is reachable. If it's `False`,
-also check `Get-NetConnectionProfile` on the server — a network profile of
-`Public` isn't itself the problem (the rule above applies to `Any` profile
-by default), but it's worth confirming the rule's `Profile` actually covers
-whatever profile the active network interface is using:
-```powershell
-Get-NetFirewallRule -DisplayName "Multi-Business App" | Select-Object DisplayName, Enabled, Direction, Action, Profile
-```
-If both of those look correct and it's still unreachable, the block may be
-happening at the router/access point level instead (e.g. Wi-Fi client
-isolation) rather than in Windows — see §12 for further troubleshooting.
-
----
-
-## 7. SSL Certificates (HTTPS)
+**Sign-in needs HTTPS:** MBM's sign-in cookies are Secure, so a browser drops
+them over plain `http://`.
 
 The app auto-detects HTTPS by checking the `certs/` folder for `.pem` files. If certs are present, the server starts on HTTPS; otherwise it falls back to HTTP.
 
@@ -301,14 +137,15 @@ single "certificate authority" machine and copied out to each server. Only
 that one machine needs `mkcert` installed; every other server just receives
 the already-generated files.
 
-> Do this after [§6](#6-windows-service-installation) — `npm run cert:install`
-> restarts the service to apply the cert.
+> **Simplest:** open MBM by the server's tailnet name. `06-tailscale-certificate.ps1`
+> gives it a trusted certificate that renews itself: nothing to install on any
+> machine. The shared LAN certificate below is for opening MBM by IP.
 
 ### 7a. One-time setup — the certificate authority machine only
 
 Pick one machine to be the permanent cert authority (this only needs to be
 done once, ever — subsequent servers never repeat this step). `mkcert` isn't
-on the Node/Git installers used elsewhere in this guide, so download it
+installed by any MBM setup script, so download it
 directly rather than assuming Scoop/Chocolatey are available:
 
 1. Download the Windows binary from the
@@ -329,10 +166,9 @@ directly rather than assuming Scoop/Chocolatey are available:
    This writes `certs/<ip>+N.pem` and `certs/<ip>+N-key.pem`, covering every
    IP in that list plus `localhost`/`127.0.0.1`.
 
-> `openssl` (used only to verify a cert's coverage, in `install-server-cert.ps1`)
-> is **not** a separate install — it ships with Git for Windows, already a
-> prerequisite for every server per [§1](#1-prerequisites). No server other
-> than the cert-authority machine ever needs `mkcert` itself.
+> The cert-authority machine is a development machine (it has the git checkout
+> and Git for Windows, whose `openssl` checks a certificate's coverage). No
+> server ever needs `mkcert`.
 
 ### 7b. Adding or setting up a new server (do this on every other server)
 
@@ -347,18 +183,19 @@ directly rather than assuming Scoop/Chocolatey are available:
    `certs/<ip>+N-key.pem`) to the new server — USB stick, shared folder, SCP;
    the `certs/` folder is in `.gitignore`, so this is always a manual/out-of-band
    transfer, never a `git pull`.
-3. On the new server, from the app root — **after** the service is installed
-   (see [§6](#6-windows-service-installation)):
-   ```bash
-   npm run cert:install -- "<path containing the copied files>"
+3. On the new server, in `C:\MBM\app`, after `05-install.ps1`:
+   ```powershell
+   cd C:\MBM\app; npm run cert:install -- "<folder with the copied files>"
    ```
+   (A server moved or converted with `04-configure.ps1 -From` already has
+   the old server's `certs\`.)
    This places the files in `certs/`, warns if the server's own IP wasn't
    actually included in the certificate (the most common mistake — forgetting
    step 1), and restarts the service for you.
 4. Confirm the service log shows `[Server] HTTPS enabled — certs loaded from ./certs/`.
 
 Every machine that opens the app in a browser also needs to trust the root
-CA once — that's covered separately in [§10](#10-client-machine-setup), since
+CA once — that's covered separately in [§5](#5-client-machines), since
 it's a one-time step per *client*, not per server.
 
 ### 7c. Certificate renewal
@@ -379,19 +216,29 @@ Renewing is the same as adding a server, minus changing the IP list:
 
 ### Update NEXTAUTH_URL
 
-After SSL is working, update `.env.local` on that server to use its own IP:
+`.env.local` (`C:\MBM\app\.env.local`) names the address people use:
 
 ```env
 NEXTAUTH_URL="https://<this-server-ip>:8080"
 ```
 
-Restart the service after this change.
+Restart the service after a change: `Restart-Service multibusinesssyncservice.exe`.
+`AUTH_TRUST_HOST=true` (set by `04-configure.ps1`) lets sign-in work at the
+tailnet name and the IP alike.
 
 ---
 
-## 8. QZ Tray Receipt Printing
+## 3. QZ Tray Receipt Printing
 
 QZ Tray is a Java desktop app that lets the browser print to local/network printers without browser print dialogs.
+
+> **The quick way (MBM-341):** after installing QZ Tray on a till, run, as administrator,
+> `powershell -ExecutionPolicy Bypass -File deploy\workstation\setup-printing.ps1 -Server https://<server>:8080`.
+> It fetches MBM's QZ signing certificate from the server and installs it as QZ's
+> `override.crt` (no Allow/Deny popup, no USB stick, no Site Manager), trusts the
+> server's root certificate when the till uses its IP (no `setup-ssl.bat`), and
+> restarts QZ. Safe to run again. The manual steps below still work.
+> QZ Tray 2.2 brings its own Java: no separate Java install.
 
 ### Install QZ Tray
 
@@ -410,7 +257,7 @@ This is fine for a small number of machines; the signed-certificate setup below 
 
 > **How this differs from SSL certs:** The SSL `rootCA.pem` must be a physical file on the server. The QZ certificate is different — the server reads it from `.env.local` env vars, not from a file. Only client machines (where QZ Tray is installed) need the physical `qz-certificate.pem` file.
 
-**Step 1 — Generate the signing certificate** (run once on the server or any dev machine):
+**Step 1 — Generate the signing certificate** (once, on a development machine):
 
 ```bash
 npm run qz:generate-cert
@@ -437,86 +284,47 @@ Copy `certs/qz-certificate.pem` to each machine where QZ Tray is installed (USB,
 4. Select the `qz-certificate.pem` file
 5. Restart QZ Tray
 
-**Step 4 — Rebuild and restart the service:**
+**Step 4 — Restart the service** (nothing to build: the settings are read at start):
 
-```bash
-npm run build
-npm run service:restart
+```powershell
+Restart-Service multibusinesssyncservice.exe
 ```
 
 From this point, QZ Tray will silently trust all print requests from the app — no more popups.
 
 | File | Server needs it? | QZ Tray machine needs it? |
 |------|-----------------|--------------------------|
-| `rootCA.pem` | ✅ Physical file in `certs/` | ✅ Run `setup-ssl.bat` |
+| `rootCA.pem` | ✅ Physical file in `certs/` (by IP only) | ✅ `setup-printing.ps1` or `setup-ssl.bat` |
 | SSL cert + key `.pem` | ✅ Physical file in `certs/` | ❌ Not needed |
 | `qz-certificate.pem` | ❌ Env var in `.env.local` only | ✅ Add to QZ Tray trusted list |
 
 ---
 
-## 9. Electron Desktop App
+## 4. The POS App on Tills
 
-Electron wraps the web app as a desktop application and launches automatically at Windows startup.
+The POS app (Electron: the till's screen and the customer display) is
+installed on each till, never run from a server:
 
-### Install Electron's dependencies (do this first)
-
-`electron/` is a separate npm project with its own `package.json` — the root
-`npm install` in [§2](#2-clone-and-install) does **not** install it.
-
-```bash
-npm run electron:setup
+```powershell
+# on the till, as administrator
+powershell -ExecutionPolicy Bypass -File deploy\workstation\install-pos.ps1 -Server https://<server>:8080
 ```
 
-This runs `npm install` inside `electron/` and creates the startup shortcut
-(see below) in one step — nothing else in this section works until it's run
-at least once.
-
-### Install the startup shortcut
-
-```bash
-npm run electron:install-startup
-```
-
-This creates a shortcut in `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup` that launches Electron when the user logs in. (Already done for you by `electron:setup` above — only run this again on its own if you need to regenerate the shortcut, e.g. after changing certs.)
-
-> Run this command **after** setting up SSL certificates. The shortcut is regenerated with the correct `http://` or `https://` protocol based on what certs are present.
-
-### Launch manually
-
-```bash
-npm run electron:start
-```
-
-### How Electron detects HTTPS
-
-`electron/main.js` auto-detects certs in the `certs/` folder and loads `https://localhost:8080` if they exist, otherwise `http://localhost:8080`. It also has a certificate-error handler to trust the self-signed mkcert cert.
-
-### Building a distributable installer (for other client machines)
-
-Everything above runs Electron straight from source on **this** server. To
-package it as a standalone Windows installer that other client machines can
-install without cloning the repo:
-
-```bash
-cd electron
-npm run build:win
-```
-
-This produces an NSIS installer (`.exe`) under `multi-business-electron-dist/`
-(sibling to the app root — see `electron/package.json`'s `build.directories.output`).
-It's a one-click, per-machine installer that creates its own desktop/Start
-Menu shortcuts and launches on completion. Requires `electron:setup` (above)
-to have been run at least once first.
-
-Copy the generated `.exe` to each client machine and run it — no Node.js or
-this repo needed there. Client machines still need to trust the SSL
-certificate separately (see [§10](#10-client-machine-setup)).
+Its installer is built on a development machine: `cd electron; npm run build:win`
+(output in `multi-business-electron-dist\`). Every change under `electron\`
+bumps `electron/package.json`'s version, shown in the window title.
+`electron/README.md` covers the dual-monitor setup.
 
 ---
 
-## 10. Client Machine Setup
+## 5. Client Machines
 
 Every Windows machine that opens the app in Chrome or Edge needs to trust the SSL certificate once.
+
+> **Simplest:** open MBM by the server's tailnet name (`https://<server>.<tailnet>.ts.net:8080`,
+> runbook step 6): its certificate is trusted
+> everywhere, so nothing to install. By IP, `deploy\workstation\setup-printing.ps1`
+> installs the root certificate for you (Option A/B below are the manual way).
 
 ### Option A — One-click (recommended)
 
@@ -535,116 +343,83 @@ Every Windows machine that opens the app in Chrome or Edge needs to trust the SS
 ### QZ Tray on client machines
 
 Each client machine that prints needs:
-1. Java 11+ installed
-2. QZ Tray 2.2.6 installed and running
-3. `certs/qz-certificate.pem` added to QZ Tray (see Section 8 Step 2)
+1. QZ Tray 2.2.6 installed and running (it brings its own Java)
+2. MBM's QZ certificate trusted by QZ: `deploy\workstation\setup-printing.ps1` (or §3 Step 3 by hand)
 
 ---
 
-## 11. Deploying Updates
+## 6. Deploying Updates
 
-**Stop the service first.** `npm install` (its `postinstall` hook runs `prisma generate`) and `npm run build` (which also runs `prisma generate`) both need to overwrite the Prisma query engine DLL — and Windows refuses to do that while any running process, including this app's own service, still has it loaded. Building before stopping the service fails with an `EPERM`/file-lock error on that DLL.
+Build on the build machine, copy, install. **`docs/runbooks/manual-deployment.md`
+has every step** (local, the dev server, production):
 
 ```bash
-# 1. Stop the service — releases the Prisma engine lock
-npm run service:stop
-
-# 2. Pull latest code
-git pull
-
-# 3. Install any new dependencies
-npm install
-
-# 4. Run new migrations
-npm run db:deploy
-
-# 5. Rebuild
-npm run build
-
-# 6. Start the service back up
-npm run service:start
+npm run release                       # build machine: the commit checked out
+```
+```powershell
+# the zip + .sha256 in C:\MBM\incoming on the server, then on the server:
+powershell -ExecutionPolicy Bypass -File C:\MBM\setup\install-release.ps1
+# something wrong after it:
+powershell -ExecutionPolicy Bypass -File C:\MBM\setup\rollback-release.ps1
 ```
 
-> If only `server.ts` changed (no UI changes), you can skip the full build and just run `npm run build:server` instead of step 5.
->
-> You can skip step 5 entirely if you'd rather let the service rebuild itself: the hybrid service wrapper (§6) detects a stale commit on startup and runs `npm run build` on its own before serving requests — since the service is already stopped at that point (step 1), it hits none of the locking issues a manual mid-run build would. Either way, the service must be stopped before step 3.
+`install-release.ps1` checks the SHA-256, backs up the database, stops the
+service, keeps the running release in `C:\MBM\previous`, switches, applies
+migrations (`migrate deploy`, never `db push`), starts the service and checks
+that the server answers with the new version. Nothing is built on the server.
 
 ### After a failed migration
 
-If a migration fails and leaves the database in a `failed` state:
-
-```bash
-# 1. Mark the failed migration as rolled back
-npm run db:rollback MIGRATION_NAME
-
-# 2. Re-apply (with the fixed migration SQL)
-npm run db:deploy
-```
-
-(`npm run db:status` and `npm run db:rollback` load `.env.local` for you — the raw `npx prisma` CLI only ever reads `.env`, never `.env.local`, and doesn't support `--env-file` with this project's `prisma.config.ts` setup.)
+`install-release.ps1` stops and says so; the database backup it made first
+is in `C:\MBM\backups`. `rollback-release.ps1` puts the previous release
+back. Fix the migration in the code and build a new release; never edit the
+database by hand.
 
 ---
 
-## 12. Troubleshooting
+## 7. Troubleshooting
 
 ### Service starts then stops immediately
 
-Check the error log:
 ```powershell
-Get-Content "windows-service\daemon\multibusinesssyncservice.err.log" -Tail 50
+Get-Content C:\MBM\app\windows-service\daemon\multibusinesssyncservice.err.log -Tail 50
 ```
 
-Common causes:
-- **`dist/server.js` not found** — stop the service first (`npm run service:stop`), then `npm run build:server`, then `npm run service:start`. Building while the service is still running (or mid-restart-loop) can fail with an `EPERM`/file-lock error on the same files it's trying to overwrite — see §11's note on this.
-- **PostgreSQL not running** — start PostgreSQL service first
-- **Port 8080 in use** — find and stop the conflicting process
-- **Migration failed** — see "After a failed migration" above
+Common causes: PostgreSQL not running (`Get-Service postgresql-x64-18`), port
+8080 in use, a failed migration (§6), a missing `.env.local`
+(`00-status.ps1` says what is missing).
 
 ### Migration lock stuck
 
-Symptom: `Migration lock present, waiting 5s...` repeating in logs.
+Symptom: `Migration lock present, waiting 5s...` repeating in the logs.
 
-```bash
-npm run service:stop
-npm run db:clear-locks    # or manually delete .migration.lock file
-npm run service:start
+```powershell
+Stop-Service multibusinesssyncservice.exe
+cd C:\MBM\app; npm run db:clear-locks
+Start-Service multibusinesssyncservice.exe
 ```
-
-If no lock file but still stuck, reboot the server — a zombie process may be holding the lock.
 
 ### App running on HTTP instead of HTTPS
 
-The server logs this on startup:
-```
-[Server] HTTP only — no certs found in ./certs/
-```
-
-Fix:
-1. Ensure `certs/` folder exists in the app root (`C:\Users\...\multi-business-multi-apps\certs\`)
-2. Ensure it contains both a `.pem` cert file and a `-key.pem` key file
-3. Ensure this server's own IP is actually in `scripts/lan-server-ips.json` and
-   was included when the certificate was generated — a cert loading fine but
-   still showing "not secure"/mismatch warnings usually means this, not a
-   missing-file problem. Re-run `npm run cert:install` — it warns explicitly
-   if the local IP isn't covered.
-4. Ensure `dist/server.js` was compiled from the latest `server.ts` — **stop the service first** (`npm run service:stop`), then `npm run build:server`; running it while the service is still up can fail with an `EPERM`/file-lock error
-5. Start the service back up (`npm run service:start`)
+The log says `[Server] HTTP only — no certs found in ./certs/`: put a
+certificate in `C:\MBM\app\certs` (§2) or run `06-tailscale-certificate.ps1`,
+then restart the service.
 
 ### `https://localhost:8080` works but `https://<server-ip>:8080` doesn't (from another machine)
 
-This is almost always a Windows Firewall rule missing on the server — see §6
-"Open the firewall port". Loopback traffic bypasses the firewall entirely,
+This is almost always the Windows Firewall rule missing on the server
+(`05-install.ps1` adds "MBM app (TCP 8080)"). Loopback traffic bypasses the firewall entirely,
 which is why localhost works regardless.
 
 Diagnose in order:
-1. On the server: `Get-NetFirewallRule -DisplayName "Multi-Business App" | Select-Object Enabled, Action, Profile` — confirm the rule exists, is `Enabled: True`, `Action: Allow`.
+1. On the server: `Get-NetFirewallRule -DisplayName "MBM app (TCP 8080)" | Select-Object Enabled, Action, Profile` — confirm the rule exists, is `Enabled: True`, `Action: Allow`.
 2. From the *other* machine (not the server): `Test-NetConnection -ComputerName <server-ip> -Port 8080`. If `TcpTestSucceeded` is `False`, the block is somewhere in the network path, not the app.
 3. If a VPN/mesh network (e.g. Tailscale) is installed on either machine, check `Test-NetConnection`'s `InterfaceAlias` in its output — a successful connection routed through a VPN interface only proves that VPN path works, not that the real LAN path does. Retest with the VPN disabled if you need to confirm plain LAN connectivity.
 4. If the firewall rule and TCP path both check out but it's still unreachable from some devices and not others, suspect the router/access point — Wi-Fi client isolation (common on guest networks) blocks device-to-device traffic before it ever reaches Windows Firewall.
 
 ### QZ Tray popup appears every print job
 
-The `QZ_PRIVATE_KEY` and `QZ_CERTIFICATE` are not set in `.env.local`, or the cert hasn't been added to QZ Tray. Follow Section 8 fully.
+The `QZ_PRIVATE_KEY` and `QZ_CERTIFICATE` are not set in `.env.local`, or the cert hasn't been added to QZ Tray. Follow §3, or run `setup-printing.ps1` on the till.
 
 ### QZ Tray popup not appearing at all
 
@@ -656,97 +431,39 @@ Click **Allow** on the QZ Tray popup and check **"Remember this decision"** — 
 
 ### Chrome/Edge shows "Not secure" despite certs being installed
 
-The root CA hasn't been trusted on *that specific client machine* yet — this is a per-client step, unrelated to whether the server's cert is correct. Run `certs\setup-ssl.bat` on that machine (see Section 10) and restart the browser.
+The root CA hasn't been trusted on *that specific client machine* yet — this is a per-client step, unrelated to whether the server's cert is correct. Run `setup-printing.ps1` or `certs\setup-ssl.bat` on that machine (§5), or use the tailnet name and restart the browser.
 
 ### Electron shows ERR_TIMED_OUT
 
-The server hasn't finished starting when Electron tried to connect. Wait 30–60 seconds for the full startup sequence to complete, then re-open Electron. For a permanent fix, the startup shortcut waits before launching — re-run `npm run electron:install-startup`.
+The server hasn't finished starting when Electron tried to connect. Wait 30–60 seconds for the full startup sequence to complete, then re-open Electron. The POS app retries by itself; if not, reinstall it with `install-pos.ps1`.
 
-### NEXTAUTH JWT session errors after rebuilding
+### NEXTAUTH JWT session errors after a settings change
 
 Old session cookies become invalid when `NEXTAUTH_SECRET` changes or the server URL changes from `http://` to `https://`. Users just need to log out and log back in. No code fix required.
 
 ---
 
-## 13. Service Management Reference
+## 8. Service and Scripts Reference
 
-| Command | Description |
-|---------|-------------|
-| `npm run service:install` | Install as Windows service (run as Admin) |
-| `npm run service:uninstall` | Remove Windows service (run as Admin) |
-| `npm run service:start` | Start the service |
-| `npm run service:stop` | Stop the service |
-| `npm run service:restart` | Stop then start |
-| `npm run service:status` | Show service status |
-| `npm run db:deploy` | Run pending database migrations |
-| `npm run db:clear-locks` | Clear stuck migration locks |
-| `npm run build` | Full build (Next.js + server.ts) |
-| `npm run build:server` | Compile server.ts only (fast) |
-| `npm run electron:install-startup` | Install/update Electron startup shortcut |
-| `npm run qz:generate-cert` | Generate QZ Tray signing certificate |
-| `npm run cert:generate` | Regenerate the shared LAN HTTPS certificate (cert-authority machine only) |
-| `npm run cert:generate -- --add <ip>` | Add a new server's IP and regenerate in one step |
-| `npm run cert:install -- <path>` | Install a copied certificate on this server and restart |
+| What | How (on the server, as administrator) |
+|---|---|
+| Status of everything | `C:\MBM\setup\00-status.ps1` |
+| Start / stop / restart | `Start-Service` / `Stop-Service` / `Restart-Service multibusinesssyncservice.exe` |
+| Install a release | `C:\MBM\setup\install-release.ps1` |
+| Undo the last release | `C:\MBM\setup\rollback-release.ps1` |
+| Database backup now | `C:\MBM\setup\backup-now.ps1` |
+| Restore a backup | `C:\MBM\setup\restore.ps1` |
+| Tailnet certificate | `C:\MBM\setup\06-tailscale-certificate.ps1` |
+| Install a copied LAN certificate | `cd C:\MBM\app; npm run cert:install -- <folder>` |
+| Clear stuck migration locks | `cd C:\MBM\app; npm run db:clear-locks` |
+
+On a development machine: `npm run release`, `npm run qz:generate-cert`,
+`npm run cert:generate [-- --add <ip>]`.
 
 ### Log file locations
 
 | Log | Path |
 |-----|------|
-| Application stdout | `windows-service\daemon\multibusinesssyncservice.out.log` |
-| Application stderr | `windows-service\daemon\multibusinesssyncservice.err.log` |
-| Wrapper log | `windows-service\daemon\multibusinesssyncservice.wrapper.log` |
-
----
-
-## Quick Reference — Fresh Server Setup
-
-```bash
-# 1. Install Node.js (via nvm), PostgreSQL 18, Git
-
-# 2. Clone and install
-git clone <repo> multi-business-multi-apps
-cd multi-business-multi-apps
-npm install
-
-# 3. Create .env.local (fill in your values)
-#    See Section 3 for all required variables
-
-# 4. Create database
-# (if running this in PowerShell rather than Git Bash, prefix the line below with `& `)
-"C:\Program Files\PostgreSQL\18\bin\psql.exe" -U postgres -c "CREATE DATABASE multi_business_db;"
-
-# 5. Run migrations
-npm run db:deploy
-
-# 6. Build
-npm run build
-
-# 7. Install Windows service (Admin shell) — do this BEFORE step 8. cert:install
-#    tries to restart the service to apply the cert; on a fresh server there's
-#    nothing to restart yet if this is skipped.
-npm run service:install
-npm run service:start
-
-# 8. Get the shared HTTPS certificate onto this server (see Section 7)
-#    On the cert-authority machine: npm run cert:generate -- --add <this-server-ip>
-#    Copy the two regenerated certs/*.pem files here, then:
-npm run cert:install -- "<path to the copied files>"
-
-# 9. Set up QZ Tray signing (eliminates print popups) — only needed if this
-#    server has receipt printers connected via QZ Tray (see Section 8).
-#    QZ Tray itself installs on each PRINTING WORKSTATION, not this server —
-#    download it from https://qz.io/download/ (version 2.2.6) separately.
-#    This step below just generates the signing cert on the server:
-npm run qz:generate-cert
-# → add QZ_PRIVATE_KEY and QZ_CERTIFICATE to .env.local
-# → add certs/qz-certificate.pem to QZ Tray trusted list
-npm run service:restart
-
-# 10. Install Electron startup shortcut
-npm run electron:install-startup
-
-# 11. Trust SSL cert on each client machine
-#     Copy certs/setup-ssl.bat + certs/rootCA.pem → run setup-ssl.bat on each machine
-```
-
-Default admin login: `admin@business.local` / `admin123` — **change immediately after first login.**
+| Application stdout | `C:\MBM\app\windows-service\daemon\multibusinesssyncservice.out.log` |
+| Application stderr | `C:\MBM\app\windows-service\daemon\multibusinesssyncservice.err.log` |
+| Wrapper log | `C:\MBM\app\windows-service\daemon\multibusinesssyncservice.wrapper.log` |

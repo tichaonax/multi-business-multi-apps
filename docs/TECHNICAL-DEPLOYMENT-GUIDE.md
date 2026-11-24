@@ -1,66 +1,46 @@
 # Technical Deployment Guide
 
-**Audience:** a system administrator comfortable with git, Node.js, PostgreSQL, and Windows Server administration, who has **not** worked with this codebase before. This document takes you from `git clone` to a running production server **and** covers what needs to happen on the individual workstations (POS terminals, printer/scale machines, remote sites) that connect to it.
+**Audience:** a system administrator comfortable with Node.js, PostgreSQL and Windows administration, who has **not** worked with this codebase before. This document explains how a server and its workstations fit together: architecture, settings, database, certificates, networking, workstations (POS terminals, printer/scale machines, remote sites) and troubleshooting.
 
-**Status:** the repo's deployment documentation was consolidated down to two co-canonical files, each verified against the actual current code and scripts rather than carried forward from older prose. This file covers architecture, the full narrative walkthrough, workstation/agent/printer deep-dives, and troubleshooting playbooks. **`ADMIN-INSTALLATION-GUIDE.md`** covers the same install in step-by-step numbered-checklist form, plus SSL certificate setup and client-machine trust — the two cross-reference each other throughout and neither supersedes the other. The various older, single-purpose deployment/setup/fresh-install notes that used to sit at the repo root have been deleted (fully superseded, some actively wrong — e.g. a stale `.env` vs `.env.local` instruction) or archived to `ai-contexts/project-plans/completed/` (historical, ticket-specific incident writeups, not general install instructions).
+**Servers are installed from releases, not from git (MBM-341).** A server never has a git checkout and never builds: the build machine makes a release (`npm run release`) and the server installs it with the scripts in `C:\MBM\setup`. The steps are in:
+- `docs/runbooks/new-mbm-server.md` — a new server, moving to a new server, converting an old git-checkout server, renaming;
+- `docs/runbooks/manual-deployment.md` — a release from the workstation to the local machine, the dev server or production;
+- `ADMIN-INSTALLATION-GUIDE.md` — the checklist form: settings, certificates, QZ Tray, tills, troubleshooting.
 
 ---
 
 ## 1. Architecture in one paragraph
 
-This is a single Next.js 15 application with a **custom Node HTTP server** (`server.ts`, not `next start`) that also hosts a Socket.io server (used for real-time sync, the customer display, and the R710/Workstation local-agent protocols), a PostgreSQL database via Prisma, and an optional standalone Windows Service wrapper that keeps the whole thing running and can rebuild itself. There is no reverse proxy, load balancer, or container setup checked into the repo — the app is designed to be reached directly on its own port. Workstations are plain thin clients — a browser, and optionally a small local helper program (QZ Tray, the R710/Workstation agent, or an Electron kiosk shell) — nothing workstation-side runs its own copy of the application or database.
+This is a single Next.js 15 application with a **custom Node HTTP server** (`server.ts`, not `next start`) that also hosts a Socket.io server (used for real-time sync, the customer display, and the R710/Workstation local-agent protocols), a PostgreSQL database via Prisma, and a Windows Service wrapper that keeps it running. On a server it runs a **release** in `C:\MBM\app` (built elsewhere, with its `node_modules` and build included). There is no reverse proxy, load balancer, or container setup checked into the repo — the app is designed to be reached directly on its own port. Workstations are plain thin clients — a browser, and optionally a small local helper program (QZ Tray, the R710/Workstation agent, or an Electron kiosk shell) — nothing workstation-side runs its own copy of the application or database.
 
 ---
 
 ## 2. Prerequisites
 
-Install these on the machine that will run the server, before touching the repo. **For the actual download links and install/verify steps** (nvm-windows → Node 20, PostgreSQL installer + `psql` verification, Git, Java for QZ Tray), see `ADMIN-INSTALLATION-GUIDE.md` §1 — that file is the step-by-step checklist form of this same install; the table below is just the version/rationale reference.
+**On a server**, `03-prerequisites.ps1` installs everything: Node.js 24 (the version releases are built with), Google Chrome (payslip and voucher PDFs) and PostgreSQL 18 as the Windows service `postgresql-x64-18` (MBM's service depends on that exact name). No git, no build tools: nothing is compiled on a server.
 
-| Software | Version | Notes |
-|---|---|---|
-| **Node.js** | **20.x LTS** | No `engines` field or `.nvmrc` is committed. `package.json` pins `next@15.5.4`, which requires Node ≥18.18 — Node 20 LTS is the safe, actively-supported choice. Ignore the "Node.js 16+" message printed by the installer script (`scripts/install/install.js`) — that check is stale against the actual Next.js requirement. |
-| **npm** | ships with Node | No separate version pin found anywhere. |
-| **PostgreSQL** | **18.x** | Required specifically if you'll use the automated Windows Service installer (§8) — it registers the app's service with a hard-coded Windows Service Control Manager dependency on a service literally named `postgresql-x64-18` (`windows-service/config.js`). If you install a different PostgreSQL major version, either install PG 18 as well or edit that `dependencies` array before running the service installer, or the service will fail to start. If you're not using the Windows Service installer, any reasonably current PostgreSQL (14+) is fine for the app itself. |
-| **Git** | any current version | Used to clone the repo; also read at runtime by the Windows Service wrapper to detect when a rebuild is needed (it compares the currently checked-out commit to the commit the last build was made from). |
-| **openssl** | any current version | Needed to generate the QZ Tray signing certificate (§7.2) — ships with Git for Windows, so usually already present. |
-| **mkcert** | latest | Only needed if you'll serve the app over HTTPS (§7.1) — required in practice for QZ Tray printing to work in Chrome/Edge. |
+**On the build machine** (a development machine with the git checkout): Node.js 24 (the same major as the servers: `node_modules` holds native parts such as Prisma's engines, `bcrypt` and `canvas`), Git, and Windows x64 like the servers. If a native module fails to build during `npm ci` (`node-gyp rebuild`), install Visual Studio Build Tools' "Desktop development with C++" workload.
 
-### Native Node modules — platform build tools
-
-Two dependencies compile native code: **`bcrypt`** (password hashing) and **`canvas`** (image/label rendering, barcode work). Both ship prebuilt binaries for common platform/Node-ABI combinations, so a plain `npm install` usually just works. If it doesn't (a `node-gyp rebuild` failure during `npm install`):
-
-- **Windows**: install the "Desktop development with C++" workload via Visual Studio Build Tools, or run `npm install --global windows-build-tools` (older npm) / ensure Python 3 + the MSVC toolchain is on PATH.
-- **Linux**: `sudo apt-get install -y build-essential libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev` (Debian/Ubuntu; adjust package manager for other distros) — these are `canvas`'s standard system dependencies, and are **not documented anywhere else in this repo**.
-
-### Is production Windows-only?
-
-**In practice, yes**, even though the codebase isn't strictly Windows-only:
-
-- `scripts/install/install-service.js` (the *sync* service installer, §8.1) does branch on `os.platform()` and will write a real systemd unit file on Linux.
-- But the actual **self-healing production launcher** for the main app server (`windows-service/`, §8.2) uses the `node-windows` package and Windows Service Control Manager APIs — there is no Linux equivalent of it. On Linux you'd be running `node dist/server.js` directly under a plain systemd unit with no auto-rebuild-on-stale-commit behavior.
-
-Everything in this guide works on Linux for running the app itself; §8.2 specifically (the hybrid auto-updating service) is Windows-only.
+**Production is Windows-only**: the service wrapper (`windows-service/`) uses `node-windows`, and the setup scripts are PowerShell.
 
 ---
 
-## 3. Get the code
+## 3. Get a release
+
+On the build machine, in the git checkout:
 
 ```bash
-git clone <your-repo-url> multi-business-multi-apps
-cd multi-business-multi-apps
+npm run release                 # the commit checked out now
+npm run release -- --ref main   # any commit, branch or tag
 ```
 
-Pick the branch/tag you intend to deploy before continuing (`git checkout <branch>`).
+It builds from a clean copy of that commit (uncommitted changes never get in): `npm ci` → `npm run build` → `npm prune --omit=dev` → `releases/mbm-<date>-<commit>.zip` and its `.sha256`. Copying it to a server and installing it: `docs/runbooks/manual-deployment.md`.
 
 ---
 
 ## 4. Environment configuration
 
-The repo ships a `.env.example` at the root — **it is not complete**. Copy it and then add the variables called out below that are missing from it entirely.
-
-```bash
-cp .env.example .env.local
-```
+On a server, `04-configure.ps1` writes `C:\MBM\app\.env.local` (new secrets for a new server, or the old server's settings with `-From`); `install-release.ps1` carries it from release to release. It is never in a release. On a development machine, copy `.env.example` (**it is not complete**) and add the variables below.
 
 ### 4.1 Why `.env.local` and not `.env`
 
@@ -104,74 +84,31 @@ These are enforced or required by code — the app will error or misbehave witho
 | `LOG_LEVEL` | `info` | `error` / `warn` / `info` / `debug`. |
 | `SYNC_*` | — | Only relevant if this server participates in multi-branch peer sync — see `.env.example`'s SYNC section and `SERVICE_*` block. Irrelevant for a single-server deployment; leave as placeholders. |
 
-### 4.4 A separate set of variables used only by the installer
-
-`scripts/install/install-database.js` provisions the database using its **own** set of env vars — it does **not** read `DATABASE_URL`:
-
-```
-POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=postgres
-POSTGRES_DB=multi_business_db
-POSTGRES_SUPERUSER=postgres
-```
-
-If you use the automated installer (§8.1) with a custom database name/user, set these to match whatever you then put in `DATABASE_URL` — the two are not automatically kept in sync.
-
 ---
 
 ## 5. Database setup
 
-You can do this manually (below) or via the automated installer, `npm run install:full` (§8), which wraps the same steps. Manual steps, for full control:
+On a server the scripts do all of it: `03-prerequisites.ps1` makes the database, `install-release.ps1` applies the migrations, the service seeds the reference data when it starts, and `05-install.ps1` makes the first administrator (only when the database has no users). What they do:
 
 ### 5.1 Create the database and user
 
-```sql
--- as the postgres superuser
-CREATE DATABASE multi_business_db;
-CREATE USER app_user WITH ENCRYPTED PASSWORD 'a-real-password';
-GRANT ALL PRIVILEGES ON DATABASE multi_business_db TO app_user;
-```
-
-Put the resulting connection string in `.env.local` as `DATABASE_URL`.
-
-### 5.2 Install dependencies and generate the Prisma client
-
-```bash
-npm install
-npm run db:generate   # equivalent to: npx prisma generate
-```
+`03-prerequisites.ps1` makes `multi_business_db` with its own user `mbm_app` (not the `postgres` superuser) and a random password, and keeps the address for `04-configure.ps1`, which puts it in `.env.local` as `DATABASE_URL`. It never prints it.
 
 ### 5.3 Apply migrations
 
 **Always use `prisma migrate deploy` for a real deployment — never `prisma migrate dev`.** `migrate dev` is a development-only command that can create a shadow database and prompt interactively; `migrate deploy` just applies the existing migration history non-interactively, which is what you want here. As of this branch there are **453 migration files** in `prisma/migrations/` — this will take a little while on a completely empty database.
 
-```bash
-npm run db:deploy
-```
-
-(`db:deploy` is the `.env.local`-aware wrapper described in §4.1; equivalent to `npx prisma migrate deploy` with `DATABASE_URL` exported manually.)
+`install-release.ps1` runs it on every release, after a database backup. On a development machine: `npm run db:deploy` (the `.env.local`-aware wrapper described in §4.1).
 
 ### 5.4 Seed reference data — required, not optional
 
-A migrated-but-unseeded database is **not usable** — dropdowns, ID-number templates, phone/date format templates, job titles, compensation/benefit types, business categories, and permission templates all come from seed data, not from the schema itself. Run:
+A migrated-but-unseeded database is **not usable** — dropdowns, ID-number templates, phone/date format templates, job titles, compensation/benefit types, business categories, and permission templates all come from seed data, not from the schema itself. The service wrapper seeds it every time it starts (idempotent), so a server never needs a separate step.
 
-```bash
-npm run setup:production -- --no-admin --ignore-missing-models
-# equivalent to: node scripts/production-setup.js --no-admin --ignore-missing-models
-```
-
-`--no-admin` is important here — see §5.5 for why.
-
-Do **not** confuse this with the various `npm run seed:*` scripts (`seed:hardware`, `seed:clothing-bales`, `seed:customers`, etc.) — those are **demo/sample data** for testing and training environments, not required for a production deployment. Skip them unless you specifically want sample data.
+Do **not** confuse this with the various `npm run seed:*` scripts (`seed:hardware`, `seed:clothing-bales`, `seed:customers`, etc.) — those are **demo/sample data** for testing and training environments, not for production.
 
 ### 5.5 Create the first admin user
 
-```bash
-npm run create-admin
-# equivalent to: node scripts/create-admin.js
-```
+`05-install.ps1` runs `node scripts/create-admin.js` when the database has no users (a restored or converted server keeps its people).
 
 This creates:
 
@@ -182,13 +119,11 @@ password: admin123
 
 **Change this password immediately after your first successful login** — nothing in the app forces a password change on first login, and this is a well-known default.
 
-> **Why `--no-admin` matters in §5.4:** `scripts/production-setup.js` can *also* create its own admin user if run without `--no-admin` — a second, independent code path (`createSystemAdmin()`) that uses a different internal ID and a different, larger default permissions object than `scripts/create-admin.js` does. Both are functionally fine on their own (neither creates duplicates — both check for an existing user by email first), but running both against the same database is pointless and potentially confusing. **Stick to the sequence above**: `production-setup.js --no-admin` for reference data, then `create-admin.js` for the admin user, exactly as the automated installer does internally.
-
 ### 5.6 Optional: clothing category reference images (MBM-294)
 
 Unlike §5.4, this step is **entirely optional and safe to skip or defer indefinitely** — nothing else in the app depends on it, and there's no broken/error state for a server where it's never run. It seeds the shared "Reference Pool" of category photos that clothing businesses can browse and attach to their own products (Sidebar → 🖼️ Image Gallery → 🗂 Pool). Skipping it just means that server's clothing categories have no pool photos yet; everything else (manual image upload, the gallery itself, product photos already in the database) works identically either way.
 
-The image files themselves are **not in git** — they're copied to each server separately from the normal code deploy, same as `.env.local`. To populate the pool on a given server:
+The images are stored in the database (`images` table), so a server restored from a backup that has them needs nothing more. The source files are **not in git**. To populate the pool on a server that has none (in `C:\MBM\app`):
 
 1. Copy `scripts/mbm294-extracted/` (the `manifest.json` plus its `images/` folder) from a server where it's already been extracted — or run `node scripts/mbm294-extract-catalog-taxonomy.js` on this server if you have the source `.ods` file here instead. Either produces the same folder; extraction is idempotent and has no side effects on the database.
 2. Run the import once, by hand, against this server's own `.env.local`:
@@ -201,27 +136,16 @@ This is a one-time, manual step **per server** (not wired into the automatic mig
 
 ---
 
-## 6. Build
+## 6. Build (on the build machine)
 
-```bash
-npm run build
-```
-
-This runs, in order:
+`npm run release` runs `npm run build` in its clean copy, which runs, in order:
 
 1. `prisma generate`
-2. `next build` (with `NODE_OPTIONS=--max-old-space-size=8192` — the Next.js build genuinely needs a large heap on this codebase; don't strip that flag if you're scripting this yourself)
-3. `npm run build:server` → `tsc --project tsconfig.server.json`, which compiles `server.ts` (and everything it transitively imports) to `dist/server.js`. **This step must succeed before `npm start` will work at all** — `npm start` runs `dist/server.js` directly, and that file only exists after this step.
-4. `postbuild` (automatic): `scripts/mark-build-complete.js` (writes build markers, including the current git commit — this is what the Windows Service wrapper later checks for staleness) and then `scripts/build-agent.js` (builds the separate R710 local-agent `.exe`/`.zip` used for remote device support — **failure here is logged but does not fail the overall build**; if you don't need the R710 remote-agent feature you can ignore a warning from this step).
+2. `next build` (with `NODE_OPTIONS=--max-old-space-size=8192` — the Next.js build genuinely needs a large heap on this codebase)
+3. `npm run build:server` → `tsc --project tsconfig.server.json`, which compiles `server.ts` to `dist/server.js` (what the service runs)
+4. `postbuild`: `scripts/mark-build-complete.js` (build markers) and `scripts/build-agent.js` (the R710 local-agent `.exe`/`.zip`; a failure here is logged but does not fail the build)
 
-### 6.1 Verifying the build
-
-```bash
-ls dist/server.js        # must exist
-ls .next/BUILD_ID         # must exist
-```
-
-If either is missing, `npm start` (§8) and the Windows Service wrapper (§8.2) will both fail.
+A release holds `dist/server.js` and `.next/BUILD_ID`; `install-release.ps1` refuses one without them. A server never builds.
 
 ---
 
@@ -232,8 +156,8 @@ There are **two entirely separate certificates** involved in a full deployment, 
 | | TLS certificate (§7.1) | QZ Tray signing certificate (§7.2) |
 |---|---|---|
 | Purpose | Encrypts traffic between browsers and the app server (HTTPS) | Lets the app's print requests be trusted by QZ Tray on a workstation without a popup every time |
-| Where it's generated | Anywhere with `mkcert` (often your own workstation, then copied to the server) | **On the app server itself**, via a script in this repo |
-| Where it's installed | `certs/` folder at the app's repo root | `.env.local` (the key pair) **and** QZ Tray's own trust store on every workstation that prints via QZ Tray |
+| Where it's generated | Anywhere with `mkcert` (the cert-authority development machine), then copied to the server; or `06-tailscale-certificate.ps1` for the tailnet name | A development machine, via a script in this repo |
+| Where it's installed | `certs/` in the app (`C:\MBM\app\certs`) | `.env.local` (the key pair) **and** QZ Tray's own trust store on every workstation that prints via QZ Tray |
 | Who needs to trust it | Every client browser (once each) | QZ Tray itself, on every printing workstation (once each) |
 
 ### 7.1 TLS / HTTPS (browser ↔ server)
@@ -275,7 +199,7 @@ mkcert -version
 #### Generating and installing the TLS certificate
 
 > **Prefer the scripted path** (`npm run cert:generate` / `npm run cert:install`,
-> documented in `ADMIN-INSTALLATION-GUIDE.md` §7) over the manual
+> documented in `ADMIN-INSTALLATION-GUIDE.md` §2) over the manual
 > commands below — it maintains the server IP list in
 > `scripts/lan-server-ips.json`, always copies the correct current
 > `rootCA.pem` from `mkcert -CAROOT` (avoiding the second ⚠️ below entirely),
@@ -291,8 +215,8 @@ mkcert <server-ip-1> <server-ip-2> localhost 127.0.0.1
 
 This produces a cert + key pair (e.g. `192.168.0.108+3.pem` / `192.168.0.108+3-key.pem`) **in your current directory only** — see the ⚠️ callout below before assuming `rootCA.pem` is also freshly there. Then:
 
-1. Create a `certs/` folder at the repo root (same level as `package.json`) and place the cert, key, and `rootCA.pem` inside it.
-2. Restart the server: `npm run start` (or restart the Windows Service if that's how it's running — see §8.2).
+1. Create a `certs/` folder in the app (`C:\MBM\app\certs` on a server) and place the cert, key, and `rootCA.pem` inside it.
+2. Restart the service: `Restart-Service multibusinesssyncservice.exe`.
 3. Confirm the console (or that service's logs) shows `HTTPS enabled — certs loaded from ./certs/`.
 4. The app is now reachable at `https://<server-ip>:8080` (or whatever port you configured).
 
@@ -311,13 +235,13 @@ Trusting this certificate on client machines is covered in §10.1 (workstation s
 > ```
 > Restart the server, then **revoke and re-pair** every local agent connected to it — same reasoning as above, a re-pair is what actually delivers the corrected `caCert`. See §10.3's troubleshooting note for the equivalent workstation-side diagnostic steps (how to confirm this is actually the cause before assuming it).
 
-### 7.2 QZ Tray signing certificate (generated on the server)
+### 7.2 QZ Tray signing certificate
 
-This is the certificate the user-facing docs refer to as "installing our own certificate" — it's separate from the TLS certificate above, generated **on the server** by a script already in this repo, and only matters if you're printing through QZ Tray (§10.2).
+This is the certificate the user-facing docs refer to as "installing our own certificate" — it's separate from the TLS certificate above, generated once by a script in this repo (on a development machine), and only matters if you're printing through QZ Tray (§10.2).
 
 By default, QZ Tray shows the operator a trust popup on every single print job unless the request is cryptographically signed with a certificate QZ Tray has been told to trust. Generating your own certificate (rather than using QZ's bundled demo certificate) means that trust is set up once, deliberately, rather than relying on a certificate anyone else with the QZ demo files could also produce.
 
-**On the server**, one-time:
+**On a development machine**, one-time:
 
 ```bash
 npm run qz:generate-cert
@@ -329,7 +253,7 @@ This requires `openssl` on PATH (see §2) and:
 1. Generates a 2048-bit RSA key pair and a self-signed certificate (10-year validity) with `openssl`.
 2. Writes the public certificate to `certs/qz-certificate.pem`.
 3. Prints two lines to the console — `QZ_PRIVATE_KEY=...` and `QZ_CERTIFICATE=...` (both base64-encoded) — **copy both into `.env.local`**. These are what the server uses to sign every print request it sends to a workstation's QZ Tray.
-4. Restart the server (or the Windows Service — `npm run service:restart`) so it picks up the new env vars.
+4. Put both in the server's `C:\MBM\app\.env.local` and restart the service (`Restart-Service multibusinesssyncservice.exe`) so it picks them up. Tills trust it with `deploy\workstation\setup-printing.ps1`.
 
 At this point the server is signing its requests, but no workstation trusts the certificate yet — that half of the setup is per-workstation and covered in §10.2.
 
@@ -337,72 +261,17 @@ At this point the server is signing its requests, but no workstation trusts the 
 
 ## 8. Running the server
 
-There are three ways to run this in production, in increasing order of robustness. Pick one.
+`05-install.ps1` installs the Windows service (`multibusinesssyncservice.exe`, starts at boot, depends on `postgresql-x64-18`), whose target is `windows-service/service-wrapper-hybrid.js` in `C:\MBM\app`. On every start the wrapper seeds reference data (§5.4), checks the build is there, and runs `node dist/server.js` as a monitored child process, restarting it if it crashes.
 
-### Option A — Plain foreground process (quick test only)
-
-```bash
-npm run build   # if not already built
-npm run start
+```powershell
+Get-Service multibusinesssyncservice.exe
+Restart-Service multibusinesssyncservice.exe
+C:\MBM\setup\00-status.ps1        # everything at once (read-only)
 ```
 
-This runs in the foreground and stops when the terminal closes. Fine for a smoke test; not a real production setup (no restart-on-crash, no auto-rebuild).
+An update is a new release (`install-release.ps1`), never `git pull`; see `docs/runbooks/manual-deployment.md`.
 
-### Option B — The automated installer (`npm run install:full`)
-
-`node scripts/install/install.js` runs a **non-interactive**, six-step pipeline:
-
-1. `preInstallationChecks()`
-2. `installDependencies()` (`npm install`)
-3. `installDatabase()` — everything in §5, automated (skip with `--skip-database`)
-4. `installService()` — installs the **sync** service (see the naming warning in §8.1 below); skip with `--skip-service`
-5. `postInstallationSetup()`
-6. `finalVerification()`
-
-```bash
-npm run install:full
-# or, to skip pieces you're handling manually:
-npm run install:full -- --skip-database --skip-service
-```
-
-**What this does NOT do**: it does not run `npm run build` (§6), and it does not touch `certs/` (§7). You still need to run the build yourself and set up certificates if you want them, whether or not you use this installer.
-
-### 8.1 ⚠️ Historical naming trap (resolved 2026-09-12)
-
-Until 2026-09-12 this repo had **two independently-installable Windows services with actively misleading names**: `scripts/install/install-service.js` (run standalone, or as part of `install:full`'s step 4) installed a *separate* service literally named `multi-business-sync` — the legacy peer-to-peer database sync engine, which never worked in production and has since been removed entirely (see `ai-contexts/project-plans/review/projectplan-NOTKT-remove-legacy-sync-service-2026-09-12.md`). `install:full`/`install:dev`/`install:service` now all install the same one real service described below — there is no second one to confuse it with anymore.
-
-**If a server was set up before this date**, it may still have that old `multi-business-sync` service registered and running pointlessly — check with `sc query multi-business-sync` and remove it with `sc delete multi-business-sync` (as Administrator) if found. This is a one-time manual cleanup; nothing in the codebase will ever reinstall it.
-
-### 8.2 Option C — The hybrid self-healing Windows Service (recommended for production)
-
-```bash
-npm run service:install # must run from an elevated/Administrator shell
-```
-
-This registers a Windows service (internally named `MultiBusinessSyncService` — see the warning above) whose target script is `windows-service/service-wrapper-hybrid.js`. On every start, that wrapper:
-
-1. Checks whether `dist/server.js` and `.next/BUILD_ID` exist, and compares the git commit recorded at last build time (written by `mark-build-complete.js`, §6) against the currently checked-out commit.
-2. If the build is missing or stale relative to the current commit, **it runs `npm run build` itself** and streams the output, before proceeding.
-3. Spawns `node -r tsconfig-paths/register dist/server.js` as a monitored child process, restarting it automatically on crash.
-
-Practical implication: with this service installed, a normal deployment update is just:
-
-```bash
-git pull
-npm run service:restart
-# no need to manually rebuild first — the wrapper detects the new commit
-# and rebuilds automatically on that start.
-# (equivalent manual form: open the Services console, or
-#  net stop MultiBusinessSyncService && net start MultiBusinessSyncService)
-```
-
-**Prerequisites for this step:**
-- Run from an elevated (Administrator) shell — `node-windows` needs elevation to register a service with the Service Control Manager.
-- PostgreSQL must be installed as the literal Windows service `postgresql-x64-18` (§2), or edit `windows-service/config.js`'s `dependencies` array to match your actual PostgreSQL service name before installing — otherwise Windows will refuse to start this service because its declared dependency doesn't exist.
-
-### Linux
-
-There's no equivalent of §8.2's auto-rebuilding wrapper. Run the plain systemd unit `scripts/install/install-service.js` generates (`installUnixService()`), or write your own — either way, it starts `node dist/server.js` directly with no auto-build-on-stale-commit behavior, so **you are responsible for running `npm run build` yourself after every `git pull`.** Stop the service *before* building, not after — `npm run build` (and `npm install`, via its `postinstall` hook) both run `prisma generate`, which needs to overwrite the Prisma query engine binary; a still-running service process holding that file open makes the build fail outright, not just warn.
+If a server set up before 2026-09-12 still has the old `multi-business-sync` service: `sc query multi-business-sync`, and remove it with `sc delete multi-business-sync` (as Administrator).
 
 ---
 
@@ -437,7 +306,7 @@ Test-NetConnection -ComputerName <this-server-ip> -Port 8080
 
 If that succeeds but the browser still doesn't load the page, check that the
 certificate actually covers this server's current IP (`scripts/lan-server-ips.json`
-→ regenerate via `npm run cert:generate`, see `ADMIN-INSTALLATION-GUIDE.md` §7)
+→ regenerate via `npm run cert:generate`, see `ADMIN-INSTALLATION-GUIDE.md` §2)
 and that the IP hasn't changed since the cert was issued (DHCP lease renewal).
 
 ---
@@ -864,30 +733,21 @@ Why this order, specifically:
 
 ## 12. Backup
 
-```bash
-npm run backup:database
-```
-
-wraps `scripts/backup-database.js`. There isn't a separate, dedicated backup/restore reference document in this repo at the time of writing — if you need more detail than the script itself provides, read `scripts/backup-database.js` directly.
+`install-release.ps1` backs up the database before every release, into `C:\MBM\backups`. At any time: `C:\MBM\setup\backup-now.ps1`; restore with `C:\MBM\setup\restore.ps1`. The in-app backups (Admin → Backup) include the images. See `docs/runbooks/new-mbm-server.md` (Backups).
 
 ---
 
 ## 13. Post-deployment checklist
 
 **Server:**
-- [ ] `ENCRYPTION_KEY` set (64 hex chars) — §4.2
-- [ ] `NEXTAUTH_SECRET` set to a real generated value, not the placeholder in `.env.example`
-- [ ] Logged in as `admin@business.local` and **changed the default password**
-- [ ] `npm run db:deploy` completed with no errors (453+ migrations applied)
-- [ ] `npm run setup:production -- --no-admin --ignore-missing-models` completed (reference data seeded)
-- [ ] `npm run build` completed, `dist/server.js` and `.next/BUILD_ID` both exist
-- [ ] Decided TLS vs HTTP (§7.1) and, if TLS, confirmed the `HTTPS enabled` log line
-- [ ] If using QZ Tray anywhere: generated the server's own QZ signing certificate (§7.2) rather than relying on QZ's demo cert long-term
-- [ ] Chosen and installed one of the three run options in §8 — for real production, that's Option C
-- [ ] Confirmed the PostgreSQL Windows service name matches what `windows-service/config.js` expects, if using Option C
-- [ ] `CORS_ORIGINS` covers however this server will actually be reached
-- [ ] A backup (`npm run backup:database`) has been taken at least once and you know where it writes to
-- [ ] *(Optional, clothing only)* Decided whether to run the MBM-294 category-image import (§5.6) on this server now or defer it — safe to skip indefinitely
+- [ ] `00-status.ps1` says nothing is left to do (01–06 done)
+- [ ] The server answers with the release you installed (`/api/health`, shown by `install-release.ps1`)
+- [ ] Logged in as `admin@business.local` and **changed the default password** (a new server only)
+- [ ] HTTPS works by the tailnet name (`06`) and, if used, by IP (§7.1); sign-in needs HTTPS
+- [ ] If using QZ Tray anywhere: `QZ_PRIVATE_KEY`/`QZ_CERTIFICATE` in `.env.local` (§7.2)
+- [ ] A backup exists in `C:\MBM\backups` and you know how to restore it
+- [ ] Restart test: after a restart with nobody signed in, Tailscale, SSH and MBM come back
+- [ ] *(Optional, clothing only)* the MBM-294 category images (§5.6)
 
 **Each workstation:**
 - [ ] Browser can reach the server and (if TLS) trusts its `rootCA.pem` (§10.1)
@@ -900,6 +760,4 @@ wraps `scripts/backup-database.js`. There isn't a separate, dedicated backup/res
 
 ## 14. Known rough edges (worth knowing about, not necessarily worth fixing before you deploy)
 
-- `scripts/install/install.js`'s Node version check says "16+" — ignore it; the real requirement (via Next.js 15) is Node ≥18.18. Use Node 20 LTS.
-- If `scripts/create-admin.js` is ever deleted or renamed, `install-database.js` falls back to a `createBasicAdmin()` path that hashes the password with plain SHA-256 (not bcrypt) and writes to a field name that doesn't match the current Prisma schema. This fallback is not currently reachable in a normal deployment — just don't delete `scripts/create-admin.js`.
 - `.env.example` is missing `ENCRYPTION_KEY` and `QZ_PRIVATE_KEY`/`QZ_CERTIFICATE` entirely (§4.2) — don't assume it's a complete list of what the app needs.

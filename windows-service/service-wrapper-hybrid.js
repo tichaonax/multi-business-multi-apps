@@ -322,9 +322,11 @@ class HybridServiceWrapper extends EventEmitter {
 
           return; // Exit early since no migration is needed
         } else if (needsInitialSchema) {
-          console.log('🆕 Database needs initial schema - using db push');
+          // MBM-341: migrate deploy builds an empty database from the migrations and
+          // records them, so later updates work; `db push` left no history (never use it).
+          console.log('🆕 Database needs initial schema - applying all migrations');
           migrationCommand = this.npxCmd;
-          migrationArgs = ['prisma', 'db', 'push'];
+          migrationArgs = ['prisma', 'migrate', 'deploy'];
         } else if (hasPendingMigrations) {
           console.log('🔄 Database exists, applying pending migrations only');
           migrationCommand = this.npxCmd;
@@ -597,6 +599,14 @@ class HybridServiceWrapper extends EventEmitter {
       // Check if build should be skipped
       if (process.env.SKIP_BUILD === 'true') {
         console.log('Skipping application build (SKIP_BUILD=true)');
+        resolve();
+        return;
+      }
+
+      // MBM-341: a packaged release (release.json, built by `npm run release`) is
+      // already built and checked; the server never builds it again.
+      if (fs.existsSync(path.join(__dirname, '..', 'release.json'))) {
+        console.log('📦 Packaged release (release.json): skipping build');
         resolve();
         return;
       }
@@ -1204,6 +1214,13 @@ class HybridServiceWrapper extends EventEmitter {
     const startElectron = process.env.SYNC_START_ELECTRON !== '0';
     if (!startElectron) {
       console.log('SYNC_START_ELECTRON=0: skipping Electron startup');
+      return;
+    }
+    // MBM-341 (D6): a service runs in Session 0 and can't show a window, so on
+    // a packaged release it never launches Electron; a server with a screen
+    // installs the POS app like a till (deploy/workstation/install-pos.ps1).
+    if (fs.existsSync(path.join(__dirname, '..', 'release.json'))) {
+      console.log('📦 Packaged release: the POS app is installed per screen, not launched by the service');
       return;
     }
 

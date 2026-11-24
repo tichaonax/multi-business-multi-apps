@@ -1,7 +1,7 @@
 # Run this ON a server (new or existing) to install/refresh the shared LAN
 # HTTPS certificate and restart the app. Pair with scripts/generate-server-cert.js,
 # which is run once centrally (wherever mkcert + the root CA live) whenever a
-# new server joins - see ADMIN-INSTALLATION-GUIDE.md Section 7 for the full story.
+# new server joins - see ADMIN-INSTALLATION-GUIDE.md section 2 for the full story.
 # Requires the Windows service to already be installed (Section 6) - this
 # script restarts it to apply the cert.
 #

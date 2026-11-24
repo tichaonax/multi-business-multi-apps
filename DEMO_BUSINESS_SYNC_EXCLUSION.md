@@ -271,7 +271,6 @@ cat logs/sync-service.log | grep "demo"
 ## Related Documentation
 
 - `DEPLOYMENT_GUIDE.md` - Sync service deployment
-- `SERVICE_STARTUP_ISSUES_RESOLVED.md` - Sync service troubleshooting
 - `SYNC_ARCHITECTURE.md` - Sync system architecture (if exists)
 
 ## Summary

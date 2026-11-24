@@ -1,96 +1,29 @@
 #!/bin/bash
 #
-# Post-Merge Git Hook (INTELLIGENT VERSION)
-# Automatically runs after 'git pull' or 'git merge'
+# Post-merge hook (MBM-341): REPORT ONLY.
 #
-# This hook intelligently detects what changed and runs the appropriate workflow:
-# - Scripts, migrations, or package.json changed: Run full setup with DB detection
-# - Only source files changed: Quick rebuild
-# - Nothing significant changed: Skip
+# It says what the merge changed and what to run next. It never stops the
+# service, kills processes, installs packages or builds: a merge on a dev
+# machine (or anywhere) must not change what is running. Deploying is done
+# on purpose, with deploy/server/install-release.ps1 (see
+# docs/runbooks/new-mbm-server.md) or, on a dev machine, `npm run setup:update`.
 #
 
-echo ""
-echo "============================================================"
-echo "🔄 POST-MERGE HOOK: Analyzing changes..."
-echo "============================================================"
-echo ""
+CHANGED_FILES=$(git diff-tree -r --name-only --no-commit-id ORIG_HEAD HEAD 2>/dev/null)
+[ -z "$CHANGED_FILES" ] && exit 0
 
-# Get list of changed files
-CHANGED_FILES=$(git diff-tree -r --name-only --no-commit-id ORIG_HEAD HEAD)
-
-# Check what types of files changed
-PACKAGE_CHANGED=$(echo "$CHANGED_FILES" | grep --quiet "package.json" && echo "yes" || echo "no")
-SCRIPTS_CHANGED=$(echo "$CHANGED_FILES" | grep --quiet "scripts/" && echo "yes" || echo "no")
-MIGRATIONS_CHANGED=$(echo "$CHANGED_FILES" | grep --quiet "prisma/migrations/" && echo "yes" || echo "no")
-SCHEMA_CHANGED=$(echo "$CHANGED_FILES" | grep --quiet "prisma/schema.prisma" && echo "yes" || echo "no")
-SRC_CHANGED=$(echo "$CHANGED_FILES" | grep --quiet "src/" && echo "yes" || echo "no")
-
-# Determine if we need full setup
-NEEDS_FULL_SETUP="no"
-
-if [ "$PACKAGE_CHANGED" = "yes" ]; then
-  echo "📦 package.json changed"
-  NEEDS_FULL_SETUP="yes"
-fi
-
-if [ "$SCRIPTS_CHANGED" = "yes" ]; then
-  echo "📜 Setup scripts changed"
-  NEEDS_FULL_SETUP="yes"
-fi
-
-if [ "$MIGRATIONS_CHANGED" = "yes" ]; then
-  echo "🗄️  Database migrations changed"
-  NEEDS_FULL_SETUP="yes"
-fi
-
-if [ "$SCHEMA_CHANGED" = "yes" ]; then
-  echo "📐 Prisma schema changed"
-  NEEDS_FULL_SETUP="yes"
-fi
-
-if [ "$SRC_CHANGED" = "yes" ]; then
-  echo "🔧 Source files changed"
-fi
+has() { echo "$CHANGED_FILES" | grep --quiet "$1"; }
 
 echo ""
-
-# Run appropriate workflow
-if [ "$NEEDS_FULL_SETUP" = "yes" ]; then
-  echo "🚀 Running full intelligent setup workflow..."
-  npm run setup:update
-
-elif [ "$SRC_CHANGED" = "yes" ]; then
-  echo "🔨 Running quick rebuild (source files only)..."
-
-  # Clean Prisma client to prevent EPERM errors (Windows file locks)
-  echo "🧹 Cleaning Prisma client files..."
-  rm -rf node_modules/.prisma/client 2>/dev/null || true
-  rm -rf node_modules/@prisma/client 2>/dev/null || true
-
-  # Regenerate Prisma client in case schema changed
-  echo "🔄 Regenerating Prisma client..."
-  npx prisma generate || {
-    echo "⚠️  Prisma generation failed, retrying after cleanup..."
-    sleep 2
-    rm -rf node_modules/.prisma/client 2>/dev/null || true
-    rm -rf node_modules/@prisma/client 2>/dev/null || true
-    npx prisma generate
-  }
-
-  # Rebuild the app
-  npm run build
-
-  echo ""
-  echo "✅ App rebuilt successfully!"
-  echo ""
-  echo "⚠️  REMINDER: If the service is running, restart it:"
-  echo "   npm run service:restart (as Administrator)"
-  echo ""
-
-else
-  echo "ℹ️  No significant changes detected - skipping rebuild"
-  echo "💡 To manually run setup: npm run setup:update"
-fi
-
-echo "============================================================"
+echo "== Post-merge: what changed"
+has "package.json"       && echo "  package.json        -> dependencies may have changed"
+has "prisma/migrations/" && echo "  prisma/migrations/  -> new database migrations"
+has "prisma/schema.prisma" && echo "  prisma/schema.prisma -> the Prisma client must be regenerated"
+has "windows-service/"   && echo "  windows-service/    -> the service files changed"
+has "^src/"              && echo "  src/                -> application code"
 echo ""
+echo "  Nothing was stopped, installed or built."
+echo "  Dev machine:  npm run setup:update   then restart the service when ready"
+echo "  A server:     deploy/server/install-release.ps1 (docs/runbooks/new-mbm-server.md)"
+echo ""
+exit 0

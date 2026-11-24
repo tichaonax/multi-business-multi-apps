@@ -17,77 +17,33 @@
 - **Audit Logging**: Complete activity tracking
 - **Backup & Restore**: Automated data protection
 - **Mobile Responsive**: Optimized for desktop, tablet, and mobile
-- **Windows Service**: Self-hosted solution with automatic migrations
-- **Peer-to-Peer Sync**: Multi-server database synchronization with mDNS discovery
+- **Windows Service**: Self-hosted, installed from releases, with automatic migrations
 
 ## Quick Start
 
-### Fresh Installation
+### Servers (production, dev server): releases, not git
+
+Servers never have a git checkout and never build. The build machine makes a
+release and the server installs it with the scripts in `C:\MBM\setup`:
 
 ```bash
-# 1. Clone repository
+npm run release        # on the build machine → releases/mbm-<date>-<commit>.zip + .sha256
+```
+
+- **Deploy a release** (local, dev server, production): [docs/runbooks/manual-deployment.md](./docs/runbooks/manual-deployment.md)
+- **A new server**, moving or converting one: [docs/runbooks/new-mbm-server.md](./docs/runbooks/new-mbm-server.md)
+- **Settings, certificates, printing, tills, troubleshooting**: [ADMIN-INSTALLATION-GUIDE.md](./ADMIN-INSTALLATION-GUIDE.md)
+
+### Development machine
+
+```bash
 git clone <repository-url>
 cd multi-business-multi-apps
-
-# 2. Configure environment
-cp .env.example .env.local
-# Edit .env.local with your settings
-
-# 3. Run automated setup
-npm run setup
-
-# 4. For Production: Install Windows service (as Administrator)
-npm run service:install
-
-# 5. For Production: Start service (as Administrator)
-npm run service:start
-
-# OR for Development: Start dev server (no admin required)
-npm run dev
+npm install
+cp .env.example .env.local   # then fill in your settings (ADMIN-INSTALLATION-GUIDE.md §1)
+npm run db:deploy            # migrations
+npm run dev                  # http://localhost:8080
 ```
-
-**What `npm run setup` does automatically:**
-- Installs dependencies
-- Creates database if it doesn't exist
-- Runs all migrations
-- Seeds reference data (~128 records)
-- Seeds business categories (20 categories, 59 subcategories)
-- Builds application and service
-- Creates admin user: `admin@business.local` / `admin123`
-
-### Development
-
-```bash
-npm run dev
-# Access at http://localhost:8080
-```
-
-### Production Updates
-
-```bash
-git pull
-npm run setup:update
-npm run service:restart  # As Administrator
-```
-
-**📖 For complete deployment instructions, see [ADMIN-INSTALLATION-GUIDE.md](./ADMIN-INSTALLATION-GUIDE.md)**
-
-## Windows Service Commands
-
-**All commands require Administrator privileges**
-
-```bash
-# Service management
-npm run service:install     # Install Windows service
-npm run service:start       # Start service
-npm run service:stop        # Stop service
-npm run service:restart     # Restart service
-npm run service:status      # Check status
-npm run service:diagnose    # Diagnose issues
-npm run service:uninstall   # Uninstall service
-```
-
-**📖 For troubleshooting and advanced service management, see [ADMIN-INSTALLATION-GUIDE.md](./ADMIN-INSTALLATION-GUIDE.md)**
 
 ## Project Structure
 
@@ -149,10 +105,9 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 
 ## Available Scripts
 
-### Setup & Deployment
-- `npm run setup` - Fresh installation (automated)
-- `npm run setup:update` - Update after git pull
-- `npm run hooks:install` - Install git hooks for automatic updates
+### Releases
+- `npm run release` - Build a release for the servers (`-- --ref <commit>` for another commit)
+- `npm run hooks:install` - Install git hooks
 
 ### Development
 - `npm run dev` - Start development server (port 8080)
@@ -161,14 +116,10 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 - `npm run lint` - Run ESLint
 - `npm run type-check` - Run TypeScript checks
 
-### Service Management (Administrator required)
-- `npm run service:install` - Install as Windows service
-- `npm run service:start` - Start service
-- `npm run service:stop` - Stop service
-- `npm run service:restart` - Restart service
-- `npm run service:status` - Check service status
-- `npm run service:diagnose` - Diagnose issues
-- `npm run service:uninstall` - Remove Windows service
+### On a server (Administrator)
+- `C:\MBM\setup\00-status.ps1` - Status of everything
+- `C:\MBM\setup\install-release.ps1` / `rollback-release.ps1` - Install / undo a release
+- `Restart-Service multibusinesssyncservice.exe` - Restart MBM
 
 ### Database
 - `npm run db:studio` - Open Prisma Studio GUI
@@ -217,13 +168,10 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ## Documentation
 
 ### Deployment & Operations
-- **[ADMIN-INSTALLATION-GUIDE.md](./ADMIN-INSTALLATION-GUIDE.md)** - Complete deployment guide
-  - Fresh installation workflow
-  - Production updates
-  - Windows service management
-  - Environment configuration
-  - Troubleshooting
-  - Maintenance procedures
+- **[docs/runbooks/manual-deployment.md](./docs/runbooks/manual-deployment.md)** - Deploying a release: local, dev server, production
+- **[docs/runbooks/new-mbm-server.md](./docs/runbooks/new-mbm-server.md)** - A new server, moving, converting, renaming
+- **[ADMIN-INSTALLATION-GUIDE.md](./ADMIN-INSTALLATION-GUIDE.md)** - Settings, certificates, QZ Tray, tills, troubleshooting
+- **[docs/TECHNICAL-DEPLOYMENT-GUIDE.md](./docs/TECHNICAL-DEPLOYMENT-GUIDE.md)** - Architecture, workstations and agents in depth
 
 - **[PRISMA_GUIDE.md](./PRISMA_GUIDE.md)** - Prisma best practices
   - Naming conventions
@@ -235,9 +183,9 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 - **[projectplan.md](./projectplan.md)** - Current project planning and implementation notes
 
 ### Getting Help
-- For deployment issues, see [ADMIN-INSTALLATION-GUIDE.md - Troubleshooting](./ADMIN-INSTALLATION-GUIDE.md#12-troubleshooting)
+- For deployment issues, see [ADMIN-INSTALLATION-GUIDE.md - Troubleshooting](./ADMIN-INSTALLATION-GUIDE.md#7-troubleshooting)
 - For Prisma/database issues, see [PRISMA_GUIDE.md](./PRISMA_GUIDE.md)
-- Check service logs: `logs/service.log` and `windows-service/daemon/service.log`
+- Service logs on a server: `C:\MBM\app\windows-service\daemon\*.log`
 
 ## License
 

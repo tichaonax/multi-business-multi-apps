@@ -6,7 +6,8 @@
  * This script sets up a completely new production database from scratch.
  * Use this for new deployments or when you want to start with a clean database.
  * 
- * IMPORTANT: This will destroy any existing data!
+ * MBM-341: only for an EMPTY database. It refuses when the database has data,
+ * and builds the schema with `prisma migrate deploy` (never `db push`).
  */
 
 const { PrismaClient } = require('@prisma/client')
@@ -139,20 +140,17 @@ async function performFreshInstall() {
     log('  node scripts/production-upgrade.js')
     log('')
     
-    const confirmed = await askForConfirmation('Are you ABSOLUTELY SURE you want to continue and destroy all data?')
-    if (!confirmed) {
-      warning('Installation cancelled by user - existing data preserved')
-      return false
-    }
-    
-    warning('User confirmed data destruction - proceeding...')
+    // MBM-341: a fresh install never wipes a database with data in it. To start
+    // over, drop and create the database yourself (on purpose), then run this.
+    error('Refusing: this database has data. Nothing was changed.')
+    return false
   }
-  
-  // Step 3: Reset database schema
-  log('\n🔄 Resetting database schema...')
-  const resetResult = await runCommand('npx prisma db push --force-reset', 'Resetting database')
+
+  // Step 3: Create the schema from the migrations (never `db push`)
+  log('🔄 Applying all migrations...')
+  const resetResult = await runCommand('npx prisma migrate deploy', 'Applying migrations')
   if (!resetResult.success) {
-    error('Database reset failed')
+    error('Applying migrations failed')
     return false
   }
   

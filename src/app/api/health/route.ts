@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { getReleaseInfo } from '@/lib/release-info'
 
 // Track server start time
 const SERVER_START_TIME = Date.now()
@@ -43,7 +44,9 @@ export async function GET() {
       startTime,
       database: 'connected',
       userCount,
-      environment: process.env.NODE_ENV
+      environment: process.env.NODE_ENV,
+      // MBM-341: the release this server is running (install-release.ps1 checks it)
+      release: getReleaseInfo(),
     }
 
     return new Response(JSON.stringify(response), {
