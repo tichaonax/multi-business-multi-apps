@@ -5,8 +5,8 @@
 # It says what the merge changed and what to run next. It never stops the
 # service, kills processes, installs packages or builds: a merge on a dev
 # machine (or anywhere) must not change what is running. Deploying is done
-# on purpose, with deploy/server/install-release.ps1 (see
-# docs/runbooks/new-mbm-server.md) or, on a dev machine, `npm run setup:update`.
+# on purpose: a release (npm run release) installed with
+# deploy/server/install-release.ps1 (docs/runbooks/manual-deployment.md).
 #
 
 CHANGED_FILES=$(git diff-tree -r --name-only --no-commit-id ORIG_HEAD HEAD 2>/dev/null)
@@ -23,7 +23,7 @@ has "windows-service/"   && echo "  windows-service/    -> the service files cha
 has "^src/"              && echo "  src/                -> application code"
 echo ""
 echo "  Nothing was stopped, installed or built."
-echo "  Dev machine:  npm run setup:update   then restart the service when ready"
-echo "  A server:     deploy/server/install-release.ps1 (docs/runbooks/new-mbm-server.md)"
+echo "  Dev machine:  npm install, then npm run db:deploy, then npm run dev"
+echo "  A server:     npm run release, then docs/runbooks/manual-deployment.md"
 echo ""
 exit 0

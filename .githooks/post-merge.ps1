@@ -17,7 +17,7 @@ if (Has 'windows-service/')     { Write-Host "  windows-service/    -> the servi
 if (Has '^src/')                { Write-Host "  src/                -> application code" }
 Write-Host ""
 Write-Host "  Nothing was stopped, installed or built."
-Write-Host "  Dev machine:  npm run setup:update   then restart the service when ready"
-Write-Host "  A server:     deploy/server/install-release.ps1 (docs/runbooks/new-mbm-server.md)"
+Write-Host "  Dev machine:  npm install, then npm run db:deploy, then npm run dev"
+Write-Host "  A server:     npm run release, then docs/runbooks/manual-deployment.md"
 Write-Host ""
 exit 0

@@ -22,13 +22,12 @@ node scripts/install-git-hooks.js
 
 **Trigger:** Runs automatically after `git pull` or `git merge`
 
-**Purpose:** Automatically rebuilds the app when source files change
+**Purpose:** Says what the merge changed and what to run next (MBM-341: report only)
 
 **Behavior:**
-- Detects which files changed in the merge
-- If `package.json` changed → Runs full setup (`npm run setup:update`)
-- If `src/` files changed → Rebuilds the app only (`npm run build`)
-- Otherwise → Skips rebuild
+- Lists what changed: dependencies, migrations, the Prisma schema, the service files, application code
+- Never stops, installs or builds anything
+- Next steps it prints: on a dev machine `npm install`, `npm run db:deploy`, `npm run dev`; for a server, `npm run release` and `docs/runbooks/manual-deployment.md`
 
 **Platforms:**
 - `post-merge` - Bash script (Linux/Mac/Git Bash)
