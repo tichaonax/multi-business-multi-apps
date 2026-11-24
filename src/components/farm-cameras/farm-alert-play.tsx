@@ -66,6 +66,18 @@ export interface AlertPlayer {
   currentAt: () => string | null
 }
 
+/** Where the list scrolls to show a row: its top at the list's top, below the
+ *  day heading that stays there on a phone (less a small gap); when the row is
+ *  taller than the list, its bottom (the buttons) at the list's bottom.
+ *  Farm Control's rowTop (MBM-343). */
+function rowTop(list: HTMLElement, el: HTMLElement): number {
+  const head = list.querySelector<HTMLElement>('[data-day-head]')
+  const gap = 6 + (head && head.offsetParent ? head.offsetHeight : 0)
+  const top = list.scrollTop + el.getBoundingClientRect().top - list.getBoundingClientRect().top - gap
+  const tall = el.offsetHeight + gap + 6 > list.clientHeight
+  return Math.max(0, tall ? top + el.offsetHeight + gap + 6 - list.clientHeight : top)
+}
+
 /** The clip's end: 3 s after the alert's end; none while it's going on (guide rev 6 §5) */
 const untilFor = (a: FarmAlert) => (a.end ? new Date(Date.parse(a.end) + 3_000).toISOString() : undefined)
 
@@ -97,11 +109,27 @@ export function useAlertPlayer(): AlertPlayer {
   }, [playing, farm])
   const stop = useCallback(() => { setPlaying(null); setProblem(null) }, [])
 
-  // Scroll the playing row into view once it opens (guide §2.2)
+  // Scroll the playing row into view once it opens (guide §2.2). On a phone
+  // (MBM-343, as Farm Control's rowTop): its top just below the day heading,
+  // up or down, so its buttons show below the video; again once the video
+  // has its size. A computer is unchanged.
   useEffect(() => {
     if (!playing) return
-    const t = setTimeout(() => wrapRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 150)
-    return () => clearTimeout(t)
+    const go = () => {
+      const wrap = wrapRef.current
+      if (!wrap) return
+      const row = wrap.closest<HTMLElement>('[data-alert-row]')
+      const list = row?.closest<HTMLElement>('[data-alert-list]')
+      if (!row || !list || !window.matchMedia('(max-width: 639px)').matches) {
+        wrap.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+        return
+      }
+      list.scrollTo({ top: rowTop(list, row), behavior: 'smooth' })
+    }
+    let f2 = 0
+    const f1 = requestAnimationFrame(() => { f2 = requestAnimationFrame(go) })
+    const again = setTimeout(go, 450)
+    return () => { cancelAnimationFrame(f1); cancelAnimationFrame(f2); clearTimeout(again) }
   }, [playing?.key]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const onMessage = useCallback((m: FarmMessage) => {
@@ -163,14 +191,20 @@ export function FarmAlertActions({ alert, player, onLater, onPause }: {
   const allowed = alert.allowed !== false
   const isPlaying = player.playingId === alert.id
   const watch = (at?: string) => alerts?.watch(alert, at)
-  const later = <button key="later" className={btn} onClick={onLater} title={alert.laterAt ? 'Remove from Watch later' : 'Keep for later'}>{alert.laterAt ? '★ Kept' : '☆ Later'}</button>
+  // On a phone the mark alone (▶, ⛶, ☆), so the buttons keep to one line (MBM-343, as Farm Control)
+  const word = (w: string) => <span className="hidden sm:inline">{w}</span>
+  const later = (
+    <button key="later" className={btn} onClick={onLater} title={alert.laterAt ? 'Remove from Watch later' : 'Keep for later'} aria-label={alert.laterAt ? '★ Kept' : '☆ Later'}>
+      {alert.laterAt ? '★' : '☆'}{word(alert.laterAt ? ' Kept' : ' Later')}
+    </button>
+  )
   const pause = onPause && <button key="pause" className={btn} onClick={onPause} title={`Pause alerts from ${alert.cameraName} for you`}>🔕</button>
 
   if (isPlaying) {
     return (
       <>
         <button className={btn} title="Play again" onClick={() => player.play(alert)}>↺</button>
-        <button className={btn} title="Bigger, in Farm Control's viewer" onClick={() => { const at = player.currentAt() || undefined; player.stop(); watch(at) }}>⛶ Big</button>
+        <button className={btn} title="Bigger, in Farm Control's viewer" aria-label="Big" onClick={() => { const at = player.currentAt() || undefined; player.stop(); watch(at) }}>⛶{word(' Big')}</button>
         <button className={btn} title="Stop" onClick={player.stop}>■</button>
         <button className={btn} onClick={() => watch()}>Watch</button>
         {later}{pause}
@@ -179,7 +213,7 @@ export function FarmAlertActions({ alert, player, onLater, onPause }: {
   }
   return (
     <>
-      {allowed && kept !== false && <button className={btn} onClick={() => player.play(alert)}>▶ Play</button>}
+      {allowed && kept !== false && <button className={btn} title="Play it here" aria-label="Play" onClick={() => player.play(alert)}>▶{word(' Play')}</button>}
       {kept === false && <span className="text-xs text-gray-500 dark:text-gray-400 self-center">Video no longer kept</span>}
       {allowed && <button className={btn} onClick={() => watch()}>Watch</button>}
       {later}{pause}

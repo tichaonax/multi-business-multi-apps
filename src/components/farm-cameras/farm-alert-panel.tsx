@@ -11,12 +11,12 @@
 //   filtered, taking every match), 🔊 chime on/off for this device, History →.
 // - Stays mounted while docked (the big viewer playing) so ▲ reopens it where
 //   it was: same tab, filters and scroll.
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { useToastContext } from '@/components/ui/toast'
 import { FarmAlert, useFarmAlerts } from './farm-alerts-provider'
-import { alertButtonClass as btn, FarmAlertRow } from './farm-alert-row'
+import { alertButtonClass as btn, dayHeading, FarmAlertRow } from './farm-alert-row'
 import { FarmAlertActions, useAlertPlayer } from './farm-alert-play'
 import { chimeOn, setChimeOn } from './farm-alert-card'
 import { AlertFilterBar, useAlertFilters } from './farm-alert-filters'
@@ -224,7 +224,7 @@ export function FarmAlertPanel() {
           )}
         </div>
 
-        <div ref={listRef} className="flex-1 overflow-y-auto px-3 py-2 space-y-2">
+        <div ref={listRef} data-alert-list className="flex-1 overflow-y-auto px-3 py-2 space-y-2">
           {tab === 'paused' ? (
             (data?.paused || []).length === 0
               ? <p className="text-sm text-gray-500 dark:text-gray-400 p-3">No camera is paused.</p>
@@ -243,9 +243,17 @@ export function FarmAlertPanel() {
                   {tab === 'later' ? 'Nothing kept for later. ☆ Later keeps an alert here.' : filtered ? 'No alerts match.' : <>Nothing new. Earlier alerts are in <Link href="/cameras/alerts" className="text-blue-600 dark:text-blue-400 hover:underline" onClick={() => alerts.closeAlerts()}>History</Link>.</>}
                 </p>
               )}
-              {rows.map(a => (
+              {/* A heading for each day, on a phone only; it stays at the top
+                  while its day scrolls (MBM-343, as Farm Control) */}
+              {rows.map((a, i) => (
+                <Fragment key={a.id}>
+                {(i === 0 || dayHeading(rows[i - 1].start) !== dayHeading(a.start)) && (
+                  <div data-day-head className="sm:hidden sticky -top-2 z-10 -mx-3 px-4 py-1 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 text-xs font-semibold text-gray-500 dark:text-gray-400">
+                    {dayHeading(a.start)}
+                  </div>
+                )}
                 <FarmAlertRow
-                  key={a.id}
+                  dayHeadings
                   alert={a}
                   rowRef={el => { if (el) rowEls.current.set(a.id, el); else rowEls.current.delete(a.id) }}
                   focused={focusId === a.id}
@@ -254,6 +262,7 @@ export function FarmAlertPanel() {
                   onDismiss={tab === 'new' ? () => dismiss(a) : undefined}
                   actions={<FarmAlertActions alert={a} player={player} onLater={() => toggleLater(a)} onPause={() => pause(a)} />}
                 />
+                </Fragment>
               ))}
               {(data?.more ?? 0) > 0 && (
                 <div className="text-center text-xs text-gray-600 dark:text-gray-300 py-2 space-x-2">
