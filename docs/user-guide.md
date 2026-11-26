@@ -259,6 +259,21 @@
     - [Setting Up — Camera Admin](#setting-up--camera-admin-admin--farm-cameras)
     - [What Is Set Where](#what-is-set-where)
     - [Troubleshooting](#troubleshooting-9)
+73. [Vehicle Costs — Every Request Reaches Vehicle Management on Approval](#73-vehicle-costs--every-request-reaches-vehicle-management-on-approval)
+    - [Tagging a Request as a Vehicle Cost](#tagging-a-request-as-a-vehicle-cost)
+    - [When It Reaches Vehicle Management](#when-it-reaches-vehicle-management)
+    - [Licence Costs Are Counted Once](#licence-costs-are-counted-once)
+74. [Vehicle Licence Renewal — Request Funds First, Then Enter the Licence](#74-vehicle-licence-renewal--request-funds-first-then-enter-the-licence)
+    - [Step 1 — Request the Funds](#step-1--request-the-funds)
+    - [Step 2 — See Where the Request Is](#step-2--see-where-the-request-is)
+    - [Step 3 — Enter the Licence](#step-3--enter-the-licence)
+75. [Reports — Date Range Popup, Item Sales, Thumbnails & Going Back](#75-reports--date-range-popup-item-sales-thumbnails--going-back)
+    - [One Date Range Popup Everywhere](#one-date-range-popup-everywhere)
+    - [Sold Figure on Products](#sold-figure-on-products)
+    - [Item Sales — One Day or a Date Range](#item-sales--one-day-or-a-date-range)
+    - [Pictures in Sales and Receipts](#pictures-in-sales-and-receipts)
+    - [Saved Reports History Fits the Screen](#saved-reports-history-fits-the-screen)
+    - ["← Back" Goes Where You Came From](#-back-goes-where-you-came-from)
 
 ---
 
@@ -11275,7 +11290,7 @@ Every individual vehicle item — in the bell, the chat, or the panel — has it
 
 ### The Renewal Workflow
 
-1. Renew the licence at the licensing office as normal.
+1. Renew the licence at the licensing office as normal. **Need the money approved first?** Open the alert's **Renew →** link and use the **💰 Request funds** tab; enter the licence once it's bought. See [§74](#74-vehicle-licence-renewal--request-funds-first-then-enter-the-licence).
 2. Record it in the system either by:
    - clicking **Renew →** on the alert itself (bell, System Alerts chat, or Compliance Alerts panel) — opens that vehicle straight to the Renew form for that exact licence, or
    - using **[Record a Renewal Receipt](#41-vehicle-renewal-receipts)** (Fleet Management → Vehicles tab → select the vehicle → **Record Renewal Receipt**) if you're also logging the payment breakdown.
@@ -15368,3 +15383,199 @@ Farm Control system administrators can't be linked. Each user links to an ordina
 | "Close the other video first (two can play at once)" | Farm Control allows two videos per person: stop the row video (■), close the big viewer, or close a camera open large on another page or device. |
 | An alert says **Video no longer kept** | The camera's recordings no longer reach back that far; only the picture remains. |
 | Alerts in 📹 but no corner card or chime | Check **Corner card when one arrives** is on (My Cameras) and **🔊 Chime on** in the list's foot; click once in the page (browsers block sound until then). |
+
+---
+
+## 73. Vehicle Costs — Every Request Reaches Vehicle Management on Approval
+
+> **Who reads this:** Anyone who asks for money for a vehicle (fuel, oil, tyres, service, licensing, insurance, tolls …), the cashiers and managers who approve those requests, and fleet managers who read the vehicle cost reports.
+
+Whatever way the money is asked for, a vehicle cost is recorded **once**, in **Vehicle Management**, at the moment its money is **approved**. Before approval it is only a request. If the request is rejected, cancelled or reversed, the cost comes back out of Vehicle Management. You never enter the same cost twice.
+
+```
+Request with a 🚗 vehicle tag  →  waiting for approval   (not in Vehicle Management yet)
+                                        ↓ approved
+                               written to Vehicle Management
+                               (Maintenance for oil / tyres / service, Expenses for the rest)
+                                        ↓ rejected / cancelled / reversed / deleted
+                               taken out of Vehicle Management again
+```
+
+---
+
+### Tagging a Request as a Vehicle Cost
+
+Every money request has the same **🚗 Vehicle** picker. Choose the vehicle and the kind of cost:
+
+| Kind of cost | Where it lands in Vehicle Management |
+|---|---|
+| Fuel / Petrol, Tolls, Parking, Insurance, Licensing, Other | **Expenses** |
+| Oil Change, Tires, Maintenance / Repairs | **Maintenance** records |
+
+For **Licensing**, also choose **which licence** (Registration, Road use, Radio, Inspection). For **Licensing** and **Insurance** you can also give the **new expiry**, if you already know it. With an expiry, approving the request also **renews that licence**, and its alert clears. Without one, approving records the cost only, and you enter the licence once you have it (see [§74](#74-vehicle-licence-renewal--request-funds-first-then-enter-the-licence)).
+
+Where you find the picker:
+
+| Request | Where |
+|---|---|
+| **Expense payment** | Expense account → **🚗 Vehicle Expense** — vehicle, type, amount, fuel quantity / type, mileage, licence and new expiry |
+| **Combo payment request** | On each line — see [§39](#39-combo-payment-requests) |
+| **Supplier payment request** | On each line of **Supplier Payments → New Request** (not on tax lines) |
+| **Petty cash** | On each spending line when you record what you spent |
+| **Licence renewal window** | **💰 Request funds** tab — see [§74](#74-vehicle-licence-renewal--request-funds-first-then-enter-the-licence) |
+
+---
+
+### When It Reaches Vehicle Management
+
+| Request | Written when … | Taken out when … |
+|---|---|---|
+| Expense payment | it is **approved** (EOD batch review, direct approval, pending actions), or at once if the payment is submitted directly (personal account / admin) | it is **rejected**, **cancelled**, **reversed** (including reversed to petty cash) or **deleted** |
+| Combo request line | the request is **approved** | the line is left **unfunded** |
+| Supplier request line | the line is **approved** (at the approved amount, if less) | the line is **denied** |
+| Petty cash spend | the spend is **recorded** (the cash was already approved) | — |
+
+- **Approvers see vehicle lines.** On the supplier payment approval list and in **My Requests**, a vehicle line shows a blue tag, e.g. **🚗 ACT 8086 · Licensing (Registration)**.
+- **Approving or editing again never adds a second record.** Each request line has exactly one record, which is updated (for example, if the amount is edited).
+- **Receipts tagged to a vehicle win.** If the receipts on a payment are themselves tagged to a vehicle (see [Attaching Receipts to Expense Payments](#attaching-receipts-to-expense-payments)), the receipts record the cost and the payment's own tag is not used, so the money isn't counted twice.
+- **If Vehicle Management refuses the cost, the approval stops** with a message, for example *"Mileage can't be less than the last recorded reading"*. Fix the request and approve again.
+
+---
+
+### Licence Costs Are Counted Once
+
+A licence that was paid for through a request remembers which request paid for it. The **vehicle cost report** then counts that money **once**, as the vehicle expense from the request, and not again from the cost typed on the licence. This covers a licence entered:
+
+- after the request was approved (from the renewal window), or
+- by hand before the request was approved, or
+- automatically, from a request that included the new expiry.
+
+A licence entered without any request counts its own renewal cost and late fee, as before.
+
+---
+
+## 74. Vehicle Licence Renewal — Request Funds First, Then Enter the Licence
+
+> **Who reads this:** Fleet managers and anyone who acts on licence compliance alerts.
+
+A licence alert's **Renew →** link opens the **Renew … License** window for that licence (see [§43a](#43a-vehicle--driver-license-compliance-alerts)). Often you can't enter the new licence yet, because the money to buy it has to be approved first. The window has two tabs for this:
+
+| Tab | Use it when |
+|---|---|
+| **💰 Request funds** | You need the money to buy the renewal. |
+| **📄 Enter licence** | You have the new licence (bought after approval, or bought already without a request). Same form as before. |
+
+The window opens on **Request funds**, unless a request for this licence is already waiting or approved. Then it opens on **Enter licence**.
+
+---
+
+### Step 1 — Request the Funds
+
+1. Open the alert's **Renew →** link, or the vehicle → licence → **Renew**.
+2. On **💰 Request funds**, fill in:
+   - **Pay from:** the expense account. It starts on the vehicle's business account. A vehicle with no business starts on *Choose an account…*.
+   - **Renewal amount:** filled in from the last renewal's cost; change it if needed.
+   - **Late fee / penalty:** if any. It goes on the request as its own line.
+   - **Note for the approver:** e.g. *"Expired 30 Oct — needed before the next trip"*.
+3. Click **Submit for approval**.
+
+This sends a normal expense request, titled e.g. **"Licence renewal: Registration — ACT 8086 (Mitsubishi Pajero)"**. The approvers are notified as usual. The window stays open and shows the request waiting.
+
+---
+
+### Step 2 — See Where the Request Is
+
+Each time you open the renewal window for that vehicle and licence, a banner tells you where the request is:
+
+| Banner | Meaning |
+|---|---|
+| ⏳ **Funds requested** on 26 Nov ($X from …) — **awaiting approval** | Waiting for the approver. You can't send a second request. |
+| ✅ **Funds approved** — buy the licence, then enter it below | Buy the licence, then use **Enter licence**. |
+| ✖ The funds request was cancelled / expired | Request again, or enter the licence if it's bought. |
+
+**View request** opens the request itself. The vehicle's licence list shows the same thing as a tag on the overdue licence: **⏳ Funds requested** or **✅ Funds approved**.
+
+When the request is approved, its cost goes into Vehicle Management as a **Licensing** expense for the vehicle (see [§73](#73-vehicle-costs--every-request-reaches-vehicle-management-on-approval)). No licence is created yet, because the system doesn't know the new number or dates.
+
+---
+
+### Step 3 — Enter the Licence
+
+1. Open the renewal window again and choose **📄 Enter licence**.
+2. Enter the new **licence number**, **effective** and **expiry dates**, the **cost**, and the document, as before.
+3. **Save Renewal**.
+
+The old licence is kept as history, the alert clears, and the banner and tag go away. Because the licence is linked to the approved request, the vehicle cost report counts the renewal **once**.
+
+> **Bought it without a request?** Just use **📄 Enter licence**. A request is never required.
+
+---
+
+## 75. Reports — Date Range Popup, Item Sales, Thumbnails & Going Back
+
+> **Who reads this:** Managers and anyone who reads reports, inventory or receipts history.
+
+---
+
+### One Date Range Popup Everywhere
+
+Every page where you pick a period now has the same **📅** button. It shows the range in use, e.g. **📅 Month to date**, and opens one popup:
+
+| In the popup | Choices |
+|---|---|
+| **Days** | Today, Yesterday, Last 7 days, Last 30 days, Last 90 days |
+| **Weeks** | This week, Last week |
+| **Months** | Month to date, Last month, or any **month and year** |
+| **Years** | Year to date, Last year, 6 months, 1 year, 2 years, 5 years |
+| **Specific date** | One day |
+| **From / To** | Any range |
+| **All time** | Only on pages where it makes sense |
+
+- A preset or a month applies at once. A specific date or From / To applies when you confirm it.
+- A page may offer fewer choices when only some make sense.
+- The popup always opens fully on screen, below the button or above it, like the action menus.
+- **Reports open on Month to date.** Most reports that used to open on the last 30 days now open on the current month to date. Pages built around their own period keep it, e.g. reorder, stock velocity, the EOD manager view, the R710 sales panel.
+
+> Older sections of this guide may describe date "pills" (Today / 7 Days / 30 Days …). The same choices are now in the popup.
+
+---
+
+### Sold Figure on Products
+
+Inventory lists and the **clothing POS** product cards show how many of an item were **sold this month** (e.g. *Sold 12 Units*). Users who can see financials also see its value (*· $240 MTD*). Click the figure to see other periods in the date popup.
+
+> The POS figure leaves out BOGO free units and refunded orders. The popup's ranges count every unit sold.
+
+---
+
+### Item Sales — One Day or a Date Range
+
+**Reports → 🧾 Item Sales** (was *Daily Item Sales*) lists each item sold, with its picture where it has one, the quantity and the amount.
+
+- Use the **📅** popup to pick **one day** or **any range**, e.g. This week, Last month, From / To. The heading and the printout show the range.
+- The same list appears, collapsed, as **Items Sold** in the End of Day report, and also in **saved (locked) End of Day reports**, above the signature. Click to open it.
+
+---
+
+### Pictures in Sales and Receipts
+
+Wherever a product or inventory item has an image, a small picture now appears in:
+
+- **Sales Analytics → a day → Sales Orders:** each item line;
+- **Receipts history:** the receipt cards; the **Items** column (up to two pictures from items that have one); the hover card; and the **Receipt Details** window (each item, or its emoji if it has no picture);
+- **Item Sales:** each row.
+
+---
+
+### Saved Reports History Fits the Screen
+
+The **Saved Reports** history table (clothing, grocery, hardware, restaurant) now fits without scrolling sideways: tighter columns, and dates and names wrap. **View →** opens a report.
+
+---
+
+### "← Back" Goes Where You Came From
+
+The back button on report pages no longer always says **Back to POS**. It returns to the page you opened the report from and names it: **← Back to Reports**, **← Back to Saved Reports**, **← Back to POS**.
+
+- Going back repeatedly retraces your steps, e.g. a saved report → Saved Reports → Reports → POS.
+- If you opened the report directly (a bookmark or a new tab), it says **Back to POS**.
