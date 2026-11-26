@@ -306,7 +306,15 @@ export default function DailyDetailPage() {
                             <tbody>
                               {order.items.map((item, idx) => (
                                 <tr key={idx} className="border-b border-gray-50 dark:border-gray-700/50 last:border-0">
-                                  <td className="py-1.5 text-gray-700 dark:text-gray-300">{item.label}</td>
+                                  <td className="py-1.5 text-gray-700 dark:text-gray-300">
+                                    {/* MBM-345: thumbnail where the item has an image */}
+                                    <span className="flex items-center gap-2 min-w-0">
+                                      {item.imageUrl
+                                        ? <img src={item.imageUrl} alt="" loading="lazy" className="w-8 h-8 rounded object-cover shrink-0 border border-gray-200 dark:border-gray-600" />
+                                        : <span className="w-8 h-8 shrink-0" aria-hidden />}
+                                      <span className="truncate">{item.label}</span>
+                                    </span>
+                                  </td>
                                   <td className="py-1.5 text-center text-gray-400 w-12">×{item.qty}</td>
                                   <td className="py-1.5 text-right text-gray-600 dark:text-gray-400 w-24">
                                     {formatCurrency(item.unitPrice * item.qty)}

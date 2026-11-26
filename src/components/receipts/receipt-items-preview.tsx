@@ -20,10 +20,18 @@ export interface ReceiptPreviewItem {
   wifiCodesMatched?: boolean
   notIssued?: boolean
   notChargedAmount?: number
+  /** MBM-345: thumbnail where the product / inventory item has an image */
+  imageUrl?: string | null
 }
 
 const money = (n: number) => `$${Number(n || 0).toFixed(2)}`
 const cleanName = (name: string) => name.replace(/^📶\s*/, '')
+
+/** MBM-345: a small item thumbnail (nothing when the item has no image) */
+export function ItemThumb({ url, size = 'w-6 h-6' }: { url?: string | null; size?: string }) {
+  if (!url) return null
+  return <img src={url} alt="" loading="lazy" className={`${size} rounded object-cover shrink-0 border border-gray-200 dark:border-gray-600`} />
+}
 
 export function ReceiptItemsCell({ items }: { items?: ReceiptPreviewItem[] }) {
   if (!items || items.length === 0) return <span className="text-gray-400">—</span>
@@ -34,6 +42,7 @@ export function ReceiptItemsCell({ items }: { items?: ReceiptPreviewItem[] }) {
   const codes = main.wifiCodes ?? []
   return (
     <div className="flex items-center gap-1.5 min-w-0 max-w-[16rem]">
+      <ItemThumb url={main.imageUrl} />
       <span className="truncate">
         {main.isWifi && '📶 '}{cleanName(main.name)}{main.quantity > 1 ? ` ×${main.quantity}` : ''}
       </span>
@@ -86,7 +95,8 @@ export function ReceiptHoverCard({
       <ul className="divide-y divide-gray-100 dark:divide-gray-700">
         {(items ?? []).map((i, k) => (
           <li key={k} className="py-1 flex items-start justify-between gap-2">
-            <span className={i.notIssued ? 'text-red-600 dark:text-red-400' : ''}>
+            <ItemThumb url={i.imageUrl} size="w-8 h-8" />
+            <span className={`flex-1 min-w-0 ${i.notIssued ? 'text-red-600 dark:text-red-400' : ''}`}>
               {i.quantity} × {i.isWifi && '📶 '}{cleanName(i.name)}
               {i.notIssued && <span className="block text-xs">WiFi not issued — {money(i.notChargedAmount ?? 0)} not charged</span>}
               {i.isWifi && !i.notIssued && (i.wifiCodes?.length ?? 0) === 0 && <span className="block text-xs text-gray-400">code not recorded</span>}

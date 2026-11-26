@@ -16,7 +16,7 @@ export interface SaleRow {
   paymentMethod: string
   servedBy: string | null
   businessName: string | null
-  items: { label: string; qty: number; unitPrice: number }[]
+  items: { label: string; qty: number; unitPrice: number; imageUrl?: string | null }[]
 }
 
 export interface ExpenseRow {

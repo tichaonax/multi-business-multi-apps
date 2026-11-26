@@ -2,6 +2,7 @@
 
 // Force dynamic rendering for session-based pages
 export const dynamic = 'force-dynamic';
+import { DailyItemSales } from '@/components/reports/daily-item-sales'
 import { useState, useEffect } from 'react'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import Link from 'next/link'
@@ -303,6 +304,14 @@ export default function SavedReportView({ params }: { params: Promise<{ reportId
               </div>
             </div>
         </div>
+
+        {/* MBM-345: items sold that day — closed until opened, as on the live
+            end-of-day page (same data as the Daily Item Sales report) */}
+        {report.reportType === 'END_OF_DAY' && report.businessId && (
+          <div className="mb-6">
+            <DailyItemSales businessId={report.businessId} date={String(report.reportDate).slice(0, 10)} collapsible />
+          </div>
+        )}
 
         {/* Signature Section */}
         <div className="mt-8 pt-6 border-t-2 border-gray-300 dark:border-gray-600 print:border-gray-300">

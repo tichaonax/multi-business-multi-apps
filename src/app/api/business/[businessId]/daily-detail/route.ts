@@ -1,3 +1,4 @@
+import { saleLineThumbnails } from '@/lib/reports/item-thumbnails'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
@@ -72,6 +73,10 @@ export async function GET(
       new Date(o.createdAt).toLocaleDateString('en-CA', { timeZone: timezone }) === date
     )
 
+    // MBM-345: a thumbnail per line where the product / inventory item has one
+    const lineThumbs = await saleLineThumbnails(filteredOrders.flatMap(o => o.business_order_items))
+    let lineIdx = 0
+
     const salesRows = filteredOrders.map(o => ({
       id: o.id,
       orderNumber: o.orderNumber,
@@ -89,7 +94,7 @@ export async function GET(
         const label = variantName && variantName !== productName
           ? `${productName} – ${variantName}`
           : productName
-        return { label, qty: i.quantity, unitPrice: Number(i.unitPrice || 0) }
+        return { label, qty: i.quantity, unitPrice: Number(i.unitPrice || 0), imageUrl: lineThumbs[lineIdx++] }
       }),
     }))
 

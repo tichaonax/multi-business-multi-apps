@@ -9,6 +9,7 @@
 // report's rule: stock at or below the item's reorder level, 10 when none is
 // set (src/app/api/universal/reports/reorder/route.ts).
 import { prisma } from '@/lib/prisma'
+import { saleLineThumbnails } from '@/lib/reports/item-thumbnails'
 
 export interface ItemSalesRow {
   key: string
@@ -22,6 +23,8 @@ export interface ItemSalesRow {
   remainingStock: number | null
   reorderLevel: number | null
   restockNeeded: boolean
+  /** MBM-345: thumbnail where the product / inventory item has an image */
+  imageUrl: string | null
 }
 
 const DEFAULT_REORDER_LEVEL = 10
@@ -73,7 +76,15 @@ export async function buildItemSales(orders: any[], businessId: string): Promise
     return null
   }
 
-  return [...rows.values()]
+  // MBM-345: a thumbnail per product / inventory item row
+  const all = [...rows.values()]
+  const thumbs = await saleLineThumbnails(all.map(r =>
+    r.kind === 'variant' ? { productVariantId: r.ref }
+      : r.kind === 'inventory' ? { attributes: { inventoryItemId: r.ref } }
+        : {}))
+  const thumbOf = new Map(all.map((r, k) => [r.key, thumbs[k]]))
+
+  return all
     .map(r => {
       const s = stockOf(r)
       // bales and bulk products have no reorder level (null): never flagged
@@ -88,6 +99,7 @@ export async function buildItemSales(orders: any[], businessId: string): Promise
         remainingStock: s ? s.stock : null,
         reorderLevel: level,
         restockNeeded: !!s && level !== null && s.stock <= level,
+        imageUrl: thumbOf.get(r.key) ?? null,
       }
     })
     .sort((a, b) => b.total - a.total)

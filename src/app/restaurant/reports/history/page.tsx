@@ -272,28 +272,28 @@ export default function ReportsHistory() {
                 <table className="w-full">
                   <thead className="bg-gray-100 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
                         Report Type
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
                         Date
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
                         Manager
                       </th>
-                      <th className="px-6 py-3 text-right text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                      <th className="px-3 py-3 text-right text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
                         Total Sales
                       </th>
-                      <th className="px-6 py-3 text-right text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                      <th className="px-3 py-3 text-right text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
                         Cash Counted
                       </th>
-                      <th className="px-6 py-3 text-right text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                      <th className="px-3 py-3 text-right text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
                         Orders
                       </th>
-                      <th className="px-6 py-3 text-center text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                      <th className="px-3 py-3 text-center text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
                         Status
                       </th>
-                      <th className="px-6 py-3 text-center text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                      <th className="px-3 py-3 text-center text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
                         Actions
                       </th>
                     </tr>
@@ -304,7 +304,7 @@ export default function ReportsHistory() {
                         key={report.id}
                         className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                       >
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td className="px-3 py-4 whitespace-nowrap">
                           <div className="flex items-center">
                             <span className="text-2xl mr-2">
                               {report.reportType === 'END_OF_DAY' ? '📅' : '📊'}
@@ -319,23 +319,23 @@ export default function ReportsHistory() {
                             </div>
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td className="px-3 py-4">
                           <div className="text-sm text-gray-900 dark:text-gray-100">
                             {formatDateFull(new Date(report.reportDate))}
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td className="px-3 py-4">
                           <div className="text-sm text-gray-900 dark:text-gray-100">{report.managerName}</div>
                           {report.user && (
-                            <div className="text-xs text-gray-500 dark:text-gray-400">{report.user.email}</div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400 break-all">{report.user.email}</div>
                           )}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right">
+                        <td className="px-3 py-4 whitespace-nowrap text-right">
                           <div className="text-sm font-semibold text-green-600 dark:text-green-400">
                             {formatCurrency(report.totalSales)}
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right">
+                        <td className="px-3 py-4 whitespace-nowrap text-right">
                           {report.cashCounted != null ? (
                             <div className="text-sm font-semibold text-blue-600 dark:text-blue-400">
                               {formatCurrency(report.cashCounted)}
@@ -344,10 +344,10 @@ export default function ReportsHistory() {
                             <div className="text-sm text-gray-400 dark:text-gray-500">—</div>
                           )}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right">
+                        <td className="px-3 py-4 whitespace-nowrap text-right">
                           <div className="text-sm text-gray-900 dark:text-gray-100">{report.totalOrders}</div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-center">
+                        <td className="px-3 py-4 whitespace-nowrap text-center">
                           {report.isLocked ? (
                             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100">
                               🔒 Locked
@@ -358,12 +358,12 @@ export default function ReportsHistory() {
                             </span>
                           )}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-center">
+                        <td className="px-3 py-4 whitespace-nowrap text-center">
                           <Link
                             href={`/restaurant/reports/saved/${report.id}`}
                             className="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
                           >
-                            View Report →
+                            View →
                           </Link>
                         </td>
                       </tr>

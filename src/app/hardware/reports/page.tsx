@@ -42,8 +42,8 @@ export default function RestaurantReportsPage() {
       color: 'bg-green-600 hover:bg-green-700'
     },
     {
-      title: '🧾 Daily Item Sales',
-      description: 'Pick a day: each item sold, its price, quantity, total, stock left and whether to restock',
+      title: '🧾 Item Sales',
+      description: 'A day or a date range: each item sold, its price, quantity, total, stock left and whether to restock',
       href: `/${businessType}/reports/daily-item-sales`,
       icon: '🧾',
       color: 'bg-teal-600 hover:bg-teal-700'

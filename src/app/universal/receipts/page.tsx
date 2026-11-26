@@ -21,7 +21,7 @@ import { Pagination } from '@/components/ui/pagination'
 import { usePageSize, PAGE_SIZE_OPTIONS } from '@/hooks/use-page-size-preference'
 import { useElementHeight } from '@/hooks/use-element-height'
 import { TableFillerRows } from '@/components/ui/table-filler-rows'
-import { ReceiptItemsCell, ReceiptHoverCard, type ReceiptPreviewItem } from '@/components/receipts/receipt-items-preview'
+import { ReceiptItemsCell, ReceiptHoverCard, ItemThumb, type ReceiptPreviewItem } from '@/components/receipts/receipt-items-preview'
 import { CopyButton, WifiCodePill } from '@/components/wifi/wifi-code'
 
 interface ReceiptListItem {
@@ -659,7 +659,8 @@ function ReceiptHistoryPageContent() {
                     const ItemRow = ({ item }: { item: ReceiptPreviewItem }) => (
                       <div className="text-xs">
                         <div className="flex items-center justify-between gap-2">
-                          <span className={`truncate ${item.notIssued ? 'text-red-600 dark:text-red-400' : 'text-gray-600 dark:text-gray-300'}`}>
+                          <ItemThumb url={item.imageUrl} />
+                          <span className={`flex-1 min-w-0 truncate ${item.notIssued ? 'text-red-600 dark:text-red-400' : 'text-gray-600 dark:text-gray-300'}`}>
                             {item.name} <span className="text-gray-400 dark:text-gray-500">×{item.quantity}</span>
                             {item.notIssued && ' — WiFi not issued, not charged'}
                           </span>

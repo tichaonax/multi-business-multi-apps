@@ -20,28 +20,35 @@ interface ItemSalesRow {
   remainingStock: number | null
   reorderLevel: number | null
   restockNeeded: boolean
+  imageUrl?: string | null
 }
 
-export function DailyItemSales({ businessId, date, collapsible = false }: {
+export function DailyItemSales({ businessId, date, start, end, collapsible = false }: {
   businessId: string
   /** YYYY-MM-DD; none: today, as the EOD report */
   date?: string
+  /** MBM-345: a range of days instead (YYYY-MM-DD, both inclusive) */
+  start?: string
+  end?: string
   collapsible?: boolean
 }) {
+  const isRange = !!start && !!end && start !== end
   const [open, setOpen] = useState(!collapsible)
   const [rows, setRows] = useState<ItemSalesRow[] | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [restockOnly, setRestockOnly] = useState(false)
 
-  useEffect(() => { setRows(null) }, [businessId, date])
+  useEffect(() => { setRows(null) }, [businessId, date, start, end])
 
   useEffect(() => {
     if (!open || rows || !businessId) return
     let live = true
     setLoading(true)
     setError(null)
-    const q = new URLSearchParams({ businessId, includeItems: '1', ...(date ? { date } : {}) })
+    const day = start && end && start === end ? start : date
+    // The daily sales API's own range (whole days in the business's time zone)
+    const q = new URLSearchParams({ businessId, includeItems: '1', ...(isRange ? { startDate: start!, endDate: end! } : day ? { date: day } : {}) })
     fetch(`/api/universal/daily-sales?${q}`)
       .then(r => r.json().then(j => ({ ok: r.ok, j })))
       .then(({ ok, j }) => {
@@ -52,7 +59,7 @@ export function DailyItemSales({ businessId, date, collapsible = false }: {
       .catch(e => { if (live) setError(e.message) })
       .finally(() => { if (live) setLoading(false) })
     return () => { live = false }
-  }, [open, rows, businessId, date])
+  }, [open, rows, businessId, date, start, end, isRange])
 
   const shown = (rows || []).filter(r => !restockOnly || r.restockNeeded)
   const totalQty = shown.reduce((s, r) => s + r.quantity, 0)
@@ -83,7 +90,7 @@ export function DailyItemSales({ businessId, date, collapsible = false }: {
         <div className="mt-4">
           {loading && <p className="text-sm text-gray-500 dark:text-gray-400">Loading…</p>}
           {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
-          {rows && rows.length === 0 && <p className="text-sm text-gray-500 dark:text-gray-400">No items sold on this day.</p>}
+          {rows && rows.length === 0 && <p className="text-sm text-gray-500 dark:text-gray-400">No items sold {isRange ? 'in this period' : 'on this day'}.</p>}
           {rows && rows.length > 0 && (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -101,8 +108,16 @@ export function DailyItemSales({ businessId, date, collapsible = false }: {
                   {shown.map(r => (
                     <tr key={r.key} className="border-b border-gray-100 dark:border-gray-700">
                       <td className="py-1.5 pr-3 text-gray-900 dark:text-gray-100">
-                        {r.name}
-                        {r.sku && <span className="block text-xs text-gray-500 dark:text-gray-400">{r.sku}</span>}
+                        {/* MBM-345: thumbnail where the item has an image */}
+                        <div className="flex items-center gap-2">
+                          {r.imageUrl
+                            ? <img src={r.imageUrl} alt="" loading="lazy" className="w-10 h-10 rounded object-cover shrink-0 border border-gray-200 dark:border-gray-600" />
+                            : <span className="w-10 h-10 shrink-0 print:hidden" aria-hidden />}
+                          <div className="min-w-0">
+                            {r.name}
+                            {r.sku && <span className="block text-xs text-gray-500 dark:text-gray-400">{r.sku}</span>}
+                          </div>
+                        </div>
                       </td>
                       <td className="py-1.5 px-3 text-right">{formatCurrency(r.unitPrice)}</td>
                       <td className="py-1.5 px-3 text-right">{r.quantity}</td>

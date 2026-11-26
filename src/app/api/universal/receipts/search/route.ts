@@ -1,3 +1,4 @@
+import { saleLineThumbnails } from '@/lib/reports/item-thumbnails'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { isSystemAdmin } from '@/lib/permission-utils'
@@ -144,6 +145,7 @@ export async function GET(request: NextRequest) {
             quantity: true,
             totalPrice: true,
             attributes: true,
+            productVariantId: true,
             product_variants: {
               select: {
                 name: true,
@@ -242,6 +244,11 @@ export async function GET(request: NextRequest) {
           orderBy: { createdAt: 'desc' },
         })
       : []
+    // MBM-345: a thumbnail per item line where the product / inventory item has one
+    const allLines = orders.flatMap(o => o.business_order_items)
+    const thumbs = await saleLineThumbnails(allLines)
+    const thumbOf = new Map(allLines.map((l, k) => [l, thumbs[k]]))
+
     const historyByOrderId = new Map<string, Array<{
       fromEmployeeName: string; toEmployeeName: string; reason: string; reassignedAt: Date; reassignedByName: string | null
     }>>()
@@ -298,6 +305,7 @@ export async function GET(request: NextRequest) {
               wifiCodesMatched: !saved && !Array.isArray(a.tokenIds) && matchedCodes.has(item),
               notIssued: a.notIssued === true,
               notChargedAmount: a.notIssued ? Number(a.notChargedAmount || 0) : 0,
+              imageUrl: thumbOf.get(item) ?? null, // MBM-345
             }
           })
           .sort((a, b) => b.totalPrice - a.totalPrice),
