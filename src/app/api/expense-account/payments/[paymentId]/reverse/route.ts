@@ -1,3 +1,4 @@
+import { syncPaymentVehicleCosts } from '@/lib/vehicles/payment-vehicle-cost'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
@@ -74,6 +75,7 @@ export async function POST(
           notes: payment.notes ? `${payment.notes}\n${reversalTag}` : reversalTag,
         },
       })
+      await syncPaymentVehicleCosts(tx, [paymentId]) // MBM-347: reversed → out of Vehicle Management
       return updateExpenseAccountBalanceTx(tx, payment.expenseAccountId)
     })
 

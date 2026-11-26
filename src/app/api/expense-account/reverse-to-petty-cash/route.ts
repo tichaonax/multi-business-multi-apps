@@ -1,3 +1,4 @@
+import { syncPaymentVehicleCosts } from '@/lib/vehicles/payment-vehicle-cost'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
@@ -239,6 +240,9 @@ export async function POST(request: NextRequest) {
           reversal_note     = ${reversalNote.trim()}
         WHERE id = ANY(${paymentIds}::text[])
       `
+
+      // MBM-347: reversed vehicle costs leave Vehicle Management
+      await syncPaymentVehicleCosts(tx, paymentIds)
 
       // 2. Recalculate expense account balance (REVERSED no longer counts)
       await updateExpenseAccountBalanceTx(tx, expenseAccountId)

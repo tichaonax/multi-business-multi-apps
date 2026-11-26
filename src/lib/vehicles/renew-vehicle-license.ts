@@ -20,6 +20,8 @@ export interface RenewLicenseInput {
   licenseNumber?: string | null
   renewalCost?: number | null
   renewalReceiptId?: string | null
+  /** MBM-347: the request line / payment that paid for it (its cost is already a vehicle expense) */
+  fundedSourceRef?: string | null
   /** Other licence fields the entry path has (authority, late fee, document, …) */
   extra?: Record<string, unknown>
 }
@@ -41,6 +43,10 @@ export async function renewVehicleLicense(tx: any, input: RenewLicenseInput): Pr
     if (input.renewalReceiptId && !covering.renewalReceiptId) {
       await tx.vehicleLicenses.update({ where: { id: covering.id }, data: { renewalReceiptId: input.renewalReceiptId } })
     }
+    // MBM-347: the licence was entered already; this payment is what it cost
+    if (input.fundedSourceRef && !covering.fundedSourceRef) {
+      await tx.vehicleLicenses.update({ where: { id: covering.id }, data: { fundedSourceRef: input.fundedSourceRef } })
+    }
     return { status: 'already', id: covering.id }
   }
 
@@ -60,6 +66,7 @@ export async function renewVehicleLicense(tx: any, input: RenewLicenseInput): Pr
       reminderDays: current?.reminderDays ?? 30,
       usage: current?.usage ?? null,
       renewalReceiptId: input.renewalReceiptId ?? null,
+      fundedSourceRef: input.fundedSourceRef ?? null,
       supersedesLicenseId: current?.id ?? null,
       ...(input.extra || {}),
       updatedAt: new Date(),
@@ -77,16 +84,37 @@ export async function renewFromVehicleCost(tx: any, cost: {
   vehicleLicenseExpiry?: Date | string | null
   amount: number
   date: Date
+  /** MBM-347: "combo-item:<id>", "payment:<id>", … — links the licence to the cost */
+  sourceRef?: string | null
+  /** MBM-347: when the money was asked for — a licence entered since then (by
+   *  hand, before the approval) is the one this cost paid for */
+  requestedAt?: Date | string | null
 }): Promise<RenewLicenseResult | null> {
-  if (!cost.vehicleLicenseExpiry) return null
   const type = cost.vehicleExpenseType === 'INSURANCE' ? 'INSURANCE'
     : cost.vehicleExpenseType === 'LICENSING' ? cost.vehicleLicenseType : null
   if (!type || !(RENEWABLE_LICENSE_TYPES as readonly string[]).includes(type)) return null
+  if (!cost.vehicleLicenseExpiry) {
+    // No new expiry: nothing to renew. If the licence was already entered
+    // after the request was made, link it, so its cost isn't counted twice.
+    if (cost.sourceRef && cost.requestedAt) {
+      const entered = await tx.vehicleLicenses.findFirst({
+        where: { vehicleId: cost.vehicleId, licenseType: type, isActive: true, fundedSourceRef: null, createdAt: { gte: new Date(cost.requestedAt) } },
+        orderBy: { createdAt: 'desc' },
+        select: { id: true },
+      })
+      if (entered) {
+        await tx.vehicleLicenses.update({ where: { id: entered.id }, data: { fundedSourceRef: cost.sourceRef } })
+        return { status: 'already', id: entered.id }
+      }
+    }
+    return null
+  }
   return renewVehicleLicense(tx, {
     vehicleId: cost.vehicleId,
     licenseType: type as RenewableLicenseType,
     expiryDate: new Date(cost.vehicleLicenseExpiry),
     issueDate: cost.date,
     renewalCost: cost.amount,
+    fundedSourceRef: cost.sourceRef ?? null,
   })
 }

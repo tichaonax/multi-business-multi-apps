@@ -86,3 +86,15 @@ export function VehicleCostPicker({ value, onChange, disabled, compact }: {
     </div>
   )
 }
+
+/** MBM-347: "🚗 ACT 8086 · Licensing (Registration)" on a request line that is a vehicle cost */
+export function VehicleCostTag({ item }: { item: { vehicleId?: string | null; vehicleExpenseType?: string | null; vehicleLicenseType?: string | null; vehicle?: { licensePlate?: string | null } | null } }) {
+  if (!item?.vehicleId) return null
+  const type = VEHICLE_EXPENSE_TYPES.find(t => t.value === item.vehicleExpenseType)?.label || item.vehicleExpenseType || 'Vehicle cost'
+  const licence = item.vehicleLicenseType ? LICENSE_TYPES.find(t => t.value === item.vehicleLicenseType)?.label || item.vehicleLicenseType : null
+  return (
+    <span className="inline-flex items-center gap-1 ml-1.5 px-1.5 py-0.5 rounded text-[11px] font-medium bg-sky-100 dark:bg-sky-900/40 text-sky-800 dark:text-sky-200 whitespace-nowrap">
+      🚗 {item.vehicle?.licensePlate || 'Vehicle'} · {type}{licence ? ` (${licence})` : ''}
+    </span>
+  )
+}

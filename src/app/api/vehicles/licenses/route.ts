@@ -23,7 +23,10 @@ const CreateLicenseSchema = z.object({
   // replaces. Deactivates it unconditionally (even if not yet expired),
   // unlike the general "Add License" path which only auto-deactivates an
   // already-expired one and otherwise rejects a duplicate active license.
-  supersedesLicenseId: z.string().optional()
+  supersedesLicenseId: z.string().optional(),
+  // MBM-347: the approved request line that paid for it ("combo-item:<id>", …) —
+  // its cost is already a vehicle expense, so the cost report doesn't add it again
+  fundedSourceRef: z.string().max(200).regex(/^(combo-item|payment|supplier-item|petty-cash-tx):[\w-]+$/).optional()
 })
 
 const UpdateLicenseSchema = z.object({

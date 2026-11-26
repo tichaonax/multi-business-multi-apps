@@ -1,3 +1,4 @@
+import { vehicleLineFields } from '@/lib/vehicles/vehicle-expense-types'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
@@ -123,6 +124,7 @@ export async function POST(request: NextRequest) {
             categoryId: item.categoryId || null,
             subcategoryId: item.subcategoryId || null,
             amount: parseFloat(item.amount),
+            ...vehicleLineFields(item), // MBM-347: a vehicle cost, to Vehicle Management on approval
           })),
         })
       }
@@ -232,6 +234,7 @@ export async function GET(request: NextRequest) {
             include: {
               category: { select: { id: true, name: true, emoji: true } },
               subcategory: { select: { id: true, name: true, emoji: true } },
+              vehicle: { select: { id: true, licensePlate: true, make: true, model: true } },
             },
           },
         },

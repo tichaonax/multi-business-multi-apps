@@ -16,6 +16,7 @@ import { formatDateByFormat } from '@/lib/country-codes'
 import { useDateFormat } from '@/contexts/settings-context'
 import { LicenseStatusIndicator } from './license-status-indicator'
 import { LicenseFormModal } from './license-form-modal'
+import { LicenceRequestBadge } from './licence-funds-request'
 import { LicenseDetailModal } from './license-detail-modal'
 import { VehicleStatusModal } from './vehicle-status-modal'
 import { RenewalReceiptForm } from './renewal-receipt-form'
@@ -1051,6 +1052,10 @@ export function VehicleDetailModal({ vehicle, onClose, onUpdate, autoRenewLicens
                                 <span className="text-xs font-medium px-2 py-1 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded">
                                   {getStatusText(status)}
                                 </span>
+                                {/* MBM-346: where the funds request for its renewal is */}
+                                {license.isActive && status !== 'valid' && (
+                                  <LicenceRequestBadge vehicleId={vehicle.id} licenseType={license.licenseType} />
+                                )}
                               </div>
                               <div className="flex items-center space-x-3 flex-wrap text-xs">
                                 <span className="font-medium">

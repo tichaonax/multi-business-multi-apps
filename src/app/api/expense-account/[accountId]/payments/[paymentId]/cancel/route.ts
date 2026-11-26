@@ -1,3 +1,4 @@
+import { syncPaymentVehicleCosts } from '@/lib/vehicles/payment-vehicle-cost'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
@@ -64,6 +65,8 @@ export async function POST(
       data: { status: 'CANCELLED', cancelledAt: new Date() },
       select: { id: true, status: true, cancelledAt: true },
     })
+    // MBM-347: Vehicle Management follows the payment's status
+    await syncPaymentVehicleCosts(prisma, [paymentId]).catch(e => console.error('MBM-347 vehicle cost sync:', e))
 
     // For personal REQUEST payments, notify cashier grantees that the request was cancelled
     const isPersonalRequest =

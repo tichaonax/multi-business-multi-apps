@@ -7,6 +7,7 @@ import { X } from 'lucide-react'
 import { useToastContext } from '@/components/ui/toast'
 import fetchWithValidation from '@/lib/fetchWithValidation'
 import { DocumentUpload } from '@/components/ui/document-upload'
+import { LicenceFundsRequestForm, LicenceRequestBanner, isApprovedRequest, isPendingRequest, useLicenceRequest } from './licence-funds-request'
 
 interface LicenseFormModalProps {
   vehicleId: string
@@ -55,6 +56,22 @@ export function LicenseFormModal({ vehicleId, license, renewFrom, isOpen, onClos
   const [newAuthorityName, setNewAuthorityName] = useState('')
   const toast = useToastContext()
 
+  // MBM-346: renewing has two steps — request the money (an expense request),
+  // then enter the licence once bought. Either can be used alone.
+  const renewType = renewFrom?.licenseType || ''
+  const { req: fundsRequest, loaded: fundsLoaded, reload: reloadFundsRequest } = useLicenceRequest(vehicleId, renewType, !!renewFrom && isOpen)
+  const [mode, setMode] = useState<'request' | 'enter'>('enter')
+  const [modeChosen, setModeChosen] = useState(false)
+  const [requestSaving, setRequestSaving] = useState(false)
+  // Opens on Request funds unless a request is already pending / approved
+  useEffect(() => {
+    if (!renewFrom || !fundsLoaded || modeChosen) return
+    const live = fundsRequest && fundsRequest.status !== 'CANCELLED' && fundsRequest.status !== 'EXPIRED'
+    setMode(live ? 'enter' : 'request')
+  }, [renewFrom, fundsLoaded, fundsRequest, modeChosen])
+  const pickMode = (m: 'request' | 'enter') => { setMode(m); setModeChosen(true) }
+  const requestBlocked = !!fundsRequest && fundsRequest.status !== 'CANCELLED' && fundsRequest.status !== 'EXPIRED'
+
   // Fetch issuing authorities on mount
   useEffect(() => {
     const fetchAuthorities = async () => {
@@ -77,14 +94,14 @@ export function LicenseFormModal({ vehicleId, license, renewFrom, isOpen, onClos
   // Update form data when license prop changes
   useEffect(() => {
     setFormData({
-      licenseType: license?.licenseType || 'REGISTRATION',
+      licenseType: license?.licenseType || renewFrom?.licenseType || 'REGISTRATION',
       licenseNumber: license?.licenseNumber || '',
       issueDate: license?.issueDate || '',
       expiryDate: license?.expiryDate || '',
-      issuingAuthority: license?.issuingAuthority || '',
+      issuingAuthority: license?.issuingAuthority || renewFrom?.issuingAuthority || '',
       renewalCost: license?.renewalCost?.toString() || '0',
       lateFee: license?.lateFee?.toString() || '0',
-      usage: license?.usage || '',
+      usage: license?.usage || renewFrom?.usage || '',
       isExempt: license?.isExempt || false,
       notes: (license as any)?.notes || '',
       isActive: license?.isActive ?? true,
@@ -94,7 +111,7 @@ export function LicenseFormModal({ vehicleId, license, renewFrom, isOpen, onClos
     setShowNewAuthorityInput(false)
     setNewAuthorityName('')
     setError('')
-  }, [license])
+  }, [license, renewFrom])
 
   const handleAddNewAuthority = async () => {
     if (!newAuthorityName.trim()) {
@@ -223,7 +240,10 @@ export function LicenseFormModal({ vehicleId, license, renewFrom, isOpen, onClos
             // Explicitly renewing a specific license — deactivate it even if
             // it hasn't expired yet (the normal "Add License" 409-on-active-
             // duplicate guard still applies when this isn't set).
-            ...(renewFrom ? { supersedesLicenseId: renewFrom.id } : {})
+            ...(renewFrom ? { supersedesLicenseId: renewFrom.id } : {}),
+            // MBM-347: paid through the approved funds request — its cost is
+            // already a vehicle expense, so the cost report won't add it again
+            ...(renewFrom && fundsRequest && isApprovedRequest(fundsRequest) ? { fundedSourceRef: `combo-item:${fundsRequest.itemId}` } : {})
           }
 
       const body = await fetchWithValidation(url, {
@@ -283,6 +303,47 @@ export function LicenseFormModal({ vehicleId, license, renewFrom, isOpen, onClos
           </button>
         </div>
 
+        {/* MBM-346: Request funds / Enter licence, and where the funds request is */}
+        {renewFrom && (
+          <div className="px-5 pt-4 space-y-3 shrink-0">
+            <div className="flex gap-1 p-1 rounded-lg bg-gray-100 dark:bg-gray-800">
+              {([['request', '💰 Request funds'], ['enter', '📄 Enter licence']] as const).map(([m, label]) => (
+                <button key={m} type="button" onClick={() => pickMode(m)}
+                  className={`flex-1 px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${mode === m ? 'bg-white dark:bg-gray-700 text-primary shadow' : 'text-secondary hover:text-primary'}`}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            <LicenceRequestBanner req={fundsRequest} />
+          </div>
+        )}
+
+        {renewFrom && mode === 'request' ? (
+          <div className="overflow-y-auto overflow-x-hidden flex-1 px-5 py-4">
+            {requestBlocked ? (
+              <p className="text-sm text-secondary">
+                {isPendingRequest(fundsRequest)
+                  ? 'A request for this renewal is already awaiting approval, so there is no need to ask again.'
+                  : 'The funds for this renewal are approved. Once the licence is bought, enter it on the Enter licence tab.'}
+              </p>
+            ) : (
+              <LicenceFundsRequestForm
+                formId="licence-funds-form"
+                vehicleId={vehicleId}
+                licenseType={renewFrom.licenseType}
+                licenseLabel={LICENSE_TYPES.find(t => t.value === renewFrom.licenseType)?.label || renewFrom.licenseType}
+                defaultAmount={renewFrom.renewalCost != null ? Number(renewFrom.renewalCost) : null}
+                onSaving={setRequestSaving}
+                onSubmitted={() => {
+                  try { toast.push('Funds requested — the approvers have been notified') } catch (e) {}
+                  // Stay open: the banner now shows it awaiting approval
+                  setModeChosen(true)
+                  reloadFundsRequest()
+                }}
+              />
+            )}
+          </div>
+        ) : (
         <form id="license-form" onSubmit={handleSubmit} className="overflow-y-auto overflow-x-hidden flex-1 px-5 py-4 space-y-4">
           {error && (
             <div className="p-3 bg-red-100 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
@@ -473,6 +534,7 @@ export function LicenseFormModal({ vehicleId, license, renewFrom, isOpen, onClos
             </label>
           </div>
         </form>
+        )}
 
         {/* Sticky Footer */}
         <div className="flex justify-end gap-3 px-5 py-4 border-t border-gray-200 dark:border-gray-700 shrink-0">
@@ -484,6 +546,18 @@ export function LicenseFormModal({ vehicleId, license, renewFrom, isOpen, onClos
           >
             Cancel
           </button>
+          {renewFrom && mode === 'request' ? (
+            !requestBlocked && (
+              <button
+                type="submit"
+                form="licence-funds-form"
+                className="px-4 py-2 text-sm font-medium text-white bg-amber-600 rounded-md hover:bg-amber-700 disabled:opacity-50"
+                disabled={requestSaving}
+              >
+                {requestSaving ? 'Submitting...' : 'Submit for approval'}
+              </button>
+            )
+          ) : (
           <button
             type="submit"
             form="license-form"
@@ -492,6 +566,7 @@ export function LicenseFormModal({ vehicleId, license, renewFrom, isOpen, onClos
           >
             {loading ? 'Saving...' : license ? 'Update License' : renewFrom ? 'Save Renewal' : 'Add License'}
           </button>
+          )}
         </div>
       </div>
     </div>

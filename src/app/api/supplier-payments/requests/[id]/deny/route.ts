@@ -1,3 +1,4 @@
+import { syncSupplierItemVehicleCosts } from '@/lib/vehicles/payment-vehicle-cost'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
@@ -57,6 +58,8 @@ export async function POST(
           where: { id: { in: idsToDeny }, requestId: id, status: { in: ['PENDING', 'APPROVED'] } },
           data: { status: 'DENIED' },
         })
+        // MBM-347: a denied vehicle line (even one approved earlier) leaves Vehicle Management
+        await syncSupplierItemVehicleCosts(tx, idsToDeny, user.id)
       }
 
       const allItems = await tx.supplierPaymentRequestItems.findMany({

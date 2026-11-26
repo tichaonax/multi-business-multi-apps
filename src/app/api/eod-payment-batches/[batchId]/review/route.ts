@@ -1,3 +1,4 @@
+import { syncPaymentVehicleCosts } from '@/lib/vehicles/payment-vehicle-cost'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
@@ -303,6 +304,9 @@ export async function POST(
         data: { status: 'QUEUED', eodBatchId: null },
       })
       const deferredCount = deferred.count
+
+      // MBM-347: approved vehicle costs go to Vehicle Management; rejected ones don't
+      await syncPaymentVehicleCosts(tx, decidedIds)
 
       // Update EOD batch status
       await tx.eODPaymentBatch.update({

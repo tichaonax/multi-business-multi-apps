@@ -1,3 +1,4 @@
+import { syncPaymentVehicleCosts } from '@/lib/vehicles/payment-vehicle-cost'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
@@ -48,6 +49,8 @@ export async function POST(
       where: { id: paymentId },
       data: { status: 'CANCELLED', cancelledAt: new Date(), notes: updatedNotes },
     })
+    // MBM-347: Vehicle Management follows the payment's status
+    await syncPaymentVehicleCosts(prisma, [paymentId]).catch(e => console.error('MBM-347 vehicle cost sync:', e))
 
     return NextResponse.json({ success: true, message: 'Payment cancelled' })
   } catch (error) {

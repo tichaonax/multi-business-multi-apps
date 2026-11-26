@@ -1,3 +1,4 @@
+import { syncPaymentVehicleCosts } from '@/lib/vehicles/payment-vehicle-cost'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
@@ -109,6 +110,7 @@ export async function POST(
         },
         select: { id: true, status: true, paidAt: true, submittedAt: true, submittedBy: true },
       })
+      await syncPaymentVehicleCosts(tx, [paymentId]) // MBM-347
       await updateExpenseAccountBalanceTx(tx, accountId)
       // MBM-324: a combo payment paid in full settles its request + items
       settledCombo = await settleComboRequestForPaymentTx(tx, paymentId, now)

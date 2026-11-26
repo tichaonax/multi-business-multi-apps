@@ -1,3 +1,4 @@
+import { syncPaymentVehicleCosts } from '@/lib/vehicles/payment-vehicle-cost'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
@@ -107,6 +108,9 @@ export async function POST(
         data: { balance: newBalance, updatedAt: new Date() },
       }),
     ])
+
+    // MBM-347: an approved vehicle cost goes to Vehicle Management
+    await syncPaymentVehicleCosts(prisma, [paymentId]).catch(e => console.error('MBM-347 vehicle cost sync:', e))
 
     // Notify the original creator
     if (payment.createdBy) {

@@ -287,7 +287,7 @@ export async function POST(
         })
         if (!r.ok) throw new Error(`Vehicle: ${r.error}`)
         // A Licensing / Insurance spend with its new expiry renews the licence (clears its alert)
-        await renewFromVehicleCost(tx, { ...transaction, amount: spendAmount, date: txDate })
+        await renewFromVehicleCost(tx, { ...transaction, amount: spendAmount, date: txDate, sourceRef: `petty-cash-tx:${transaction.id}`, requestedAt: pcRequest.requestedAt })
       }
 
       // 4. Increment spentAmount on the request atomically

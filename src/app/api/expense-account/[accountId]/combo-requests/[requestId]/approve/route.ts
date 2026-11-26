@@ -236,7 +236,7 @@ export async function POST(
         })
         if (!r.ok) throw new Error(`Vehicle line "${item.description}": ${r.error}`)
         // A Licensing / Insurance line with its new expiry renews the licence (clears its alert)
-        await renewFromVehicleCost(tx, { ...item, amount: Number(item.estimatedAmount || 0), date: now })
+        await renewFromVehicleCost(tx, { ...item, amount: Number(item.estimatedAmount || 0), date: now, sourceRef, requestedAt: comboRequest.createdAt })
       }
 
       // Update the combo request

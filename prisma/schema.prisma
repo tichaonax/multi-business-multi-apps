@@ -1809,6 +1809,10 @@ model ExpenseAccountDeposits {
 model ExpenseAccountPayments {
   id                                String                           @id @default(uuid())
   expenseAccountId                  String
+  // MBM-347: a vehicle cost waiting for approval ({ vehicleId, expenseType, licenseType?,
+  // licenseExpiry?, fuelQuantity?, fuelType?, mileageAtExpense? }); written to
+  // Vehicle Management when approved, removed when rejected / cancelled / reversed
+  vehicleCost                       Json?
   payeeType                         String
   payeeUserId                       String?
   payeeEmployeeId                   String?
@@ -4152,6 +4156,10 @@ model VehicleLicenses {
   // costs" can never accidentally include exemption fees.
   exemptionFee             Decimal?                @db.Decimal(10, 2)
   renewalReceiptId         String?
+  // MBM-347: the request line / payment that paid for this licence
+  // ("combo-item:<id>", "payment:<id>", "supplier-item:<id>", "petty-cash-tx:<id>").
+  // Its cost is already a vehicle expense, so the cost report doesn't add it again.
+  fundedSourceRef          String?
   vehicle_renewal_receipts VehicleRenewalReceipts? @relation(fields: [renewalReceiptId], references: [id], onDelete: SetNull)
   vehicles                 Vehicles                @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
   // MBM-306: persists which license this one renews, so a resolved
@@ -4407,6 +4415,7 @@ model Vehicles {
   users                       Users?                      @relation(fields: [userId], references: [id])
   expense_payment_receipts    ExpensePaymentReceipts[]    @relation("ReceiptVehicle")
   combo_request_items         ComboPaymentRequestItems[]  @relation("ComboItemVehicle")
+  supplier_request_items      SupplierPaymentRequestItems[] @relation("SupplierItemVehicle")
   petty_cash_transactions     PettyCashTransaction[]      @relation("PettyCashTransactionVehicle")
 
   @@map("vehicles")
@@ -6546,10 +6555,16 @@ model SupplierPaymentRequestItems {
   approvedAmount Decimal? @db.Decimal(12, 2)
   approvalNote   String?
   managerNote    String?
+  // MBM-347: a vehicle cost — written to Vehicle Management when the line is approved
+  vehicleId            String?
+  vehicleExpenseType   String?
+  vehicleLicenseType   String?
+  vehicleLicenseExpiry DateTime?
 
   request     SupplierPaymentRequests @relation(fields: [requestId], references: [id], onDelete: Cascade)
   category    ExpenseCategories?      @relation("SupplierPaymentItemCategory", fields: [categoryId], references: [id])
   subcategory ExpenseSubcategories?   @relation("SupplierPaymentItemSubcategory", fields: [subcategoryId], references: [id])
+  vehicle     Vehicles?               @relation("SupplierItemVehicle", fields: [vehicleId], references: [id], onDelete: SetNull)
 
   @@index([requestId])
   @@map("supplier_payment_request_items")

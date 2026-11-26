@@ -9,6 +9,7 @@ import { useBusinessPermissionsContext } from '@/contexts/business-permissions-c
 import { useToastContext } from '@/components/ui/toast'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import fetchWithValidation from '@/lib/fetchWithValidation'
+import { VehicleCostPicker, NO_VEHICLE_COST, type VehicleCost } from '@/components/vehicles/vehicle-cost-picker'
 
 interface Supplier {
   id: string
@@ -35,6 +36,8 @@ interface LineItem {
   loadingSubcategories: boolean
   amount: string
   isTax?: boolean
+  /** MBM-347: a vehicle cost — to Vehicle Management when the line is approved */
+  vehicle: VehicleCost
 }
 
 // Map business type → domain name (matches SmartQuickPaymentModal)
@@ -60,6 +63,7 @@ function makeLineItem(description = '', isTax = false): LineItem {
     loadingSubcategories: false,
     amount: '',
     isTax,
+    vehicle: { ...NO_VEHICLE_COST },
   }
 }
 
@@ -184,6 +188,12 @@ export default function SubmitSupplierPaymentRequestPage() {
             line.categoryId = item.categoryId || ''
             line.subcategoryId = item.subcategoryId || ''
             line.amount = item.amount?.toString() || ''
+            line.vehicle = {
+              vehicleId: item.vehicleId ?? null,
+              vehicleExpenseType: item.vehicleExpenseType ?? null,
+              vehicleLicenseType: item.vehicleLicenseType ?? null,
+              vehicleLicenseExpiry: item.vehicleLicenseExpiry ? String(item.vehicleLicenseExpiry).slice(0, 10) : null,
+            }
             if (item.categoryId) {
               try {
                 const subRes = await fetch(`/api/expense-categories/${item.categoryId}/subcategories`, { credentials: 'include' })
@@ -283,6 +293,7 @@ export default function SubmitSupplierPaymentRequestPage() {
                 categoryId: l.categoryId || undefined,
                 subcategoryId: l.subcategoryId || undefined,
                 amount: parseFloat(l.amount),
+                ...l.vehicle, // MBM-347
               })),
             }),
           })
@@ -300,6 +311,7 @@ export default function SubmitSupplierPaymentRequestPage() {
                 categoryId: l.categoryId || undefined,
                 subcategoryId: l.subcategoryId || undefined,
                 amount: parseFloat(l.amount),
+                ...l.vehicle, // MBM-347
               })),
             }),
           })
@@ -530,6 +542,12 @@ export default function SubmitSupplierPaymentRequestPage() {
                       />
                     </div>
                   </div>
+                  {/* MBM-347: a vehicle cost (Vehicle Management gets it when approved) */}
+                  {!line.isTax && (
+                    <div className="sm:col-span-full">
+                      <VehicleCostPicker compact value={line.vehicle} onChange={v => updateLine(line.id, { vehicle: v })} />
+                    </div>
+                  )}
                 </div>
               )
               })}

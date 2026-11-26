@@ -1,3 +1,4 @@
+import { syncPaymentVehicleCosts } from '@/lib/vehicles/payment-vehicle-cost'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { debitBusinessAccount } from '@/lib/expense-account-utils'
@@ -161,6 +162,9 @@ export async function POST(
           submittedAt: new Date(),
         },
       })
+
+      // MBM-347: these vehicle costs are now approved — to Vehicle Management
+      await syncPaymentVehicleCosts(tx, paymentIds)
 
       // Create batch record
       const batch = await tx.paymentBatchSubmissions.create({

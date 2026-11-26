@@ -425,6 +425,9 @@ async function generateExpenseSummaryReport(dateFilter?: any, vehicleId?: string
 
   // Add license renewal costs (including late fees) to the summary
   licenseRenewals.forEach(license => {
+    // MBM-347: paid through an approved request — that cost is already one of
+    // the vehicle expenses above, so it isn't added a second time
+    if ((license as any).fundedSourceRef) return
     const renewalCost = Number((license as any).renewalCost ?? 0)
     const lateFee = Number((license as any).lateFee ?? 0)
     const totalLicenseCost = renewalCost + lateFee

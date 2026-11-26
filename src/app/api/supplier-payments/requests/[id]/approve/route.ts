@@ -1,3 +1,4 @@
+import { syncSupplierItemVehicleCosts } from '@/lib/vehicles/payment-vehicle-cost'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
@@ -88,6 +89,9 @@ export async function POST(
           },
         })
       }
+
+      // MBM-347: approved vehicle lines go to Vehicle Management
+      await syncSupplierItemVehicleCosts(tx, idsToApprove, user.id)
 
       // Recalculate request status
       const allItems = await tx.supplierPaymentRequestItems.findMany({

@@ -40,6 +40,9 @@ interface ExpenseLine {
   fuelQuantity: string
   fuelType: string
   mileageAtExpense: string
+  /** MBM-347: Licensing — which licence; Licensing / Insurance — new expiry if known */
+  licenseType: string
+  licenseExpiry: string
 }
 
 interface Props {
@@ -67,6 +70,8 @@ function makeExpenseLine(): ExpenseLine {
     fuelQuantity: '',
     fuelType: 'DIESEL',
     mileageAtExpense: '',
+    licenseType: 'REGISTRATION',
+    licenseExpiry: '',
   }
 }
 
@@ -412,6 +417,10 @@ export default function VehicleExpenseModal({
         ...(l.expenseType === 'FUEL' && l.fuelQuantity ? { fuelQuantity: parseFloat(l.fuelQuantity) } : {}),
         ...(l.expenseType === 'FUEL' && l.fuelType ? { fuelType: l.fuelType } : {}),
         ...(l.mileageAtExpense ? { mileageAtExpense: parseInt(l.mileageAtExpense, 10) } : {}),
+        // MBM-347: with a new expiry, approving it renews the licence
+        ...(l.expenseType === 'LICENSING' ? { licenseType: l.licenseType } : {}),
+        ...(l.expenseType === 'INSURANCE' ? { licenseType: 'INSURANCE' } : {}),
+        ...((l.expenseType === 'LICENSING' || l.expenseType === 'INSURANCE') && l.licenseExpiry ? { licenseExpiry: l.licenseExpiry } : {}),
       },
     }))
 
@@ -669,6 +678,36 @@ export default function VehicleExpenseModal({
                               <option key={f.value} value={f.value}>{f.label}</option>
                             ))}
                           </select>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* MBM-347: which licence it renews (Licensing / Insurance) */}
+                    {(line.expenseType === 'LICENSING' || line.expenseType === 'INSURANCE') && (
+                      <div className="flex gap-3">
+                        {line.expenseType === 'LICENSING' && (
+                          <div className="flex-1">
+                            <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Licence</label>
+                            <select
+                              value={line.licenseType}
+                              onChange={e => updateLine(line.id, { licenseType: e.target.value })}
+                              className="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-md px-2 py-1.5 bg-white dark:bg-gray-900 dark:text-gray-100"
+                            >
+                              <option value="REGISTRATION">Registration</option>
+                              <option value="ROAD_USE">Road use</option>
+                              <option value="RADIO">Radio</option>
+                              <option value="INSPECTION">Inspection</option>
+                            </select>
+                          </div>
+                        )}
+                        <div className="flex-1">
+                          <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">New expiry (if known)</label>
+                          <input
+                            type="date"
+                            value={line.licenseExpiry}
+                            onChange={e => updateLine(line.id, { licenseExpiry: e.target.value })}
+                            className="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-md px-2 py-1.5 bg-white dark:bg-gray-900 dark:text-gray-100"
+                          />
                         </div>
                       </div>
                     )}

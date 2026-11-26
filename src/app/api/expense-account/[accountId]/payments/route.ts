@@ -1,3 +1,4 @@
+import { syncPaymentVehicleCosts, toPaymentVehicleCost } from '@/lib/vehicles/payment-vehicle-cost'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import {
@@ -669,7 +670,7 @@ export async function POST(
         const expenseTypeNormMap: Record<string, string> = {
           REPAIR: 'MAINTENANCE',
           REPAIRS: 'MAINTENANCE',
-          REGISTRATION: 'OTHER',
+          REGISTRATION: 'LICENSING', // MBM-347
           TOLLS: 'TOLL',
         }
         if (expenseTypeNormMap[expenseType]) {
@@ -785,6 +786,8 @@ export async function POST(
             lineItems: (payment.lineItems && Array.isArray(payment.lineItems) && payment.lineItems.length > 0)
               ? payment.lineItems
               : undefined,
+            // MBM-347: the vehicle cost waits on the payment until it is approved
+            vehicleCost: (toPaymentVehicleCost(payment.vehicleExpense) as any) ?? undefined,
           },
           include: {
             payeeUser: {
@@ -891,28 +894,10 @@ export async function POST(
 
         createdPayments.push(newPayment)
 
-        // If vehicle expense metadata is present, create a linked VehicleExpense record
-        // in the same transaction so both records succeed or both roll back.
-        if (payment.vehicleExpense) {
-          const ve = payment.vehicleExpense
-          await tx.vehicleExpenses.create({
-            data: {
-              vehicleId: ve.vehicleId,
-              businessId: account.businessId || null,
-              expenseType: ve.expenseType,
-              amount: Number(payment.amount),
-              expenseDate: paymentDate,
-              isBusinessDeductible: true,
-              description: payment.notes?.trim() || null,
-              fuelQuantity: ve.fuelQuantity != null ? Number(ve.fuelQuantity) : null,
-              fuelType: ve.fuelType || null,
-              mileageAtExpense: ve.mileageAtExpense != null ? Number(ve.mileageAtExpense) : null,
-              expensePaymentId: newPayment.id,
-              createdBy: user.id,
-              updatedAt: new Date(),
-            },
-          })
-        }
+        // MBM-347: a vehicle cost reaches Vehicle Management only once approved —
+        // at once when the payment is already SUBMITTED (personal account /
+        // admin), otherwise when the queued request is approved
+        if (payment.vehicleExpense) await syncPaymentVehicleCosts(tx, [newPayment.id])
       }
 
       // Update expense account balance using the authoritative utility

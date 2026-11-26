@@ -1,3 +1,4 @@
+import { syncPaymentVehicleCosts } from '@/lib/vehicles/payment-vehicle-cost'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
@@ -35,6 +36,7 @@ export async function POST(request: NextRequest) {
         where: { id: paymentId },
         data: { status: 'PAID', paidAt: now },
       })
+      await syncPaymentVehicleCosts(tx, [paymentId]) // MBM-347
       await updateExpenseAccountBalanceTx(tx, payment.expenseAccountId)
     })
 

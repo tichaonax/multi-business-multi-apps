@@ -1,3 +1,4 @@
+import { syncPaymentVehicleCosts } from '@/lib/vehicles/payment-vehicle-cost'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
@@ -84,6 +85,8 @@ export async function POST(
           data: { status: 'QUEUED' },
         })
       }
+      // MBM-347: approved vehicle costs go to Vehicle Management
+      await syncPaymentVehicleCosts(tx, [...approvedPaymentIds, ...rejectedPaymentIds])
       // Recalculate balance: APPROVED is not counted (only PAID + SUBMITTED are),
       // so if any payment was SUBMITTED, the balance is freed back up here and
       // will only be re-debited when the requester marks the payment as PAID.

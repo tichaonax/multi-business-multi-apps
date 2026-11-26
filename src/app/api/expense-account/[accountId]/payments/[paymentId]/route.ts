@@ -1,3 +1,5 @@
+import { syncPaymentVehicleCosts } from '@/lib/vehicles/payment-vehicle-cost'
+import { removeLinkedVehicleRecord } from '@/lib/vehicles/create-linked-vehicle-record'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import {
@@ -382,6 +384,7 @@ export async function PATCH(
             where: { id: paymentId },
             data: { status: 'PAID', paidAt },
           })
+          await syncPaymentVehicleCosts(tx, [paymentId]) // MBM-347
           await updateExpenseAccountBalanceTx(tx, accountId)
           // MBM-324: a combo payment paid in full settles its request + items
           settledCombo = await settleComboRequestForPaymentTx(tx, paymentId, paidAt)
@@ -453,6 +456,7 @@ export async function PATCH(
           where: { id: paymentId },
           data: { status: 'PAID', paidAt },
         })
+        await syncPaymentVehicleCosts(tx, [paymentId]) // MBM-347
         await updateExpenseAccountBalanceTx(tx, accountId)
         // MBM-324: a combo payment paid in full settles its request + items
         settledCombo = await settleComboRequestForPaymentTx(tx, paymentId, paidAt)
@@ -784,6 +788,7 @@ export async function PATCH(
           },
         },
       })
+      await syncPaymentVehicleCosts(tx, [paymentId]) // MBM-347: an edited amount follows to Vehicle Management
 
       let adjustmentDepositId: string | null = null
       let businessCredited = false
@@ -940,6 +945,8 @@ export async function DELETE(
 
     // Delete payment in transaction and update balance
     await prisma.$transaction(async (tx) => {
+      // MBM-347: its vehicle cost leaves Vehicle Management with it
+      await removeLinkedVehicleRecord(tx, `payment:${paymentId}`)
       // Delete the payment
       await tx.expenseAccountPayments.delete({
         where: { id: paymentId },

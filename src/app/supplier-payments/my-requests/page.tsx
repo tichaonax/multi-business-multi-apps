@@ -2,6 +2,7 @@
 
 export const dynamic = 'force-dynamic'
 import { YmdRangePicker } from '@/components/ui/date-range-picker'
+import { VehicleCostTag } from '@/components/vehicles/vehicle-cost-picker'
 import React, { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
@@ -12,6 +13,11 @@ import fetchWithValidation from '@/lib/fetchWithValidation'
 import { SupplierEditor } from '@/components/suppliers/supplier-editor'
 
 interface RequestItem {
+  // MBM-347: a vehicle cost line
+  vehicleId?: string | null
+  vehicleExpenseType?: string | null
+  vehicleLicenseType?: string | null
+  vehicle?: { licensePlate?: string | null } | null
   id: string
   description?: string | null
   amount: number
@@ -397,6 +403,7 @@ export default function MyRequestsPage() {
                                       <tr>
                                         <td className="px-3 py-2 text-gray-800 dark:text-gray-200">
                                           {item.description || <span className="italic text-gray-400">Item {idx + 1}</span>}
+                                          <VehicleCostTag item={item} />
                                         </td>
                                         <td className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400">
                                           {[item.category?.name, item.subcategory?.name].filter(Boolean).join(' › ') || '—'}
