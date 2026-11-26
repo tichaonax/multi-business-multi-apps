@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { upsertLinkedVehicleRecord, type VehicleExpenseTypeInput } from '@/lib/vehicles/create-linked-vehicle-record'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { updateExpenseAccountBalanceTx } from '@/lib/expense-account-utils'
@@ -80,6 +81,21 @@ export async function PATCH(
       // (no amount entered = the item's approved, else estimated, amount)
       const fallbackAmount = item.approvedAmount !== null && Number(item.approvedAmount) > 0 ? item.approvedAmount : item.estimatedAmount
       await applyComboItemPaymentTx(tx, itemId, Number(paidAmount !== undefined ? paidAmount : fallbackAmount ?? 0), now)
+
+      // MBM-344: a vehicle line's Fleet record takes what was actually paid, and when
+      if ((item as any).vehicleId) {
+        const r = await upsertLinkedVehicleRecord(tx, {
+          vehicleId: (item as any).vehicleId,
+          expenseType: ((item as any).vehicleExpenseType || 'OTHER') as VehicleExpenseTypeInput,
+          amount: Number(paidAmount !== undefined ? paidAmount : fallbackAmount ?? 0),
+          date: now,
+          description: `${item.description} (combo request: ${comboRequest.title})`,
+          expensePaymentId: comboRequest.linkedPaymentId,
+          sourceRef: `combo-item:${itemId}`,
+          createdBy: user.id,
+        })
+        if (!r.ok) console.warn(`[combo] MBM-344: vehicle record for item ${itemId} not updated: ${r.error}`)
+      }
 
       // Check if all items are now paid (re-fetch fresh state)
       const allItems = await tx.comboPaymentRequestItems.findMany({

@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { renewFromVehicleCost } from '@/lib/vehicles/renew-vehicle-license'
+import { upsertLinkedVehicleRecord, type VehicleExpenseTypeInput } from '@/lib/vehicles/create-linked-vehicle-record'
+import { isVehicleExpenseType } from '@/lib/vehicles/vehicle-expense-types'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { isSystemAdmin } from '@/lib/permission-utils'
@@ -97,6 +100,8 @@ export async function GET(
             category: t.category,
             creator: t.creator,
             paymentId: t.paymentId,
+            vehicleId: t.vehicleId, // MBM-344
+            vehicleExpenseType: t.vehicleExpenseType,
             paymentStatus: t.payment?.status ?? null,
             paymentChannel: (t.payment as any)?.paymentChannel ?? 'CASH',
             ecocashTransactionCode: (t.payment as any)?.ecocashTransactionCode ?? null,
@@ -157,6 +162,10 @@ export async function POST(
       payeePersonId,
       paymentChannel = 'CASH',
       ecocashTransactionCode,
+      vehicleId,
+      vehicleExpenseType,
+      vehicleLicenseType,
+      vehicleLicenseExpiry,
     } = body
 
     if (!amount || Number(amount) <= 0) {
@@ -250,12 +259,36 @@ export async function POST(
           // Note: payeePersonId is stored on ExpenseAccountPayments only (no FK on PettyCashTransaction)
           paymentId: payment.id,
           createdBy: user.id,
+          // MBM-344: a vehicle cost
+          ...(vehicleId ? {
+            vehicleId,
+            vehicleExpenseType: isVehicleExpenseType(vehicleExpenseType) ? vehicleExpenseType : 'OTHER',
+            vehicleLicenseType: vehicleLicenseType || null,
+            vehicleLicenseExpiry: vehicleLicenseExpiry ? new Date(vehicleLicenseExpiry) : null,
+          } : {}),
         },
         include: {
           category: { select: { id: true, name: true, emoji: true } },
           creator: { select: { id: true, name: true } },
         },
       })
+
+      // MBM-344: a vehicle spend becomes its Fleet Management record, keyed by this line
+      if (transaction.vehicleId) {
+        const r = await upsertLinkedVehicleRecord(tx, {
+          vehicleId: transaction.vehicleId,
+          expenseType: (transaction.vehicleExpenseType || 'OTHER') as VehicleExpenseTypeInput,
+          amount: spendAmount,
+          date: txDate,
+          description: `${transaction.description} (petty cash: ${pcRequest.purpose})`,
+          expensePaymentId: payment.id,
+          sourceRef: `petty-cash-tx:${transaction.id}`,
+          createdBy: user.id,
+        })
+        if (!r.ok) throw new Error(`Vehicle: ${r.error}`)
+        // A Licensing / Insurance spend with its new expiry renews the licence (clears its alert)
+        await renewFromVehicleCost(tx, { ...transaction, amount: spendAmount, date: txDate })
+      }
 
       // 4. Increment spentAmount on the request atomically
       const updatedRequest = await tx.pettyCashRequests.update({

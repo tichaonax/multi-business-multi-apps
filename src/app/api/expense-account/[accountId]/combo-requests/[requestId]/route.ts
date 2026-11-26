@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { isVehicleExpenseType } from '@/lib/vehicles/vehicle-expense-types'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { getEffectivePermissions } from '@/lib/permission-utils'
@@ -48,6 +49,7 @@ async function getComboRequest(requestId: string, accountId: string) {
               category:      { select: { id: true, domainId: true, name: true, emoji: true, domain: { select: { name: true, emoji: true } } } }, // MBM-335: shown to the cashier
               subcategory:   { select: { id: true, name: true, emoji: true } },
               flaggedByUser: { select: { name: true } }, // MBM-335
+              vehicle:       { select: { id: true, licensePlate: true, make: true, model: true } }, // MBM-344
               // MBM-303: sum of receipts already tagged to this item (see
               // "Add Receipt" / comboItemId), mapped down to receiptedAmount
               // below rather than exposing raw receipt rows here.
@@ -290,6 +292,11 @@ export async function PATCH(
                 payeeEmployeeId: item.payeeEmployeeId || null,
                 payeeBusinessId: item.payeeBusinessId || null,
                 payeeSupplierId: item.payeeSupplierId || null,
+                // MBM-344: a vehicle cost (synced to Fleet Management on approval)
+                vehicleId: item.vehicleId || null,
+                vehicleExpenseType: item.vehicleId ? (isVehicleExpenseType(item.vehicleExpenseType) ? item.vehicleExpenseType : 'OTHER') : null,
+                vehicleLicenseType: item.vehicleId ? item.vehicleLicenseType || null : null,
+                vehicleLicenseExpiry: item.vehicleId && item.vehicleLicenseExpiry ? new Date(item.vehicleLicenseExpiry) : null,
                 notes: item.notes || null,
                 sortOrder: item.sortOrder ?? iIdx,
                 ...(() => {

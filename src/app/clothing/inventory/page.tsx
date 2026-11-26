@@ -759,7 +759,7 @@ function ClothingInventoryContent() {
           price,
           stock: item.currentStock,
           imageUrl: null,
-          attributes: { isInventoryItem: true, businessId: currentBusinessId },
+          attributes: { isInventoryItem: true, inventoryItemId: item.id.replace(/^inv_/, ''), businessId: currentBusinessId },
         })
         showToast(`Added ${item.name} to cart`, { type: 'success' })
         return

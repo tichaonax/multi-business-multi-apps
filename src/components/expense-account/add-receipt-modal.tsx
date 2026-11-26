@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { VEHICLE_EXPENSE_TYPES as SHARED_VEHICLE_EXPENSE_TYPES } from '@/lib/vehicles/vehicle-expense-types'
 import { useRouter } from 'next/navigation'
 import { CreateIndividualPayeeModal } from './create-individual-payee-modal'
 import { CreateContractorPayeeModal } from './create-contractor-payee-modal'
@@ -12,16 +13,8 @@ import { SearchableSelect, type SearchableSelectItem } from '@/components/common
 // MBM-302: same 8 values as vehicle-expense-modal.tsx's EXPENSE_TYPES —
 // kept in sync manually since that file's copy is co-located with its own
 // line-item UI and isn't exported.
-const VEHICLE_EXPENSE_TYPES = [
-  { value: 'FUEL', label: 'Fuel / Petrol' },
-  { value: 'MAINTENANCE', label: 'Maintenance / Repairs' },
-  { value: 'OIL', label: 'Oil Change' },
-  { value: 'TIRE', label: 'Tires' },
-  { value: 'INSURANCE', label: 'Insurance' },
-  { value: 'TOLL', label: 'Tolls' },
-  { value: 'PARKING', label: 'Parking' },
-  { value: 'OTHER', label: 'Other' },
-] as const
+// MBM-344: the shared list (adds Licensing)
+const VEHICLE_EXPENSE_TYPES = SHARED_VEHICLE_EXPENSE_TYPES
 
 const VEHICLE_FUEL_TYPES = [
   { value: 'DIESEL', label: 'Diesel' },

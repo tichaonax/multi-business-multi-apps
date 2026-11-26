@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { VEHICLE_EXPENSE_TYPES } from '@/lib/vehicles/vehicle-expense-types'
 import { useRouter } from 'next/navigation'
 import { X, Plus, Trash2, ShoppingCart, Car } from 'lucide-react'
 import { useToastContext } from '@/components/ui/toast'
@@ -8,16 +9,8 @@ import { SearchableSelect, type SearchableSelectItem } from '@/components/common
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const EXPENSE_TYPES = [
-  { value: 'FUEL', label: 'Fuel / Petrol' },
-  { value: 'MAINTENANCE', label: 'Maintenance / Repairs' },
-  { value: 'OIL', label: 'Oil Change' },
-  { value: 'TIRE', label: 'Tires' },
-  { value: 'INSURANCE', label: 'Insurance' },
-  { value: 'TOLL', label: 'Tolls' },
-  { value: 'PARKING', label: 'Parking' },
-  { value: 'OTHER', label: 'Other' },
-] as const
+// MBM-344: the shared list (adds Licensing)
+const EXPENSE_TYPES = VEHICLE_EXPENSE_TYPES
 
 const FUEL_TYPES = [
   { value: 'DIESEL', label: 'Diesel' },

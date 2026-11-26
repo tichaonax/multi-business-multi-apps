@@ -8,6 +8,7 @@ import { prisma } from '@/lib/prisma'
 import { hasPermission, isSystemAdmin } from '@/lib/permission-utils'
 import { getServerUser } from '@/lib/get-server-user'
 import { getTimezoneOffsetMs, getTodayInTimezone } from '@/lib/timezone-utils'
+import { buildItemSales } from '@/lib/reports/item-sales'
 
 export async function GET(request: NextRequest) {
   try {
@@ -25,6 +26,7 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get('startDate') // Optional: start date for date range
     const endDate = searchParams.get('endDate') // Optional: end date for date range
     const employeeId = searchParams.get('employeeId') // Optional: filter by sales person
+    const includeItems = searchParams.get('includeItems') === '1' // MBM-344: items sold, for the item sales report
 
     if (!businessId) {
       return NextResponse.json({ error: 'businessId required' }, { status: 400 })
@@ -345,9 +347,13 @@ export async function GET(request: NextRequest) {
       dailyBreakdown[dayStr].sales += Number(order.totalAmount || 0)
     })
 
+    // MBM-344: one row per item sold, from these same orders (opt-in)
+    const itemSales = includeItems ? await buildItemSales(regularOrders, businessId) : undefined
+
     return NextResponse.json({
       success: true,
       data: {
+        ...(itemSales ? { itemSales } : {}),
         businessDay: {
           date: dateStr,
           start: start.toISOString(),

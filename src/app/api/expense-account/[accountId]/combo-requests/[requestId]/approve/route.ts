@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { renewFromVehicleCost } from '@/lib/vehicles/renew-vehicle-license'
+import { upsertLinkedVehicleRecord, removeLinkedVehicleRecord, type VehicleExpenseTypeInput } from '@/lib/vehicles/create-linked-vehicle-record'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { getEffectivePermissions } from '@/lib/permission-utils'
@@ -216,6 +218,27 @@ export async function POST(
       await releaseExpenseLinesTx(tx, { comboItemIds: Array.from(notFundedItemIds) })
       await approveExpenseLinesTx(tx, requestId)
 
+      // MBM-344: each funded vehicle line becomes its Fleet Management record
+      // (keyed by the line, so it is never added twice); an unfunded one has none
+      for (const item of allItems as any[]) {
+        if (!item.vehicleId) continue
+        const sourceRef = `combo-item:${item.id}`
+        if (notFundedItemIds.has(item.id)) { await removeLinkedVehicleRecord(tx, sourceRef); continue }
+        const r = await upsertLinkedVehicleRecord(tx, {
+          vehicleId: item.vehicleId,
+          expenseType: (item.vehicleExpenseType || 'OTHER') as VehicleExpenseTypeInput,
+          amount: Number(item.estimatedAmount || 0),
+          date: now,
+          description: `${item.description} (combo request: ${comboRequest.title})`,
+          expensePaymentId: linkedPayment.id,
+          sourceRef,
+          createdBy: user.id,
+        })
+        if (!r.ok) throw new Error(`Vehicle line "${item.description}": ${r.error}`)
+        // A Licensing / Insurance line with its new expiry renews the licence (clears its alert)
+        await renewFromVehicleCost(tx, { ...item, amount: Number(item.estimatedAmount || 0), date: now })
+      }
+
       // Update the combo request
       const req = await tx.comboPaymentRequests.update({
         where: { id: requestId },
@@ -261,6 +284,8 @@ export async function POST(
     return NextResponse.json({ success: true, data: updated })
   } catch (error) {
     console.error('Error approving combo request:', error)
+    // MBM-344: a vehicle line that can't be synced says which one
+    if (error instanceof Error && error.message.startsWith('Vehicle line')) return NextResponse.json({ error: error.message }, { status: 400 })
     return NextResponse.json({ error: 'Failed to approve combo request' }, { status: 500 })
   }
 }

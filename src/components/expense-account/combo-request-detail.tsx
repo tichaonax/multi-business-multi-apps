@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { VEHICLE_EXPENSE_TYPES } from '@/lib/vehicles/vehicle-expense-types'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { useToastContext } from '@/components/ui/toast'
@@ -1098,6 +1099,9 @@ export function ComboRequestDetail({ accountId, requestId }: ComboRequestDetailP
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{item.description}</p>
                       <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                        {(item as any).vehicle && ( // MBM-344: a vehicle cost — in Fleet Management once approved
+                          <span className="text-teal-700 dark:text-teal-300">🚗 {(item as any).vehicle.licensePlate} · {VEHICLE_EXPENSE_TYPES.find(t => t.value === (item as any).vehicleExpenseType)?.label ?? (item as any).vehicleExpenseType}</span>
+                        )}
                         {(item.quantity !== null || item.unit) && (
                           <span><span className="font-medium text-gray-600 dark:text-gray-300">Qty:</span> {[item.quantity, item.unit].filter(Boolean).join(' ')}</span>
                         )}

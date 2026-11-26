@@ -15,6 +15,7 @@ import { EodRentTransferSection } from '@/components/reports/eod-rent-transfer-s
 import { AutoDepositEodSummary, type ConfirmedEntry } from '@/components/reports/auto-deposit-eod-summary'
 import { GroupedEODCatchup } from '@/components/eod/grouped-eod-catchup'
 import { SalespersonEodReportSection } from '@/components/eod/salesperson-eod-report-section'
+import { DailyItemSales } from '@/components/reports/daily-item-sales'
 import '@/styles/print-report.css'
 
 export default function EndOfDayReport() {
@@ -810,6 +811,9 @@ export default function EndOfDayReport() {
           )}
 
           {/* Salesperson EOD Reports */}
+          {/* MBM-344: items sold today — closed until opened; the same data as the item sales report */}
+          {currentBusinessId && <DailyItemSales businessId={currentBusinessId} date={dailySales?.businessDay?.date} collapsible />}
+
           {currentBusinessId && <SalespersonEodReportSection businessId={currentBusinessId} />}
 
           {/* Till Reconciliation */}

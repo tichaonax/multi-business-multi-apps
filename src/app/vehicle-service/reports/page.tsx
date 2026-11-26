@@ -43,6 +43,13 @@ export default function VehicleServiceReportsPage() {
       color: 'bg-green-600 hover:bg-green-700'
     },
     {
+      title: '🧾 Daily Item Sales',
+      description: 'Pick a day: each item sold, its price, quantity, total, stock left and whether to restock',
+      href: '/vehicle-service/reports/daily-item-sales',
+      icon: '🧾',
+      color: 'bg-teal-600 hover:bg-teal-700'
+    },
+    {
       title: 'Report History',
       description: 'View past end-of-day reports and historical data',
       href: '/vehicle-service/reports/history',

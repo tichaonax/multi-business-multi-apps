@@ -676,7 +676,7 @@ export async function POST(
           payment.vehicleExpense.expenseType = expenseTypeNormMap[expenseType]
         }
 
-        const validExpenseTypes = ['FUEL', 'TOLL', 'PARKING', 'MAINTENANCE', 'INSURANCE', 'OTHER', 'FOOD', 'TIRE', 'OIL']
+        const validExpenseTypes = ['FUEL', 'TOLL', 'PARKING', 'MAINTENANCE', 'INSURANCE', 'OTHER', 'FOOD', 'TIRE', 'OIL', 'LICENSING']
         if (!validExpenseTypes.includes(payment.vehicleExpense.expenseType)) {
           return NextResponse.json(
             { error: `Payment ${paymentIndex}: Invalid vehicleExpense.expenseType "${payment.vehicleExpense.expenseType}". Valid values: ${validExpenseTypes.join(', ')}`, index: i },

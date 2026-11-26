@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { isVehicleExpenseType } from '@/lib/vehicles/vehicle-expense-types'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { getEffectivePermissions } from '@/lib/permission-utils'
@@ -176,6 +177,11 @@ export async function POST(
               payeeEmployeeId: item.payeeEmployeeId || null,
               payeeBusinessId: item.payeeBusinessId || null,
               payeeSupplierId: item.payeeSupplierId || null,
+              // MBM-344: a vehicle cost (synced to Fleet Management on approval)
+              vehicleId: item.vehicleId || null,
+              vehicleExpenseType: item.vehicleId ? (isVehicleExpenseType(item.vehicleExpenseType) ? item.vehicleExpenseType : 'OTHER') : null,
+              vehicleLicenseType: item.vehicleId ? item.vehicleLicenseType || null : null,
+              vehicleLicenseExpiry: item.vehicleId && item.vehicleLicenseExpiry ? new Date(item.vehicleLicenseExpiry) : null,
               notes: item.notes || null,
               sortOrder: item.sortOrder ?? iIdx,
             },

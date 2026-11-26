@@ -16,7 +16,7 @@ import { getLastKnownMileage } from './get-last-known-mileage'
 
 export type VehicleExpenseTypeInput =
   | 'FUEL' | 'TOLL' | 'PARKING' | 'MAINTENANCE' | 'INSURANCE' | 'OTHER'
-  | 'OIL' | 'TIRE'
+  | 'OIL' | 'TIRE' | 'LICENSING'
 
 export interface LinkedVehicleRecordInput {
   vehicleId: string
@@ -28,8 +28,11 @@ export interface LinkedVehicleRecordInput {
   fuelQuantity?: number | null
   fuelType?: string | null
   driverId?: string | null
-  receiptId: string
-  expensePaymentId: string
+  /** The receipt it came from (MBM-302) — or, for a request line, sourceRef */
+  receiptId?: string | null
+  expensePaymentId?: string | null
+  /** MBM-344: the request line it came from ("combo-item:<id>", "petty-cash-tx:<id>"); one record per line */
+  sourceRef?: string | null
   createdBy: string
 }
 
@@ -63,9 +66,16 @@ const SERVICE_NAME_MAP: Record<string, string> = {
  * codebase, e.g. combo-request-expiry.ts).
  */
 export async function upsertLinkedVehicleRecord(tx: any, input: LinkedVehicleRecordInput): Promise<LinkedVehicleRecordResult> {
-  const { vehicleId, expenseType, amount, date, description, mileageAtExpense, fuelQuantity, fuelType, driverId, receiptId, expensePaymentId, createdBy } = input
+  const { vehicleId, expenseType, amount, date, description, mileageAtExpense, fuelQuantity, fuelType, driverId, createdBy } = input
+  const receiptId = input.receiptId || null
+  const expensePaymentId = input.expensePaymentId || null
+  const sourceRef = input.sourceRef || null
+  if (!receiptId && !sourceRef) return { ok: false, error: 'A receipt or a source line is required' }
+  // The record is found again by its receipt (MBM-302) or its request line (MBM-344)
+  const linkKey = receiptId ? { receiptId } : { sourceRef }
 
-  if (expenseType === 'FUEL' && (!fuelQuantity || !fuelType)) {
+  // A receipt has the litres; a request line (sourceRef) may not know them yet
+  if (expenseType === 'FUEL' && !sourceRef && (!fuelQuantity || !fuelType)) {
     return { ok: false, error: 'Fuel quantity and fuel type are required for fuel expenses' }
   }
 
@@ -92,8 +102,8 @@ export async function upsertLinkedVehicleRecord(tx: any, input: LinkedVehicleRec
   // (the type changed bucket since it was first linked), delete it so we
   // don't leave an orphaned stale record behind.
   const [existingExpense, existingMaintenance] = await Promise.all([
-    tx.vehicleExpenses.findFirst({ where: { receiptId }, select: { id: true } }),
-    tx.vehicleMaintenanceRecords.findFirst({ where: { receiptId }, select: { id: true } }),
+    tx.vehicleExpenses.findFirst({ where: linkKey, select: { id: true } }),
+    tx.vehicleMaintenanceRecords.findFirst({ where: linkKey, select: { id: true } }),
   ])
 
   if (wantsMaintenance) {
@@ -122,7 +132,7 @@ export async function upsertLinkedVehicleRecord(tx: any, input: LinkedVehicleRec
       data: {
         vehicleId, serviceType, serviceName, serviceDate: date, mileageAtService: effectiveMileage,
         serviceCost: amount, notes: description || null, driverId: driverId || null,
-        receiptId, expensePaymentId, createdBy, updatedAt: new Date(),
+        receiptId, sourceRef, expensePaymentId, createdBy, updatedAt: new Date(),
       },
     })
     return { ok: true, table: 'VehicleMaintenanceRecords', id: created.id }
@@ -151,7 +161,14 @@ export async function upsertLinkedVehicleRecord(tx: any, input: LinkedVehicleRec
   }
 
   const created = await tx.vehicleExpenses.create({
-    data: { ...expenseData, receiptId, createdBy, updatedAt: new Date() },
+    data: { ...expenseData, receiptId, sourceRef, createdBy, updatedAt: new Date() },
   })
   return { ok: true, table: 'VehicleExpenses', id: created.id }
+}
+
+/** MBM-344: the Fleet record of a request line, removed when the line is no
+ *  longer a vehicle cost (vehicle cleared) or wasn't funded. */
+export async function removeLinkedVehicleRecord(tx: any, sourceRef: string): Promise<void> {
+  await tx.vehicleExpenses.deleteMany({ where: { sourceRef } })
+  await tx.vehicleMaintenanceRecords.deleteMany({ where: { sourceRef } })
 }

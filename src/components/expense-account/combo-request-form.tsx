@@ -112,6 +112,10 @@ function serializeSections(sections: ComboSection[]) {
         payeeSupplierId: item.payee?.type === 'SUPPLIER' ? item.payee.id : null,
         notes: item.notes.trim() || null,
         sortOrder: iIdx,
+        vehicleId: item.vehicleId || null, // MBM-344
+        vehicleExpenseType: item.vehicleId ? item.vehicleExpenseType || null : null,
+        vehicleLicenseType: item.vehicleId ? item.vehicleLicenseType || null : null,
+        vehicleLicenseExpiry: item.vehicleId ? item.vehicleLicenseExpiry || null : null,
         expenseLineId: item.expenseLineId || null,
         // MBM-335: keeps the cashier's flag; the requester only answers it
         id: item.id || null,
@@ -252,6 +256,10 @@ export function ComboRequestForm({ accountId, requestId }: ComboRequestFormProps
                   ? { type: i.payeeType, id: iPayeeId, name: iPayeeName }
                   : null,
                 notes: i.notes || '',
+                vehicleId: i.vehicleId || null, // MBM-344
+                vehicleExpenseType: i.vehicleExpenseType || null,
+                vehicleLicenseType: i.vehicleLicenseType || null,
+                vehicleLicenseExpiry: i.vehicleLicenseExpiry ? String(i.vehicleLicenseExpiry).slice(0, 10) : null,
                 // MBM-335
                 id: i.id,
                 classificationLabel: i.category

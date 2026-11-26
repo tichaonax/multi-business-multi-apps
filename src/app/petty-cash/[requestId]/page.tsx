@@ -2,6 +2,7 @@
 
 export const dynamic = 'force-dynamic'
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { VehicleCostPicker, NO_VEHICLE_COST, type VehicleCost } from '@/components/vehicles/vehicle-cost-picker'
 import { useRouter, useParams, useSearchParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { ContentLayout } from '@/components/layout/content-layout'
@@ -186,6 +187,7 @@ export default function PettyCashDetailPage() {
   const [showSpend, setShowSpend] = useState(false)
   const [spendAmount, setSpendAmount] = useState('')
   const [spendDesc, setSpendDesc] = useState('')
+  const [spendVehicle, setSpendVehicle] = useState<VehicleCost>(NO_VEHICLE_COST) // MBM-344
   const [spendDate, setSpendDate] = useState(todayISO())
   const [spendDomainId, setSpendDomainId] = useState('')
   const [spendCategoryId, setSpendCategoryId] = useState('')
@@ -609,6 +611,7 @@ export default function PettyCashDetailPage() {
           ...(spendPayee?.type === 'EMPLOYEE' ? { payeeEmployeeId: spendPayee.id } : {}),
           ...(spendPayee?.type === 'USER' ? { payeeUserId: spendPayee.id } : {}),
           ...(spendPayee?.type === 'PERSON' ? { payeePersonId: spendPayee.id } : {}),
+          ...(spendVehicle.vehicleId ? spendVehicle : {}),
         }),
       })
       const json = await res.json()
@@ -624,6 +627,7 @@ export default function PettyCashDetailPage() {
       setSpendPayee(null)
       setSpendPaymentChannel('CASH')
       setSpendEcocashCode('')
+      setSpendVehicle(NO_VEHICLE_COST)
       fetchTransactions()
     } catch (e: any) {
       toast.error(e.message)
@@ -1239,6 +1243,8 @@ export default function PettyCashDetailPage() {
                     className="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 outline-none"
                     required
                   />
+                  {/* MBM-344: a vehicle cost goes to Fleet Management when recorded */}
+                  <VehicleCostPicker value={spendVehicle} onChange={setSpendVehicle} />
                 </div>
 
                 {/* Row 2: Locked category domain + searchable sub-category */}

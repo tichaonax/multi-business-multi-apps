@@ -344,6 +344,26 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // MBM-344: an inventory item line must carry inventoryItemId, or the stock
+    // deduction below (and a later refund) silently skips it. Some carts (the
+    // clothing inventory page's "add to cart") sent only isInventoryItem + sku.
+    // Resolve it from an inv_<id> productVariantId, else by SKU in this business.
+    for (const item of items as any[]) {
+      const attrs = item.attributes
+      if (!attrs?.isInventoryItem || attrs.inventoryItemId) continue
+      const pv = typeof item.productVariantId === 'string' ? item.productVariantId : ''
+      let invId: string | null = pv.startsWith('inv_') ? pv.slice(4) : null
+      if (!invId && attrs.sku) {
+        const found = await prisma.barcodeInventoryItems.findFirst({
+          where: { businessId: orderData.businessId, sku: attrs.sku, isActive: true },
+          select: { id: true },
+        })
+        invId = found?.id ?? null
+      }
+      if (invId) item.attributes = { ...attrs, inventoryItemId: invId }
+      else console.warn(`[orders] MBM-344: inventory item "${attrs.productName || attrs.sku}" not found — stock not deducted`)
+    }
+
     // Verify customer exists if specified — check current business first, then any business
     // Customers registered at one business can shop at any other business (shared umbrella system)
     if (orderData.customerId) {

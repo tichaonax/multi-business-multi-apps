@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { VehicleCostPicker } from '@/components/vehicles/vehicle-cost-picker'
 import { PayeeSelector } from './payee-selector'
 
 export interface Domain {
@@ -31,6 +32,11 @@ export interface ComboItem {
   flaggedByName?: string | null
   flagResolved?: boolean
   flagResponse?: string
+  // MBM-344: a vehicle cost — synced to Fleet Management on approval
+  vehicleId?: string | null
+  vehicleExpenseType?: string | null
+  vehicleLicenseType?: string | null
+  vehicleLicenseExpiry?: string | null
 }
 
 /** MBM-335: lets a payee picker open the form's "create payee" dialogs */
@@ -570,6 +576,11 @@ export function ComboRequestItemRow({
           {showExtra ? 'Less' : '+ Payee/Notes'}
         </button>
       </div>
+
+      {/* MBM-344: a vehicle cost (Fleet Management gets it on approval) */}
+      <VehicleCostPicker compact
+        value={{ vehicleId: item.vehicleId ?? null, vehicleExpenseType: item.vehicleExpenseType ?? null, vehicleLicenseType: item.vehicleLicenseType ?? null, vehicleLicenseExpiry: item.vehicleLicenseExpiry ?? null }}
+        onChange={v => onChange({ ...item, ...v })} />
 
       {/* Row 4: payee + notes (expandable) */}
       {showExtra && (

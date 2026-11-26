@@ -8,7 +8,7 @@ const CreateExpenseSchema = z.object({
   vehicleId: z.string().min(1, 'Vehicle ID is required'),
   tripId: z.string().optional(),
   businessId: z.string().optional(),
-  expenseType: z.enum(['FUEL', 'TOLL', 'PARKING', 'MAINTENANCE', 'INSURANCE', 'OTHER']),
+  expenseType: z.enum(['FUEL', 'TOLL', 'PARKING', 'MAINTENANCE', 'INSURANCE', 'OTHER', 'LICENSING']),
   expenseCategory: z.string().optional(),
   amount: z.number().positive('Amount must be positive'),
   currency: z.string().default('USD'),
@@ -24,7 +24,7 @@ const CreateExpenseSchema = z.object({
 
 const UpdateExpenseSchema = z.object({
   id: z.string().min(1),
-  expenseType: z.enum(['FUEL', 'TOLL', 'PARKING', 'MAINTENANCE', 'INSURANCE', 'OTHER']).optional(),
+  expenseType: z.enum(['FUEL', 'TOLL', 'PARKING', 'MAINTENANCE', 'INSURANCE', 'OTHER', 'LICENSING']).optional(),
   expenseCategory: z.string().optional(),
   amount: z.number().positive().optional(),
   currency: z.string().optional(),

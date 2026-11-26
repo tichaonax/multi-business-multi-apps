@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { renewVehicleLicense } from '@/lib/vehicles/renew-vehicle-license'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 import { getServerUser } from '@/lib/get-server-user'
@@ -142,24 +143,27 @@ export async function POST(request: NextRequest) {
         },
       })
 
-      if (licenses && licenses.length > 0) {
-        await tx.vehicleLicenses.createMany({
-          data: licenses.map((lic) => ({
-            vehicleId: receiptData.vehicleId,
-            renewalReceiptId: newReceipt.id,
-            licenseType: lic.licenseType,
-            licenseNumber: lic.licenseNumber,
-            issuingAuthority: lic.issuingAuthority,
-            issueDate: new Date(lic.issueDate),
-            expiryDate: new Date(lic.expiryDate),
-            renewalCost: lic.renewalCost,
-            usage: lic.usage,
-            lateFee: lic.lateFee,
+      // MBM-344: each licence renews the current one (retired, and linked by
+      // supersedesLicenseId) — before, createMany left the old one active
+      // until the nightly sweep, so its alert stayed up and posted alerts
+      // never showed it resolved. The same step as a Licensing cost uses.
+      for (const lic of licenses || []) {
+        await renewVehicleLicense(tx, {
+          vehicleId: receiptData.vehicleId,
+          licenseType: lic.licenseType,
+          expiryDate: new Date(lic.expiryDate),
+          issueDate: new Date(lic.issueDate),
+          licenseNumber: lic.licenseNumber,
+          renewalCost: lic.renewalCost ?? null,
+          renewalReceiptId: newReceipt.id,
+          extra: {
+            ...(lic.issuingAuthority ? { issuingAuthority: lic.issuingAuthority } : {}),
+            usage: lic.usage ?? null,
+            lateFee: lic.lateFee ?? null,
             isExempt: lic.isExempt ?? false,
             reminderDays: lic.reminderDays ?? 30,
-            documentUrl: lic.documentUrl,
-            updatedAt: new Date(),
-          })),
+            documentUrl: lic.documentUrl ?? null,
+          },
         })
       }
 
