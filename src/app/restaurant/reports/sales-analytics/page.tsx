@@ -49,7 +49,7 @@ export default function RestaurantSalesAnalytics() {
   const dateFormat = useDateFormat()
   const businessType = currentBusiness?.businessType || 'restaurant'
 
-  // Initialize date range from URL params (drill-down links) or default last 30 days
+  // Initialize date range from URL params (drill-down links) or default month to date (MBM-345)
   const searchParams = useSearchParams()
   const getInitialDateRange = (): DateRange => {
     const spStart = searchParams.get('startDate')
@@ -61,7 +61,7 @@ export default function RestaurantSalesAnalytics() {
     }
     const end = new Date()
     const start = new Date()
-    start.setDate(end.getDate() - 30)
+    start.setDate(1); start.setHours(0, 0, 0, 0) /* MBM-345: month to date */
     return { start, end }
   }
 

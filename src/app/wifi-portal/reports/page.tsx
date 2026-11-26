@@ -82,11 +82,11 @@ export default function WiFiPortalReportsPage() {
   const [esp32BusinessIds, setEsp32BusinessIds] = useState<Set<string>>(new Set())
   const [integrationCheckDone, setIntegrationCheckDone] = useState(false)
 
-  // Initialize date range to last 30 days
+  // Initialize date range to month to date (MBM-345)
   const getInitialDateRange = (): DateRange => {
     const end = new Date()
     const start = new Date()
-    start.setDate(end.getDate() - 30)
+    start.setDate(1); start.setHours(0, 0, 0, 0) /* MBM-345: month to date */
     return { start, end }
   }
 

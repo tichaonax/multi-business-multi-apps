@@ -124,7 +124,7 @@ function payeeHistoryUrl(payeeId: string, group: Group) {
 function defaultDateRange(): DateRange {
   const end = new Date()
   const start = new Date()
-  start.setDate(start.getDate() - 29)
+  start.setDate(1); start.setHours(0, 0, 0, 0) /* MBM-345: month to date */
   return { start, end }
 }
 

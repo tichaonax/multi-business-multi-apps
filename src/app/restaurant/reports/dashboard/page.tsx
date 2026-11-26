@@ -14,11 +14,11 @@ import { EmployeeFilter } from '@/components/reports/employee-filter'
 import { getLocalDateString } from '@/lib/utils'
 
 export default function ReportsDashboard() {
-  // Initialize date range to last 30 days
+  // Initialize date range to month to date (MBM-345)
   const getInitialDateRange = (): DateRange => {
     const end = new Date()
     const start = new Date()
-    start.setDate(end.getDate() - 30)
+    start.setDate(1); start.setHours(0, 0, 0, 0) /* MBM-345: month to date */
     return { start, end }
   }
 

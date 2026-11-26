@@ -332,8 +332,19 @@
       el('saveBtn').textContent = 'Save Server'
       el('addForm').classList.add('open')
       el('addServerToggle').classList.add('hidden')
+      bringFormIntoView()
     })
   })
+
+  // Scrolls the opened Add / Edit form to the top of the window and puts the
+  // cursor in its first field, so it can be changed without scrolling down
+  // past the server list (after the form is shown, on the next frame).
+  function bringFormIntoView() {
+    requestAnimationFrame(() => {
+      el('addForm').scrollIntoView({ behavior: 'smooth', block: 'start' })
+      el('fLabel').focus({ preventScroll: true })
+    })
+  }
 
   // Reuses the same form as Add — prefilled with the existing entry's
   // values, minus credentials (never stored, see the Admin Password label —
@@ -357,6 +368,7 @@
     el('saveBtn').textContent = 'Save Changes'
     el('addForm').classList.add('open')
     el('addServerToggle').classList.add('hidden')
+    bringFormIntoView()
   }
 
   el('cancelAddBtn').addEventListener('click', () => {

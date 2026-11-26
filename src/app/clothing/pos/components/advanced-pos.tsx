@@ -1,5 +1,6 @@
 'use client'
 
+import { SoldQuantity } from '@/components/universal/inventory/sold-quantity'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useSession } from 'next-auth/react'
 import { createPortal } from 'react-dom'
@@ -2429,29 +2430,17 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
                           <span>{product.category}</span>
                         </p>
                       )}
-                      {canSeeFinancials && (() => {
+                      {/* MBM-345: quantity sold, month to date — click it for another
+                          range (the standard date range popup); only this card changes.
+                          Financial users also see the month's sales value. */}
+                      {canSeeSoldCount && !product.id.startsWith('r710_') && (() => {
                         const mtd = posStats.productMtd[product.id]
-                        const ytd = posStats.productYtd[product.id]
-                        const hasMtd = !!mtd && mtd.soldMtd > 0
-                        const hasYtd = !!ytd && ytd.soldYtd > 0
-                        // Nothing sold this month yet is common (new month,
-                        // slow item) — fall back to YTD as the primary badge
-                        // so that data stays reachable instead of vanishing
-                        // until the next sale. Only hide when there's truly
-                        // no history at all.
-                        if (!hasMtd && !hasYtd) return null
                         return (
-                          <div className="relative inline-block mt-1">
-                            <span className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 whitespace-nowrap cursor-default">
-                              {hasMtd
-                                ? <>📅 {mtd.soldMtd} sold · ${mtd.valueMtd.toFixed(2)} MTD</>
-                                : <>📅 {ytd!.soldYtd} sold · ${ytd!.valueYtd.toFixed(2)} YTD</>}
-                            </span>
-                            <div className="absolute left-0 top-full mt-1 z-20 hidden group-hover:block w-max max-w-[220px] rounded-md bg-gray-900 dark:bg-black text-white text-xs px-2.5 py-1.5 shadow-lg">
-                              <p className="font-medium">{product.name}</p>
-                              <p className="text-gray-300">This month: {hasMtd ? `${mtd!.soldMtd} sold · $${mtd!.valueMtd.toFixed(2)}` : 'None sold yet'}</p>
-                              <p className="text-gray-300">Year to date: {hasYtd ? `${ytd!.soldYtd} sold · $${ytd!.valueYtd.toFixed(2)}` : '—'}</p>
-                            </div>
+                          <div className="flex items-end gap-2">
+                            <SoldQuantity businessId={businessId} itemId={product.id} unit="Units" mtd={mtd?.soldMtd ?? 0} />
+                            {canSeeFinancials && mtd && mtd.valueMtd > 0 && (
+                              <span className="text-[10px] text-purple-600 dark:text-purple-300 mb-px">· ${mtd.valueMtd.toFixed(2)} MTD</span>
+                            )}
                           </div>
                         )
                       })()}

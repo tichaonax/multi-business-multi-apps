@@ -63,7 +63,7 @@ export default function EodDiscrepancyPage() {
   const [summaryGroupBy, setSummaryGroupBy] = useState<'week' | 'month'>('week')
 
   const [dateRange, setDateRange] = useState<DateRange>({
-    start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+    start: new Date(new Date().getFullYear(), new Date().getMonth(), 1) /* MBM-345: month to date */,
     end: new Date(),
   })
   const [allTime, setAllTime] = useState(false)

@@ -95,7 +95,7 @@ export function DateRangePopup({
   const [mode, setMode] = useState<'custom' | 'day'>('custom')
   const [mYear, setMYear] = useState(thisYear)
   const [localError, setLocalError] = useState<string | null>(null)
-  const [pos, setPos] = useState<{ top: number; left: number; phone: boolean }>({ top: 0, left: 0, phone: false })
+  const [pos, setPos] = useState<{ top: number; left: number; phone: boolean; maxHeight?: number }>({ top: -9999, left: 0, phone: false })
   const boxRef = useRef<HTMLDivElement>(null)
 
   // Fresh fields each time it opens, from the range in use
@@ -108,22 +108,36 @@ export function DateRangePopup({
     setLocalError(null)
   }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Under the anchor, kept on screen; full width at the bottom on a phone
+  // Always fully on screen, like the row actions menu: below the anchor if it
+  // fits, else above it, else on the side with more room with its own scroll.
+  // Placed again whenever its size changes (an error, One day / From – To)
+  // or the page scrolls / resizes. A phone: full width at the bottom.
   useLayoutEffect(() => {
     if (!open) return
+    const GAP = 4, EDGE = 8
     const place = () => {
+      const box = boxRef.current
       const phone = window.innerWidth < 640
       const r = anchor?.getBoundingClientRect()
-      const w = boxRef.current?.offsetWidth ?? 336, h = boxRef.current?.offsetHeight ?? 420
-      let top = r ? r.bottom + 4 : 80
-      if (top + h > window.innerHeight - 8) top = Math.max(8, (r ? r.top : window.innerHeight) - h - 4)
-      const left = Math.max(8, Math.min(r ? r.left : 8, window.innerWidth - w - 8))
-      setPos({ top, left, phone })
+      const w = box?.offsetWidth ?? 336
+      const h = box?.scrollHeight ?? 420 // its full height, even while capped
+      const vh = window.innerHeight
+      const below = r ? vh - r.bottom - GAP - EDGE : vh - 2 * EDGE
+      const above = r ? r.top - GAP - EDGE : 0
+      let top: number, maxHeight: number | undefined
+      if (h <= below) top = r ? r.bottom + GAP : EDGE
+      else if (h <= above) top = r!.top - GAP - h
+      else if (below >= above) { top = r ? r.bottom + GAP : EDGE; maxHeight = below }
+      else { top = EDGE; maxHeight = above }
+      const left = Math.max(EDGE, Math.min(r ? r.left : EDGE, window.innerWidth - w - EDGE))
+      setPos(p => (p.top === top && p.left === left && p.phone === phone && p.maxHeight === maxHeight ? p : { top, left, phone, maxHeight }))
     }
     place()
+    const ro = typeof ResizeObserver !== 'undefined' && boxRef.current ? new ResizeObserver(place) : null
+    if (ro && boxRef.current) ro.observe(boxRef.current)
     window.addEventListener('resize', place)
     window.addEventListener('scroll', place, true)
-    return () => { window.removeEventListener('resize', place); window.removeEventListener('scroll', place, true) }
+    return () => { ro?.disconnect(); window.removeEventListener('resize', place); window.removeEventListener('scroll', place, true) }
   }, [open, anchor])
 
   useEffect(() => {
@@ -157,8 +171,8 @@ export function DateRangePopup({
       <div className="fixed inset-0 z-[100010] bg-black/20 sm:bg-transparent" onClick={onClose} />
       <div ref={boxRef} role="dialog" aria-label={title}
         className={`fixed z-[100011] border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 shadow-xl p-3 text-sm
-          ${pos.phone ? 'inset-x-0 bottom-0 rounded-t-xl max-h-[85vh] overflow-y-auto' : 'w-[21rem] rounded-lg'}`}
-        style={pos.phone ? undefined : { top: pos.top, left: pos.left }}>
+          ${pos.phone ? 'inset-x-0 bottom-0 rounded-t-xl max-h-[85vh] overflow-y-auto' : 'w-[21rem] rounded-lg overflow-y-auto'}`}
+        style={pos.phone ? undefined : { top: pos.top, left: pos.left, maxHeight: pos.maxHeight }}>
         <div className="flex items-center justify-between mb-2">
           <div className="font-semibold text-gray-900 dark:text-gray-100">{title}</div>
           <button type="button" onClick={onClose} aria-label="Close" className="px-1.5 text-gray-500 hover:text-gray-800 dark:hover:text-gray-200">✕</button>

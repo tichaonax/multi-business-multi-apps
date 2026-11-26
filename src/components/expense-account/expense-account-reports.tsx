@@ -87,7 +87,7 @@ export function ExpenseAccountReports({ accountId }: ExpenseAccountReportsProps)
   const [reportData, setReportData] = useState<ReportData | null>(null)
   const [loading, setLoading] = useState(true)
   const [dateRange, setDateRange] = useState<DateRange>(() => {
-    const end = new Date(); const start = new Date(); start.setDate(end.getDate() - 30); return { start, end }
+    const end = new Date(); const start = new Date(); start.setDate(1); start.setHours(0, 0, 0, 0); /* MBM-345: month to date */ return { start, end }
   })
   const [allTime, setAllTime] = useState(true)
 

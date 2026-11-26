@@ -32,7 +32,7 @@ export default function PettyCashReportsPage() {
   const [loading, setLoading] = useState(false)
   const [allTime, setAllTime] = useState(true)
   const [dateRange, setDateRange] = useState<DateRange>(() => {
-    const end = new Date(); const start = new Date(); start.setDate(end.getDate() - 30); return { start, end }
+    const end = new Date(); const start = new Date(); start.setDate(1); start.setHours(0, 0, 0, 0); /* MBM-345: month to date */ return { start, end }
   })
   const [statusFilter, setStatusFilter] = useState('')
   const [channelFilter, setChannelFilter] = useState('')

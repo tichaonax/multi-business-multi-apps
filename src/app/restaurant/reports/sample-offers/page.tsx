@@ -56,7 +56,7 @@ const thCls = 'px-3 py-2 text-left text-xs font-semibold text-gray-600 dark:text
 const tdCls = 'px-3 py-2 text-sm text-gray-800 dark:text-gray-200 align-top'
 
 function defaultRange(): DateRange {
-  const end = new Date(); const start = new Date(); start.setDate(end.getDate() - 30)
+  const end = new Date(); const start = new Date(); start.setDate(1); start.setHours(0, 0, 0, 0) /* MBM-345: month to date */
   return { start, end }
 }
 

@@ -186,7 +186,7 @@ export function FinancialInsightsReport({ businessId, businessType }: FinancialI
   const [range, setRange] = useState<DateRange>(() => {
     const end = new Date()
     const start = new Date()
-    start.setDate(end.getDate() - 29)
+    start.setDate(1); start.setHours(0, 0, 0, 0) /* MBM-345: month to date */
     return { start, end }
   })
   const [targetMargin, setTargetMargin] = useState(40)

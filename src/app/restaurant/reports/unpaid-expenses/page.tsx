@@ -48,7 +48,7 @@ export default function UnpaidExpensesReportPage() {
   const { currentBusinessId, currentBusiness } = useBusinessPermissionsContext()
   const [allTime, setAllTime] = useState(true)
   const [range, setRange] = useState<DateRange>(() => {
-    const end = new Date(); const start = new Date(); start.setDate(end.getDate() - 30)
+    const end = new Date(); const start = new Date(); start.setDate(1); start.setHours(0, 0, 0, 0) /* MBM-345: month to date */
     return { start, end }
   })
   const [txns, setTxns] = useState<Txn[]>([])

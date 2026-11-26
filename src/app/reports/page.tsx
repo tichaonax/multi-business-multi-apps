@@ -14,7 +14,7 @@ const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'
 
 function getDefaultRange(): DateRange {
   const end = new Date()
-  const start = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+  const start = new Date(new Date().getFullYear(), new Date().getMonth(), 1) /* MBM-345: month to date */
   return { start, end }
 }
 

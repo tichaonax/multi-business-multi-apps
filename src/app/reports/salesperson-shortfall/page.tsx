@@ -64,7 +64,7 @@ interface Salesperson {
 
 function defaultRange(): DateRange {
   return {
-    start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+    start: new Date(new Date().getFullYear(), new Date().getMonth(), 1) /* MBM-345: month to date */,
     end: new Date(),
   }
 }

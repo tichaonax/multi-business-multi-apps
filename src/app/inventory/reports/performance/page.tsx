@@ -46,7 +46,7 @@ interface ReportData {
 function getDefaultDateRange(): DateRange {
   const end = new Date()
   const start = new Date()
-  start.setDate(end.getDate() - 30)
+  start.setDate(1); start.setHours(0, 0, 0, 0) /* MBM-345: month to date */
   return { start, end }
 }
 
