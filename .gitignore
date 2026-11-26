@@ -175,3 +175,6 @@ scripts/mbm294-extracted/
 
 # MBM-341: release packages (npm run release)
 /releases/
+
+# MBM-344: one build at a time in this folder (scripts/prebuild-clean.js)
+.next-build.lock
