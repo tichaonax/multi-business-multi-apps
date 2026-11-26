@@ -1,5 +1,6 @@
 'use client'
 
+import { YmdRangePicker } from '@/components/ui/date-range-picker'
 import { useState, useEffect, useCallback } from 'react'
 import { Pagination } from '@/components/ui/pagination'
 import { usePageSize, PAGE_SIZE_OPTIONS } from '@/hooks/use-page-size-preference'
@@ -134,14 +135,10 @@ export function TransferHistory({ accountId, showFilters = false }: TransferHist
       {showFilters && (
         <div ref={filtersRef} className="sticky top-14 sm:top-16 z-20 bg-background flex flex-wrap gap-3 items-end py-2">
           <div>
-            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">From date</label>
-            <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
-              className="input px-2 py-1 text-sm" />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">To date</label>
-            <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)}
-              className="input px-2 py-1 text-sm" />
+            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Dates</label>
+            {/* MBM-345: the standard date range popup */}
+            <YmdRangePicker from={startDate} to={endDate} allowAllTime
+              onChange={(f, t) => { setStartDate(f); setEndDate(t) }} />
           </div>
           {accountId && (
             <div>

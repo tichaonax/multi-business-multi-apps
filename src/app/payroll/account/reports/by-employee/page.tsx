@@ -2,6 +2,7 @@
 
 export const dynamic = 'force-dynamic'
 
+import { YmdRangePicker } from '@/components/ui/date-range-picker'
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
@@ -82,34 +83,10 @@ export default function ByEmployeeReportPage() {
 
         {/* Date filters */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-5">
-          <div className="flex flex-wrap gap-2 mb-4">
-            {[['This Month','thisMonth'],['Last Month','lastMonth'],['This Year','thisYear']].map(([label, key]) => (
-              <button key={key} onClick={() => {
-                const today = new Date(), pad = (n: number) => String(n).padStart(2,'0')
-                const d = (dt: Date) => `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}`
-                if (key==='thisMonth'){setStartDate(d(new Date(today.getFullYear(),today.getMonth(),1)));setEndDate(d(today))}
-                if (key==='lastMonth'){setStartDate(d(new Date(today.getFullYear(),today.getMonth()-1,1)));setEndDate(d(new Date(today.getFullYear(),today.getMonth(),0)))}
-                if (key==='thisYear'){setStartDate(`${today.getFullYear()}-01-01`);setEndDate(d(today))}
-              }} className="px-3 py-1 text-xs rounded-full border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:border-blue-400 transition-colors">
-                {label}
-              </button>
-            ))}
-          </div>
           <div className="flex flex-wrap gap-4 items-end">
-          <div>
-            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">From</label>
-            <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
-              className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">To</label>
-            <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)}
-              className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" />
-          </div>
-          {(startDate || endDate) && (
-            <button onClick={() => { setStartDate(''); setEndDate('') }}
-              className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 pb-1">Clear</button>
-          )}
+          {/* MBM-345: the standard date range popup (empty = all dates) */}
+          <YmdRangePicker from={startDate} to={endDate} allowAllTime
+            onChange={(f, t) => { setStartDate(f); setEndDate(t) }} />
           <div className="flex-1" />
 
           {!loading && rows.length > 0 && (

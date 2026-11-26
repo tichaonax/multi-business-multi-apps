@@ -3,6 +3,7 @@
 // Force dynamic rendering for session-based pages
 export const dynamic = 'force-dynamic';
 
+import { YmdRangePicker } from '@/components/ui/date-range-picker'
 import { ProtectedRoute } from '@/components/auth/protected-route'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
@@ -127,28 +128,9 @@ export default function PersonalReportsPage() {
           {/* Date Range Filter */}
           <div className="card p-4">
             <div className="flex flex-col sm:flex-row gap-4 items-end">
-              <div className="flex-1">
-                <label className="block text-sm font-medium text-secondary mb-2">
-                  Start Date
-                </label>
-                <input
-                  type="date"
-                  value={dateRange.startDate}
-                  onChange={(e) => setDateRange({...dateRange, startDate: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div className="flex-1">
-                <label className="block text-sm font-medium text-secondary mb-2">
-                  End Date
-                </label>
-                <input
-                  type="date"
-                  value={dateRange.endDate}
-                  onChange={(e) => setDateRange({...dateRange, endDate: e.target.value})}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-primary focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
+              {/* MBM-345: the standard date range popup */}
+              <YmdRangePicker from={dateRange.startDate} to={dateRange.endDate}
+                onChange={(f, t) => { setDateRange({ ...dateRange, startDate: f, endDate: t }) }} />
               <button
                 onClick={fetchReportData}
                 className="btn-primary"

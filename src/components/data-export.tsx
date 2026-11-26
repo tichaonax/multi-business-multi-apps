@@ -1,5 +1,6 @@
 'use client';
 
+import { YmdRangePicker } from '@/components/ui/date-range-picker'
 import { useState } from 'react';
 import { useAlert } from '@/components/ui/confirm-modal'
 import { Button } from '@/components/ui/button';
@@ -243,52 +244,9 @@ export function DataExport({ userRole }: DataExportProps) {
         <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-4">
           Date Range Filter (Optional)
         </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-              Start Date
-            </label>
-            <div className="relative">
-              <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
-              <input
-                type="date"
-                value={exportOptions.dateRange.startDate || ''}
-                onChange={(e) =>
-                  setExportOptions({
-                    ...exportOptions,
-                    dateRange: {
-                      ...exportOptions.dateRange,
-                      startDate: e.target.value,
-                    },
-                  })
-                }
-                className="pl-10 w-full p-3 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-slate-800 dark:text-slate-100"
-              />
-            </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-              End Date
-            </label>
-            <div className="relative">
-              <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
-              <input
-                type="date"
-                value={exportOptions.dateRange.endDate || ''}
-                onChange={(e) =>
-                  setExportOptions({
-                    ...exportOptions,
-                    dateRange: {
-                      ...exportOptions.dateRange,
-                      endDate: e.target.value,
-                    },
-                  })
-                }
-                className="pl-10 w-full p-3 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-slate-800 dark:text-slate-100"
-              />
-            </div>
-          </div>
-        </div>
+        {/* MBM-345: the standard date range popup (All time = no filter) */}
+        <YmdRangePicker from={exportOptions.dateRange.startDate || ''} to={exportOptions.dateRange.endDate || ''} allowAllTime
+          onChange={(f, t) => setExportOptions({ ...exportOptions, dateRange: { ...exportOptions.dateRange, startDate: f, endDate: t } })} />
       </div>
 
       {/* Additional Options */}

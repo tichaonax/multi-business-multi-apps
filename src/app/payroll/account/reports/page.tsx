@@ -2,6 +2,7 @@
 
 export const dynamic = 'force-dynamic'
 
+import { YmdRangePicker } from '@/components/ui/date-range-picker'
 import { useState, useEffect, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
@@ -94,15 +95,6 @@ const REPORT_CARDS = [
   { href: '/payroll/account/reports/monthly',     emoji: '📅', title: 'Monthly Trends',       desc: 'Year-picker view of month-by-month totals with full breakdown.',       color: 'border-teal-500 hover:bg-teal-50 dark:hover:bg-teal-900/10' },
   { href: '/payroll',                             emoji: '📄', title: 'Period Reports',        desc: 'Per-period: Payroll Register, PAYE, NSSA, NEC returns and payslips. Open a period → Reports tab.', color: 'border-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/10' },
   { href: '/payroll/account/reports/zimra',        emoji: '🏛️', title: 'ZIMRA Remittances',    desc: 'AIDS Levy and PAYE submission status across all periods. Process and track P2 submissions.', color: 'border-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/10' },
-]
-
-const PRESETS: { key: Preset; label: string }[] = [
-  { key: 'thisMonth',   label: 'This Month' },
-  { key: 'lastMonth',   label: 'Last Month' },
-  { key: 'last3Months', label: 'Last 3 Months' },
-  { key: 'thisYear',    label: 'This Year' },
-  { key: 'allTime',     label: 'All Time' },
-  { key: 'custom',      label: 'Custom' },
 ]
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -226,34 +218,13 @@ export default function PayrollReportsHubPage() {
         {/* ── Date Filter Bar ───────────────────────────────────────────────── */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
           <div className="flex flex-wrap items-center gap-2">
-            {PRESETS.map(p => (
-              <button
-                key={p.key}
-                onClick={() => setPreset(p.key)}
-                className={`px-4 py-1.5 text-sm rounded-full border transition-colors ${
-                  preset === p.key
-                    ? 'bg-blue-600 text-white border-blue-600'
-                    : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                }`}
-              >
-                {p.label}
-              </button>
-            ))}
-            {preset === 'custom' && (
-              <div className="flex items-center gap-2 ml-2">
-                <input
-                  type="date" value={custom.start}
-                  onChange={e => setCustom(c => ({ ...c, start: e.target.value }))}
-                  className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                />
-                <span className="text-gray-500 dark:text-gray-400 text-sm">to</span>
-                <input
-                  type="date" value={custom.end}
-                  onChange={e => setCustom(c => ({ ...c, end: e.target.value }))}
-                  className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                />
-              </div>
-            )}
+            {/* MBM-345: the standard date range popup */}
+            <YmdRangePicker from={startDate} to={endDate} allowAllTime
+              selection={preset === 'allTime' ? { kind: 'all' } : undefined}
+              onChange={(f, t) => {
+                if (!f) { setPreset('allTime'); return }
+                setCustom({ start: f, end: t }); setPreset('custom')
+              }} />
           </div>
         </div>
 

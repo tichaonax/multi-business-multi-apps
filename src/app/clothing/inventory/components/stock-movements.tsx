@@ -1,5 +1,6 @@
 'use client'
 
+import { YmdRangePicker } from '@/components/ui/date-range-picker'
 import { useState, useEffect } from 'react'
 import { useBusinessContext } from '@/components/universal'
 
@@ -226,21 +227,9 @@ export function ClothingStockMovements({ businessId }: ClothingStockMovementsPro
             ))}
           </select>
 
-          <input
-            type="date"
-            value={filters.dateFrom}
-            onChange={(e) => setFilters(prev => ({ ...prev, dateFrom: e.target.value }))}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-            placeholder="From Date"
-          />
-
-          <input
-            type="date"
-            value={filters.dateTo}
-            onChange={(e) => setFilters(prev => ({ ...prev, dateTo: e.target.value }))}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-            placeholder="To Date"
-          />
+          {/* MBM-345: the standard date range popup */}
+          <YmdRangePicker from={filters.dateFrom} to={filters.dateTo} allowAllTime
+            onChange={(f, t) => setFilters(prev => ({ ...prev, dateFrom: f, dateTo: t }))} />
 
           <input
             type="text"

@@ -1,5 +1,6 @@
 'use client'
 
+import { YmdRangePicker } from '@/components/ui/date-range-picker'
 import { useState, useEffect, useCallback } from 'react'
 
 interface DayRow {
@@ -251,34 +252,10 @@ export function InventoryActivityReportModal({ isOpen, onClose, businessId, busi
           {/* Filters */}
           <div className="px-6 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 shrink-0">
             <div className="flex flex-wrap items-center gap-2">
-              {(['today', 'yesterday', '7days', '30days', 'custom'] as Preset[]).map(p => (
-                <button
-                  key={p}
-                  onClick={() => { setPreset(p); setPage(1) }}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                    preset === p
-                      ? 'bg-green-600 text-white'
-                      : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600'
-                  }`}
-                >
-                  {p === 'today' ? 'Today' : p === 'yesterday' ? 'Yesterday' : p === '7days' ? '7 Days' : p === '30days' ? '30 Days' : 'Custom'}
-                </button>
-              ))}
-              {preset === 'custom' && (
-                <div className="flex items-center gap-2 ml-2">
-                  <input
-                    type="date" value={customFrom}
-                    onChange={e => { setCustomFrom(e.target.value); setPage(1) }}
-                    className="px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                  />
-                  <span className="text-gray-500 text-sm">to</span>
-                  <input
-                    type="date" value={customTo}
-                    onChange={e => { setCustomTo(e.target.value); setPage(1) }}
-                    className="px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                  />
-                </div>
-              )}
+              {/* MBM-345: the standard date range popup */}
+              <YmdRangePicker from={getRange().from} to={getRange().to}
+                selection={preset === 'today' || preset === 'yesterday' ? { kind: 'preset', key: preset } : undefined}
+                onChange={(f, t) => { setCustomFrom(f); setCustomTo(t); setPreset('custom'); setPage(1) }} />
             </div>
           </div>
 

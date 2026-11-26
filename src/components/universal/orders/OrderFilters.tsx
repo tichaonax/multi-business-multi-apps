@@ -1,4 +1,6 @@
 import { OrderFilters as OrderFiltersType } from './types'
+import { DateRangePicker, type RangeChange, type RangeSelection } from '@/components/ui/date-range-picker'
+import { presetRange, type DateRange, type PresetKey } from '@/lib/date-range-presets'
 import { BUSINESS_ORDER_CONFIGS } from './BusinessOrderConfig'
 
 interface OrderFiltersProps {
@@ -17,17 +19,25 @@ export function OrderFilters({ filters, onFiltersChange, businessType }: OrderFi
     })
   }
 
-  const handleDateRangeChange = (value: string) => {
-    if (value === 'custom') {
-      // Switch to custom — preserve any existing dates, clear preset
-      onFiltersChange({ ...filters, dateRange: 'custom' })
-    } else {
-      // Switch to preset — clear custom dates
-      onFiltersChange({ ...filters, dateRange: value, startDate: undefined, endDate: undefined })
-    }
+  // MBM-345: the standard date range popup. Today / This week / Month to date /
+  // All time stay the server's named ranges (dateRange); anything else is sent
+  // as whole local days (startDate / endDate).
+  const NAMED: Partial<Record<PresetKey, string>> = { today: 'today', week: 'week', mtd: 'month' }
+  const KEY_OF: Record<string, PresetKey> = { today: 'today', week: 'week', month: 'mtd' }
+  const dr = filters.dateRange || 'today'
+  const pickerValue: DateRange | null = dr === 'all' ? null
+    : dr === 'custom' && filters.startDate && filters.endDate ? { start: new Date(filters.startDate), end: new Date(filters.endDate) }
+      : KEY_OF[dr] ? presetRange(KEY_OF[dr]) : presetRange('today')
+  const pickerSelection: RangeSelection | undefined = dr === 'all' ? { kind: 'all' } : KEY_OF[dr] ? { kind: 'preset', key: KEY_OF[dr] } : undefined
+  const onRange = (range: DateRange | null, change: RangeChange) => {
+    const sel = change.selection
+    if (sel.kind === 'all' || !range) { onFiltersChange({ ...filters, dateRange: 'all', startDate: undefined, endDate: undefined }); return }
+    const named = sel.kind === 'preset' ? NAMED[sel.key] : undefined
+    if (named) { onFiltersChange({ ...filters, dateRange: named, startDate: undefined, endDate: undefined }); return }
+    const start = new Date(range.start.getFullYear(), range.start.getMonth(), range.start.getDate())
+    const end = new Date(range.end.getFullYear(), range.end.getMonth(), range.end.getDate(), 23, 59, 59, 999)
+    onFiltersChange({ ...filters, dateRange: 'custom', startDate: start.toISOString(), endDate: end.toISOString() })
   }
-
-  const isCustom = filters.dateRange === 'custom'
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4 mb-6">
@@ -56,18 +66,8 @@ export function OrderFilters({ filters, onFiltersChange, businessType }: OrderFi
           <label className="block text-sm font-medium text-secondary mb-2">
             Date Range
           </label>
-          <select
-            value={filters.dateRange || 'today'}
-            onChange={(e) => handleDateRangeChange(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-          >
-            <option value="today">Today</option>
-            <option value="yesterday">Yesterday</option>
-            <option value="week">This Week</option>
-            <option value="month">This Month</option>
-            <option value="all">All Time</option>
-            <option value="custom">Custom Range</option>
-          </select>
+          <DateRangePicker value={pickerValue} selection={pickerSelection} onChange={onRange} allowAllTime
+            className="w-full inline-flex items-center gap-1.5 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-left dark:bg-gray-700 dark:text-white hover:border-blue-400" />
         </div>
 
         {/* Search Filter */}
@@ -101,46 +101,6 @@ export function OrderFilters({ filters, onFiltersChange, businessType }: OrderFi
           </select>
         </div>
       </div>
-
-      {/* Custom date pickers — shown only when Custom Range is selected */}
-      {isCustom && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-          <div>
-            <label className="block text-sm font-medium text-secondary mb-2">
-              From
-            </label>
-            <input
-              type="date"
-              value={filters.startDate ? filters.startDate.split('T')[0] : ''}
-              onChange={(e) =>
-                onFiltersChange({
-                  ...filters,
-                  startDate: e.target.value ? new Date(e.target.value).toISOString() : undefined
-                })
-              }
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-secondary mb-2">
-              To
-            </label>
-            <input
-              type="date"
-              value={filters.endDate ? filters.endDate.split('T')[0] : ''}
-              onChange={(e) =>
-                onFiltersChange({
-                  ...filters,
-                  endDate: e.target.value
-                    ? new Date(new Date(e.target.value).setHours(23, 59, 59, 999)).toISOString()
-                    : undefined
-                })
-              }
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-            />
-          </div>
-        </div>
-      )}
 
       {/* Clear Filters Button */}
       <div className="mt-4 flex justify-end">

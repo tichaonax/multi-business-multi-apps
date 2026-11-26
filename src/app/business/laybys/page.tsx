@@ -3,6 +3,7 @@
 
 // Force dynamic rendering for session-based pages
 export const dynamic = 'force-dynamic';
+import { YmdRangePicker } from '@/components/ui/date-range-picker'
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
@@ -231,25 +232,9 @@ export default function LaybysPage() {
               </select>
             </div>
 
-            <div>
-              <Label htmlFor="startDate">Start Date</Label>
-              <Input
-                id="startDate"
-                type="date"
-                value={filters.startDate}
-                onChange={(e) => handleFilterChange('startDate', e.target.value)}
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="endDate">End Date</Label>
-              <Input
-                id="endDate"
-                type="date"
-                value={filters.endDate}
-                onChange={(e) => handleFilterChange('endDate', e.target.value)}
-              />
-            </div>
+            {/* MBM-345: the standard date range popup */}
+            <YmdRangePicker from={filters.startDate} to={filters.endDate} allowAllTime
+              onChange={(f, t) => { setFilters(prev => ({ ...prev, startDate: f, endDate: t })); setPagination(prev => ({ ...prev, page: 1 })) }} />
 
             <div className="flex items-end gap-2">
               <Button variant="outline" onClick={clearFilters} className="flex-1">

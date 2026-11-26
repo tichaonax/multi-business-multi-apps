@@ -1,5 +1,6 @@
 'use client'
 
+import { YmdRangePicker } from '@/components/ui/date-range-picker'
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -166,7 +167,6 @@ export default function ClockInDashboardPage() {
   const [logSearch, setLogSearch] = useState('')
   // MBM-337: action filter for Login Tracking
   const [logAction, setLogAction] = useState<string>('')
-  const [logActivePreset, setLogActivePreset] = useState<string | null>('today')
 
   // Inline schedule/exempt editor
   const [scheduleModal, setScheduleModal] = useState<ScheduleModalState | null>(null)
@@ -541,24 +541,6 @@ export default function ClockInDashboardPage() {
     return 'Not In'
   }
 
-  // Date helpers for login-tracking presets
-  const daysAgo = (n: number) => {
-    const d = new Date()
-    d.setDate(d.getDate() - n)
-    return d.toISOString().split('T')[0]
-  }
-  const applyLogPreset = (preset: string) => {
-    const today = todayStr
-    setLogActivePreset(preset)
-    setLogSearch('')
-    switch (preset) {
-      case 'today':     setLogDateFrom(today);          setLogDateTo(today);     break
-      case 'yesterday': { const y = daysAgo(1); setLogDateFrom(y); setLogDateTo(y); break }
-      case '7days':     setLogDateFrom(daysAgo(6));     setLogDateTo(today);     break
-      case '30days':    setLogDateFrom(daysAgo(29));    setLogDateTo(today);     break
-      case 'month':     setLogDateFrom(todayStr.slice(0, 7) + '-01'); setLogDateTo(today); break
-    }
-  }
 
   // Client-side filtered data for each tab
   const lc = (s: string) => s.toLowerCase()
@@ -1203,41 +1185,9 @@ export default function ClockInDashboardPage() {
       {activeTab === 'loginTracking' && (
         <div>
           <div className="flex flex-wrap items-center gap-3 mb-5 p-4 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl">
-            {/* Preset buttons */}
-            {([
-              { key: 'today',     label: 'Today' },
-              { key: 'yesterday', label: 'Yesterday' },
-              { key: '7days',     label: 'Last 7 Days' },
-              { key: '30days',    label: 'Last 30 Days' },
-              { key: 'month',     label: 'This Month' },
-            ] as const).map(p => (
-              <button
-                key={p.key}
-                onClick={() => applyLogPreset(p.key)}
-                className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-colors ${
-                  logActivePreset === p.key
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'
-                }`}
-              >
-                {p.label}
-              </button>
-            ))}
-            <div className="flex items-center gap-2 ml-1">
-              <input
-                type="date"
-                value={logDateFrom}
-                onChange={(e) => { setLogDateFrom(e.target.value); setLogActivePreset(null) }}
-                className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-              />
-              <span className="text-gray-500 text-sm">to</span>
-              <input
-                type="date"
-                value={logDateTo}
-                onChange={(e) => { setLogDateTo(e.target.value); setLogActivePreset(null) }}
-                className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-              />
-            </div>
+            {/* MBM-345: the standard date range popup */}
+            <YmdRangePicker from={logDateFrom} to={logDateTo}
+              onChange={(f, t) => { setLogDateFrom(f); setLogDateTo(t); setLogSearch('') }} />
             <button
               onClick={loadLoginLogs}
               disabled={isLoadingLogs}

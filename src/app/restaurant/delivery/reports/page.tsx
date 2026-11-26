@@ -2,6 +2,7 @@
 
 export const dynamic = 'force-dynamic'
 
+import { YmdRangePicker } from '@/components/ui/date-range-picker'
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
@@ -186,24 +187,9 @@ export default function DeliveryReportsPage() {
           {/* Date range filter (not used for blacklist) */}
           {activeTab !== 'blacklist' && (
             <div className="flex flex-wrap items-center gap-3">
-              <div className="flex items-center gap-2">
-                <label className="text-sm font-medium text-gray-600 dark:text-gray-400">From</label>
-                <input
-                  type="date"
-                  value={from}
-                  onChange={e => setFrom(e.target.value)}
-                  className="border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <label className="text-sm font-medium text-gray-600 dark:text-gray-400">To</label>
-                <input
-                  type="date"
-                  value={to}
-                  onChange={e => setTo(e.target.value)}
-                  className="border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                />
-              </div>
+              {/* MBM-345: the standard date range popup */}
+              <YmdRangePicker from={from} to={to}
+                onChange={(f, t) => { setFrom(f); setTo(t) }} />
               <button
                 onClick={loadReport}
                 disabled={loading}

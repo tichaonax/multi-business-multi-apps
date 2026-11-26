@@ -2,6 +2,7 @@
 
 export const dynamic = 'force-dynamic'
 
+import { YmdRangePicker } from '@/components/ui/date-range-picker'
 import React, { useState, useCallback, useEffect } from 'react'
 import Link from 'next/link'
 import { ContentLayout } from '@/components/layout/content-layout'
@@ -30,14 +31,6 @@ interface SummaryRow {
   totalActual: number | string | null
   lineItems: LineItemRow[]
 }
-
-const RANGE_LABELS: { value: Range; label: string }[] = [
-  { value: 'today', label: 'Today' },
-  { value: 'yesterday', label: 'Yesterday' },
-  { value: '7days', label: 'Last 7 Days' },
-  { value: '30days', label: 'Last 30 Days' },
-  { value: 'custom', label: 'Custom' },
-]
 
 const STATUS_CLASS: Record<string, string> = {
   LOCKED:      'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300',
@@ -102,35 +95,16 @@ export default function CashAllocationSummaryPage() {
         <div className="flex flex-wrap items-end gap-3">
           <div>
             <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Date Range</label>
-            <div className="flex gap-1">
-              {RANGE_LABELS.map(opt => (
-                <button
-                  key={opt.value}
-                  onClick={() => setRange(opt.value)}
-                  className={`px-3 py-1.5 rounded text-sm font-medium transition-colors
-                    ${range === opt.value
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
+            {/* MBM-345: the standard date range popup. Today / Yesterday stay the
+                server's own ranges; anything else is sent as From / To. */}
+            <YmdRangePicker from={startDate} to={endDate}
+              selection={range === 'today' || range === 'yesterday' ? { kind: 'preset', key: range } : undefined}
+              onChange={(f, t, change) => {
+                const sel = change.selection
+                setStartDate(f); setEndDate(t)
+                setRange(sel.kind === 'preset' && (sel.key === 'today' || sel.key === 'yesterday') ? sel.key : 'custom')
+              }} />
           </div>
-          {range === 'custom' && (
-            <>
-              <div>
-                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">From</label>
-                <input type="date" value={startDate} max={endDate} onChange={e => setStartDate(e.target.value)}
-                  className="border border-gray-300 dark:border-gray-600 rounded px-2 py-1.5 text-sm bg-white dark:bg-gray-700 dark:text-gray-100" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">To</label>
-                <input type="date" value={endDate} min={startDate} max={today} onChange={e => setEndDate(e.target.value)}
-                  className="border border-gray-300 dark:border-gray-600 rounded px-2 py-1.5 text-sm bg-white dark:bg-gray-700 dark:text-gray-100" />
-              </div>
-            </>
-          )}
           <button
             onClick={load}
             disabled={loading}

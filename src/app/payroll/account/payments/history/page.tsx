@@ -3,6 +3,7 @@
 
 // Force dynamic rendering for session-based pages
 export const dynamic = 'force-dynamic';
+import { YmdRangePicker } from '@/components/ui/date-range-picker'
 import { useState, useEffect, Suspense } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
@@ -609,30 +610,9 @@ function PaymentHistoryContent() {
                 </div>
 
                 {/* Start Date Filter */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Start Date
-                  </label>
-                  <input
-                    type="date"
-                    value={filters.startDate}
-                    onChange={(e) => handleFilterChange('startDate', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-                {/* End Date Filter */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    End Date
-                  </label>
-                  <input
-                    type="date"
-                    value={filters.endDate}
-                    onChange={(e) => handleFilterChange('endDate', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
+                {/* MBM-345: the standard date range popup */}
+                <YmdRangePicker from={filters.startDate} to={filters.endDate} allowAllTime
+                  onChange={(f, t) => { setFilters({ ...filters, startDate: f, endDate: t }); setPagination({ ...pagination, offset: 0 }) }} />
 
                 {/* Advance Filter */}
                 <div>

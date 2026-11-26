@@ -2,6 +2,7 @@
 
 export const dynamic = 'force-dynamic'
 
+import { YmdRangePicker } from '@/components/ui/date-range-picker'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
@@ -85,16 +86,8 @@ export default function PrepInventoryReportPage() {
 
         {/* Filters */}
         <div className="flex flex-wrap gap-3 mb-6 items-end">
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Start date</label>
-            <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
-              className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100" />
-          </div>
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">End date</label>
-            <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)}
-              className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100" />
-          </div>
+          {/* MBM-345: the standard date range popup */}
+          <YmdRangePicker from={startDate} to={endDate} onChange={(f, t) => { setStartDate(f); setEndDate(t) }} />
           <button onClick={fetchReport} disabled={loading}
             className="px-4 py-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50 text-sm font-medium">
             {loading ? 'Loading...' : 'Apply'}

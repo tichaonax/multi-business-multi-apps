@@ -3,6 +3,7 @@
 export const dynamic = 'force-dynamic'
 
 import { useState, useEffect, useCallback } from 'react'
+import { YmdRangePicker } from '@/components/ui/date-range-picker'
 import { useSession } from 'next-auth/react'
 import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
@@ -277,23 +278,10 @@ function TransactionsTab({ businessId }: { businessId: string }) {
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-1 text-xs">
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            className="px-2 py-1 rounded border border-border bg-white dark:bg-gray-800 text-primary text-xs"
-            placeholder="From"
-          />
-          <span className="text-gray-400">→</span>
-          <input
-            type="date"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-            className="px-2 py-1 rounded border border-border bg-white dark:bg-gray-800 text-primary text-xs"
-            placeholder="To"
-          />
-        </div>
+        {/* MBM-345: the standard date range popup */}
+        <YmdRangePicker from={startDate} to={endDate} allowAllTime
+          onChange={(f, t) => { setStartDate(f); setEndDate(t) }}
+          className="inline-flex items-center gap-1 px-2 py-1 rounded border border-border bg-white dark:bg-gray-800 text-primary text-xs" />
         {(startDate || endDate) && (
           <button
             onClick={() => { setStartDate(''); setEndDate('') }}

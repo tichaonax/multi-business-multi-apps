@@ -2,6 +2,7 @@
 
 export const dynamic = 'force-dynamic'
 
+import { YmdRangePicker } from '@/components/ui/date-range-picker'
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
@@ -23,12 +24,6 @@ interface AbsenceRecord {
 }
 
 type Tab = 'summary' | 'calendar' | 'trend'
-
-const TREND_PRESETS = [
-  { label: 'Last 3M', months: 3 },
-  { label: 'Last 6M', months: 6 },
-  { label: 'Last 12M', months: 12 },
-]
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -464,32 +459,10 @@ export default function AbsenceReportPage() {
           ) : (
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-sm font-medium text-secondary whitespace-nowrap">Period:</span>
-              <div className="flex gap-1">
-                {TREND_PRESETS.map(p => (
-                  <button
-                    key={p.months}
-                    onClick={() => { setTrendPreset(p.months); setTrendCustom(false) }}
-                    className={`px-3 py-1.5 text-xs rounded-md font-medium transition-colors ${!trendCustom && trendPreset === p.months ? 'bg-blue-600 text-white' : 'border border-border text-secondary hover:bg-muted/40'}`}
-                  >
-                    {p.label}
-                  </button>
-                ))}
-                <button
-                  onClick={() => setTrendCustom(c => !c)}
-                  className={`px-3 py-1.5 text-xs rounded-md font-medium transition-colors ${trendCustom ? 'bg-blue-600 text-white' : 'border border-border text-secondary hover:bg-muted/40'}`}
-                >
-                  Custom
-                </button>
-              </div>
-              {trendCustom && (
-                <div className="flex items-center gap-2">
-                  <input type="date" value={trendCustomFrom} onChange={e => setTrendCustomFrom(e.target.value)}
-                    className="px-2 py-1.5 text-xs border border-border rounded bg-background text-primary focus:ring-2 focus:ring-blue-500" />
-                  <span className="text-secondary text-xs">to</span>
-                  <input type="date" value={trendCustomTo} onChange={e => setTrendCustomTo(e.target.value)}
-                    className="px-2 py-1.5 text-xs border border-border rounded bg-background text-primary focus:ring-2 focus:ring-blue-500" />
-                </div>
-              )}
+              {/* MBM-345: the standard date range popup, limited to trend-sized ranges */}
+              <YmdRangePicker from={trendRange.from} to={trendRange.to}
+                presets={['90', 'ytd', 'lastYear', '6m', '1y', '2y']} allowMonth={false} allowSpecificDate={false}
+                onChange={(f, t) => { setTrendCustomFrom(f); setTrendCustomTo(t); setTrendCustom(true) }} />
             </div>
           )}
 

@@ -1,6 +1,7 @@
 'use client'
 export const dynamic = 'force-dynamic'
 
+import { YmdRangePicker } from '@/components/ui/date-range-picker'
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
@@ -1043,44 +1044,20 @@ export default function CashBucketPage() {
               </select>
             </div>
 
-            {/* Date preset pills */}
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {([
-                { key: 'today',     label: 'Today' },
-                { key: 'yesterday', label: 'Yesterday' },
-                { key: '7d',        label: '7 days' },
-                { key: '30d',       label: '30 days' },
-                { key: '90d',       label: '90 days' },
-                { key: 'all',       label: 'All time' },
-                { key: 'custom',    label: 'Custom' },
-              ] as { key: string; label: string }[]).map(p => (
-                <button
-                  key={p.key}
-                  onClick={() => { setDatePreset(p.key); if (p.key !== 'custom') load({ preset: p.key }) }}
-                  className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${datePreset === p.key ? 'bg-indigo-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-secondary hover:bg-gray-200 dark:hover:bg-gray-600'}`}
-                >
-                  {p.label}
-                </button>
-              ))}
-            </div>
-
-            {/* Custom date range */}
-            {datePreset === 'custom' && (
-              <div className="flex items-center gap-2 flex-wrap">
-                <input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)}
-                  className="px-2 py-1 text-xs rounded-md border border-border bg-white dark:bg-gray-800 text-primary focus:outline-none focus:ring-1 focus:ring-indigo-400" />
-                <span className="text-xs text-secondary">to</span>
-                <input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)}
-                  className="px-2 py-1 text-xs rounded-md border border-border bg-white dark:bg-gray-800 text-primary focus:outline-none focus:ring-1 focus:ring-indigo-400" />
-                <button
-                  onClick={() => load({ preset: 'custom', start: customStart, end: customEnd })}
-                  disabled={!customStart || !customEnd}
-                  className="px-3 py-1 text-xs rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-40"
-                >
-                  Apply
-                </button>
-              </div>
-            )}
+            {/* MBM-345: the standard date range popup (dates go as From / To) */}
+            {(() => {
+              const r = datePreset === 'all' ? null : getDateRange(datePreset)
+              return (
+                <YmdRangePicker from={r?.startDate ?? ''} to={r?.endDate ?? ''} allowAllTime
+                  selection={datePreset === 'all' ? { kind: 'all' } : undefined}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-md border border-border bg-white dark:bg-gray-800 text-primary"
+                  onChange={(f, t) => {
+                    if (!f) { setDatePreset('all'); load({ preset: 'all' }); return }
+                    setDatePreset('custom'); setCustomStart(f); setCustomEnd(t)
+                    load({ preset: 'custom', start: f, end: t })
+                  }} />
+              )
+            })()}
           </div>
           {loading ? (
             <p className="text-sm text-secondary">Loading…</p>

@@ -1,6 +1,7 @@
 'use client'
 
 export const dynamic = 'force-dynamic'
+import { YmdRangePicker } from '@/components/ui/date-range-picker'
 import React, { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
@@ -217,41 +218,12 @@ export default function MyRequestsPage() {
 
         {/* Filters */}
         <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 flex flex-wrap gap-3 items-end">
-          {/* Date presets */}
+          {/* MBM-345: the standard date range popup (dates go as From / To) */}
           <div>
-            <label className="block text-xs text-gray-500 mb-1">Date Range</label>
-            <div className="flex gap-1 flex-wrap">
-              {DATE_PRESETS.map(p => (
-                <button
-                  key={p.value}
-                  onClick={() => setDatePreset(prev => prev === p.value ? '' : p.value)}
-                  className={`px-3 py-1.5 rounded-lg text-xs border transition-colors ${
-                    datePreset === p.value
-                      ? 'bg-blue-600 text-white border-blue-600'
-                      : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
-                  }`}
-                >
-                  {p.label}
-                </button>
-              ))}
-            </div>
+            <label className="block text-xs text-gray-500 mb-1">Date</label>
+            <YmdRangePicker from={datePreset === 'custom' ? startDate : ''} to={datePreset === 'custom' ? endDate : ''} allowAllTime
+              onChange={(f, t) => { if (!f) { setDatePreset(''); return } setStartDate(f); setEndDate(t); setDatePreset('custom') }} />
           </div>
-
-          {/* Custom date inputs */}
-          {datePreset === 'custom' && (
-            <div className="flex gap-2 items-end">
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">From</label>
-                <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
-                  className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
-              </div>
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">To</label>
-                <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)}
-                  className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
-              </div>
-            </div>
-          )}
 
           {/* Status filter */}
           <div>

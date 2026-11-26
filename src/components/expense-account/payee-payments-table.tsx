@@ -1,5 +1,6 @@
 'use client'
 
+import { YmdRangePicker } from '@/components/ui/date-range-picker'
 import { useState, useEffect } from 'react'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { formatCurrency } from '@/lib/format-currency'
@@ -185,20 +186,9 @@ export function PayeePaymentsTable({
         <div className="flex flex-wrap gap-4">
           {/* Date Range Filter */}
           <div className="flex gap-2">
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-sm"
-              placeholder="Start Date"
-            />
-            <input
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-sm"
-              placeholder="End Date"
-            />
+            {/* MBM-345: the standard date range popup */}
+            <YmdRangePicker from={startDate} to={endDate} allowAllTime
+              onChange={(f, t) => { setStartDate(f); setEndDate(t) }} />
           </div>
 
           {/* Sort Order */}

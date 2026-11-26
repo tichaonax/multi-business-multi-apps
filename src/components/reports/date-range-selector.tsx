@@ -1,11 +1,16 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+// The reports' date range picker (51 pages). MBM-345: its bar now opens the
+// standard date range popup (src/components/ui/date-range-picker.tsx) instead
+// of expanding an inline panel. The props and the dates it gives are exactly
+// as before (scripts/check-date-range-presets.ts), so no page changes; it
+// also gains This week, Last week, Last month and Last year.
 
-export interface DateRange {
-  start: Date
-  end: Date
-}
+import { useRef, useState } from 'react'
+import { DateRangePopup, labelFor, type RangeSelection } from '@/components/ui/date-range-picker'
+import { matchPreset, monthRange, type DateRange } from '@/lib/date-range-presets'
+
+export type { DateRange }
 
 interface DateRangeSelectorProps {
   value: DateRange
@@ -17,275 +22,73 @@ interface DateRangeSelectorProps {
   selectedMonth?: number | null
   selectedYear?: number
   onMonthYearChange?: (month: number | null, year: number) => void
-  /** Start collapsed — user expands when needed. Defaults to true. */
+  /** Kept for the pages that pass it; the popup replaces the collapsible panel. */
   defaultCollapsed?: boolean
 }
 
-const presets = [
-  { key: 'today',     label: 'Today' },
-  { key: 'yesterday', label: 'Yesterday' },
-  { key: 'mtd', label: 'Month to Date' },
-  { key: 'ytd', label: 'Year to Date' },
-  { key: '7',  label: 'Last 7 Days',  days: 7 },
-  { key: '30', label: 'Last 30 Days', days: 30 },
-  { key: '90', label: 'Last 90 Days', days: 90 },
-  { key: '6m', label: '6 Months',  months: 6 },
-  { key: '1y', label: '1 Year',    months: 12 },
-  { key: '2y', label: '2 Years',   months: 24 },
-  { key: '5y', label: '5 Years',   months: 60 },
-]
-
-const MONTHS = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
-]
-
 const THIS_YEAR = new Date().getFullYear()
-const YEARS = [THIS_YEAR, THIS_YEAR - 1, THIS_YEAR - 2]
-
-function toPickerValue(d: Date): string {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
-}
 
 export function DateRangeSelector({
   value, onChange, showAllTime, allTime, onAllTimeChange,
   selectedMonth: controlledMonth, selectedYear: controlledYear, onMonthYearChange,
-  defaultCollapsed = true,
 }: DateRangeSelectorProps) {
   const isControlled = onMonthYearChange !== undefined
+  const btnRef = useRef<HTMLButtonElement>(null)
+  const [open, setOpen] = useState(false)
 
-  const [isOpen, setIsOpen] = useState(!defaultCollapsed)
-
-  // Local state used only when uncontrolled
+  // Local month/year only when uncontrolled (as before)
   const [localMonth, setLocalMonth] = useState<number | null>(null)
   const [localYear, setLocalYear] = useState(THIS_YEAR)
-
   const selectedMonth = isControlled ? (controlledMonth ?? null) : localMonth
-  const selectedYear  = isControlled ? (controlledYear  ?? THIS_YEAR) : localYear
-
-  const [showCustom, setShowCustom] = useState(false)
-  const [showSingleDate, setShowSingleDate] = useState(false)
-  const [singleDateValue, setSingleDateValue] = useState('')
-  const [selectedPreset, setSelectedPreset] = useState<string | null>('30')
-
-  const [pendingStart, setPendingStart] = useState<Date>(value.start)
-  const [pendingEnd, setPendingEnd] = useState<Date>(value.end)
-  const [startPickerValue, setStartPickerValue] = useState(toPickerValue(value.start))
-  const [endPickerValue, setEndPickerValue] = useState(toPickerValue(value.end))
-
-  useEffect(() => {
-    setPendingStart(value.start)
-    setPendingEnd(value.end)
-    setStartPickerValue(toPickerValue(value.start))
-    setEndPickerValue(toPickerValue(value.end))
-  }, [value.start, value.end])
-
-  // Sync preset highlight with incoming value — but only when month picker is not active
-  useEffect(() => {
-    if (selectedMonth !== null) return // month picker is driving the range — don't override
-
-    const now = new Date()
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-    const startOfYesterday = new Date(startOfToday)
-    startOfYesterday.setDate(startOfToday.getDate() - 1)
-    const valueStartDay = new Date(value.start.getFullYear(), value.start.getMonth(), value.start.getDate())
-    const daysDiff = Math.round((value.end.getTime() - value.start.getTime()) / (1000 * 60 * 60 * 24))
-
-    if (valueStartDay.getTime() === startOfToday.getTime()) {
-      setSelectedPreset('today'); setShowCustom(false); return
-    }
-    if (valueStartDay.getTime() === startOfYesterday.getTime() && daysDiff <= 1) {
-      setSelectedPreset('yesterday'); setShowCustom(false); return
-    }
-    // Month/Year to Date are identified purely by their start date (the 1st
-    // of the current month/year) — unlike the day-count presets below,
-    // their length varies by when in the month/year "now" falls, so there's
-    // no fixed daysDiff to match against.
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-    if (valueStartDay.getTime() === startOfMonth.getTime()) {
-      setSelectedPreset('mtd'); setShowCustom(false); return
-    }
-    const startOfYear = new Date(now.getFullYear(), 0, 1)
-    if (valueStartDay.getTime() === startOfYear.getTime()) {
-      setSelectedPreset('ytd'); setShowCustom(false); return
-    }
-    const dayPreset = presets.find(p => p.days !== undefined && p.days === daysDiff)
-    if (dayPreset) { setSelectedPreset(dayPreset.key); setShowCustom(false); return }
-
-    const TWO_DAYS_MS = 2 * 24 * 60 * 60 * 1000
-    const monthPreset = presets.find(p => {
-      if (!p.months) return false
-      const expectedStart = new Date(now)
-      expectedStart.setMonth(expectedStart.getMonth() - p.months)
-      const expectedStartDay = new Date(expectedStart.getFullYear(), expectedStart.getMonth(), expectedStart.getDate())
-      return Math.abs(valueStartDay.getTime() - expectedStartDay.getTime()) <= TWO_DAYS_MS
-    })
-    if (monthPreset) { setSelectedPreset(monthPreset.key); setShowCustom(false); return }
-
-    setSelectedPreset(null)
-    if (!showSingleDate) setShowCustom(true)
-  }, [value, showSingleDate, selectedMonth])
-
-  function setMonth(m: number | null, y: number) {
+  const selectedYear = isControlled ? (controlledYear ?? THIS_YEAR) : localYear
+  const setMonth = (m: number | null, y: number) => {
     if (isControlled) onMonthYearChange!(m, y)
     else { setLocalMonth(m); setLocalYear(y) }
   }
 
-  const handleAllTimeClick = () => {
-    setShowCustom(false); setShowSingleDate(false); setSelectedPreset(null)
-    setMonth(null, selectedYear)
-    onAllTimeChange?.(true)
-  }
+  // What was picked last (a day or From / To reads as dates, not a preset)
+  const [picked, setPicked] = useState<RangeSelection | null>(null)
+  const selection: RangeSelection | null =
+    allTime ? { kind: 'all' }
+      : selectedMonth !== null ? { kind: 'month', year: selectedYear, month: selectedMonth }
+        : picked && picked.kind !== 'all' && picked.kind !== 'month'
+          ? (picked.kind === 'preset' && matchPreset(value, [picked.key]) !== picked.key ? null : picked)
+          : null
 
-  const handlePresetClick = (key: string, days?: number, months?: number) => {
-    setShowSingleDate(false)
-    setMonth(null, selectedYear)
-    onAllTimeChange?.(false)
-    const now = new Date()
-    let start: Date, end: Date = now
-
-    if (key === 'today') {
-      start = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-    } else if (key === 'yesterday') {
-      const y = new Date(now); y.setDate(now.getDate() - 1)
-      start = new Date(y.getFullYear(), y.getMonth(), y.getDate())
-      end   = new Date(y.getFullYear(), y.getMonth(), y.getDate())
-    } else if (key === 'mtd') {
-      start = new Date(now.getFullYear(), now.getMonth(), 1)
-    } else if (key === 'ytd') {
-      start = new Date(now.getFullYear(), 0, 1)
-    } else if (months) {
-      start = new Date(now); start.setMonth(start.getMonth() - months)
-    } else {
-      start = new Date(now); start.setDate(now.getDate() - (days || 7))
+  const apply = (range: DateRange | null, change: { selection: RangeSelection }) => {
+    const sel = change.selection
+    setPicked(sel)
+    setOpen(false)
+    if (sel.kind === 'all') {
+      setMonth(null, selectedYear)
+      onAllTimeChange?.(true)
+      return
     }
-
-    setSelectedPreset(key); setShowCustom(false); onChange({ start, end })
-  }
-
-  const handleCustomSearch = () => {
     onAllTimeChange?.(false)
+    if (sel.kind === 'month') {
+      setMonth(sel.month, sel.year)
+      onChange(monthRange(sel.year, sel.month))
+      return
+    }
     setMonth(null, selectedYear)
-    onChange({ start: pendingStart, end: pendingEnd })
-  }
-
-  function handleMonthYearChange(month: number | null, year: number) {
-    setMonth(month, year)
-    if (month === null) return
-
-    const start = new Date(year, month, 1)
-    const end   = new Date(year, month + 1, 0)
-    setSelectedPreset(null); setShowCustom(false); setShowSingleDate(false)
-    onAllTimeChange?.(false)
-    onChange({ start, end })
-  }
-
-  // Human-readable summary of the active selection for the collapsed header
-  function rangeSummary(): string {
-    if (allTime) return 'All time'
-    if (selectedMonth !== null) return `${MONTHS[selectedMonth]} ${selectedYear}`
-    const match = presets.find(p => p.key === selectedPreset)
-    if (match) return match.label
-    const fmt = (d: Date) => d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
-    return `${fmt(value.start)} – ${fmt(value.end)}`
+    if (range) onChange(range)
   }
 
   return (
-    <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg mb-4">
-      {/* Collapsed / always-visible header row */}
-      <button
-        type="button"
-        onClick={() => setIsOpen(o => !o)}
-        className="w-full flex items-center justify-between px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-lg transition-colors"
-      >
-        <span className="flex items-center gap-2">
+    <div className="mb-4">
+      <button ref={btnRef} type="button" onClick={() => setOpen(true)}
+        className="w-full flex items-center justify-between px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+        <span className="flex items-center gap-2 min-w-0">
           <span className="text-gray-400">📅</span>
-          <span>Date Range:</span>
-          <span className="text-blue-600 dark:text-blue-400">{rangeSummary()}</span>
+          <span className="shrink-0">Date Range:</span>
+          <span className="text-blue-600 dark:text-blue-400 truncate">{labelFor(allTime ? null : value, selection)}</span>
         </span>
-        <span className="text-gray-400 text-xs">{isOpen ? '▲ collapse' : '▼ change'}</span>
+        <span className="text-gray-400 text-xs shrink-0">▾ change</span>
       </button>
-
-      {isOpen && (
-      <div className="px-4 pb-4 pt-1 border-t border-gray-100 dark:border-gray-700">
-      <div className="flex flex-wrap items-center gap-3 pt-3">
-        <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Date Range:</label>
-
-        <div className="flex flex-wrap gap-2">
-          {showAllTime && (
-            <button onClick={handleAllTimeClick} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${allTime ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>
-              All time
-            </button>
-          )}
-          {presets.map((preset) => (
-            <button key={preset.key} onClick={() => handlePresetClick(preset.key, preset.days, preset.months)} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${selectedPreset === preset.key ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>
-              {preset.label}
-            </button>
-          ))}
-          <button onClick={() => { setShowCustom(!showCustom); setShowSingleDate(false); setSelectedPreset(null); setMonth(null, selectedYear); onAllTimeChange?.(false) }} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${showCustom ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>
-            Custom Range
-          </button>
-          <button onClick={() => { setShowSingleDate(!showSingleDate); setShowCustom(false); setSelectedPreset(null); setMonth(null, selectedYear); onAllTimeChange?.(false) }} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${showSingleDate ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>
-            Specific Date
-          </button>
-        </div>
-      </div>
-
-      {/* Month / Year picker */}
-      <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
-        <label className="text-sm font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">Month:</label>
-        <select
-          value={selectedMonth ?? ''}
-          onChange={e => {
-            const val = e.target.value
-            handleMonthYearChange(val === '' ? null : parseInt(val), selectedYear)
-          }}
-          className={`text-sm rounded-lg px-3 py-1.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border transition-colors ${selectedMonth !== null ? 'border-blue-500 ring-1 ring-blue-400 dark:border-blue-500' : 'border-gray-300 dark:border-gray-600'}`}
-        >
-          <option value="">— Month —</option>
-          {MONTHS.map((m, i) => <option key={i} value={i}>{m}</option>)}
-        </select>
-
-        <select
-          value={selectedYear}
-          onChange={e => handleMonthYearChange(selectedMonth, parseInt(e.target.value))}
-          className="text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-        >
-          {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
-        </select>
-
-        {selectedMonth !== null && (
-          <button onClick={() => setMonth(null, selectedYear)} className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 px-2 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
-            ✕ clear month
-          </button>
-        )}
-      </div>
-
-      {showSingleDate && (
-        <div className="mt-4 flex flex-wrap items-center gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-          <label className="text-sm text-gray-600 dark:text-gray-400">Date:</label>
-          <input type="date" value={singleDateValue} onChange={e => { const v = e.target.value; setSingleDateValue(v); if (v) { onAllTimeChange?.(false); onChange({ start: new Date(v + 'T12:00:00'), end: new Date(v + 'T12:00:00') }) } }} className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
-        </div>
-      )}
-
-      {showCustom && (
-        <div className="mt-4 flex flex-wrap items-center gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-          <div className="flex items-center gap-2">
-            <label className="text-sm text-gray-600 dark:text-gray-400">From:</label>
-            <input type="date" value={startPickerValue} max={endPickerValue} onChange={e => { const v = e.target.value; setStartPickerValue(v); if (v) setPendingStart(new Date(v + 'T12:00:00')); setSelectedPreset(null) }} className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
-          </div>
-          <div className="flex items-center gap-2">
-            <label className="text-sm text-gray-600 dark:text-gray-400">To:</label>
-            <input type="date" value={endPickerValue} min={startPickerValue} onChange={e => { const v = e.target.value; setEndPickerValue(v); if (v) setPendingEnd(new Date(v + 'T12:00:00')); setSelectedPreset(null) }} className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
-          </div>
-          <button onClick={handleCustomSearch} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">Search</button>
-        </div>
-      )}
-      </div>
-      )}
+      <DateRangePopup anchor={btnRef.current} open={open} onClose={() => setOpen(false)} title="Date range"
+        value={allTime ? null : value} selection={selection} onApply={apply}
+        allowAllTime={!!showAllTime} maxDate={null}
+        years={[0, 1, 2, 3, 4].map(n => THIS_YEAR - n)} />
     </div>
   )
 }

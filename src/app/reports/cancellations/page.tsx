@@ -2,6 +2,7 @@
 
 export const dynamic = 'force-dynamic'
 
+import { YmdRangePicker } from '@/components/ui/date-range-picker'
 import { useState, useEffect, useCallback } from 'react'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { ContentLayout } from '@/components/layout/content-layout'
@@ -439,24 +440,8 @@ function CancellationsPageContent() {
     >
       {/* Date filters */}
       <div className="card p-4 mb-6 flex flex-wrap items-end gap-3">
-        <div>
-          <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">From</label>
-          <input
-            type="date"
-            value={from}
-            onChange={(e) => setFrom(e.target.value)}
-            className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white text-sm"
-          />
-        </div>
-        <div>
-          <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">To</label>
-          <input
-            type="date"
-            value={to}
-            onChange={(e) => setTo(e.target.value)}
-            className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white text-sm"
-          />
-        </div>
+        {/* MBM-345: the standard date range popup */}
+        <YmdRangePicker from={from} to={to} onChange={(f, t) => { setFrom(f); setTo(t) }} />
         <button
           onClick={load}
           disabled={loading}

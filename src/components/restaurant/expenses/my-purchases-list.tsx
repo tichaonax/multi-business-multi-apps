@@ -8,6 +8,7 @@
  * when showing everyone's (admins start there), per purchase day when
  * showing only your own.
  */
+import { YmdRangePicker } from '@/components/ui/date-range-picker'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSession } from 'next-auth/react'
 
@@ -245,18 +246,10 @@ export function MyPurchasesList({ businessId }: { businessId: string }) {
           {rangeActive
             ? <span>Showing {day(`${range.from}T00:00:00`)} – {day(`${range.to}T00:00:00`)}</span>
             : <span>Showing since {monthName(monthStart(monthsBack))}</span>}
-          <button type="button" onClick={() => setShowRange(v => !v)} className="text-blue-600 dark:text-blue-400 hover:underline">
-            {showRange ? 'Clear date range' : '📅 Pick a date range'}
-          </button>
-          {showRange && (
-            <span className="flex items-center gap-1">
-              <input type="date" value={range.from} onChange={e => setRange(r => ({ ...r, from: e.target.value }))}
-                className="px-1.5 py-0.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
-              to
-              <input type="date" value={range.to} onChange={e => setRange(r => ({ ...r, to: e.target.value }))}
-                className="px-1.5 py-0.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
-            </span>
-          )}
+          {/* MBM-345: the standard date range popup; All time = back to the months shown */}
+          <YmdRangePicker from={rangeActive ? range.from : ''} to={rangeActive ? range.to : ''} allowAllTime
+            className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline"
+            onChange={(f, t) => { setRange({ from: f, to: t }); setShowRange(!!f) }} />
         </div>
       )}
 

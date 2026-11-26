@@ -2,6 +2,7 @@
 
 export const dynamic = 'force-dynamic'
 
+import { YmdRangePicker } from '@/components/ui/date-range-picker'
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
@@ -284,16 +285,9 @@ export default function AssetsPage() {
           <div className="space-y-6">
             {/* Date range filter */}
             <div className="flex flex-wrap gap-3 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 items-end">
-              <div>
-                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">From</label>
-                <input type="date" value={reportFrom} onChange={e => setReportFrom(e.target.value)}
-                  className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" />
-              </div>
-              <div>
-                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">To</label>
-                <input type="date" value={reportTo} onChange={e => setReportTo(e.target.value)}
-                  className="px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" />
-              </div>
+              {/* MBM-345: the standard date range popup */}
+              <YmdRangePicker from={reportFrom} to={reportTo}
+                onChange={(f, t) => { setReportFrom(f); setReportTo(t) }} />
               <button onClick={fetchReports} className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">
                 Refresh
               </button>

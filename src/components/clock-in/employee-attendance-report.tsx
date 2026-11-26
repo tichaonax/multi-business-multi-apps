@@ -1,5 +1,6 @@
 'use client'
 
+import { YmdRangePicker } from '@/components/ui/date-range-picker'
 import { useState, useEffect, useCallback } from 'react'
 import {
   BarChart,
@@ -275,38 +276,9 @@ export function EmployeeAttendanceReport({ employee, businessId, onClose }: Prop
 
           {/* Date range filters */}
           <div className="flex flex-wrap items-center gap-2">
-            {(['7days', 'month', 'custom'] as DateRange[]).map((r) => (
-              <button
-                key={r}
-                onClick={() => setDateRange(r)}
-                className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                  dateRange === r
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                }`}
-              >
-                {r === '7days' ? 'Last 7 Days' : r === 'month' ? 'This Month' : 'Custom Range'}
-              </button>
-            ))}
-            {dateRange === 'custom' && (
-              <div className="flex flex-wrap items-center gap-2">
-                <input
-                  type="date" value={customFrom}
-                  onChange={(e) => setCustomFrom(e.target.value)}
-                  className="text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-1.5 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200"
-                />
-                <span className="text-gray-400">–</span>
-                <input
-                  type="date" value={customTo}
-                  onChange={(e) => setCustomTo(e.target.value)}
-                  className="text-sm border border-gray-300 dark:border-gray-600 rounded-lg px-2 py-1.5 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200"
-                />
-                <button
-                  onClick={fetchData}
-                  className="text-sm px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                >Apply</button>
-              </div>
-            )}
+            {/* MBM-345: the standard date range popup */}
+            <YmdRangePicker from={getDateBounds().from} to={getDateBounds().to}
+              onChange={(f, t) => { setCustomFrom(f); setCustomTo(t); setDateRange('custom') }} />
           </div>
 
           {loading && (

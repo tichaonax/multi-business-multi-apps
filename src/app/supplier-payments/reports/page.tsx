@@ -1,6 +1,7 @@
 'use client'
 
 export const dynamic = 'force-dynamic'
+import { YmdRangePicker } from '@/components/ui/date-range-picker'
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
@@ -351,19 +352,11 @@ export default function SupplierPaymentReportsPage() {
               </div>
             )}
 
-            {/* Date presets */}
+            {/* MBM-345: the standard date range popup (dates go as From / To) */}
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Date Range</label>
-              <div className="flex gap-1 flex-wrap">
-                {DATE_PRESETS.map(p => (
-                  <button key={p.value} onClick={() => setDatePreset(p.value)}
-                    className={`px-3 py-1.5 rounded-lg text-xs border transition-colors ${
-                      datePreset === p.value ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-300 text-gray-600 hover:bg-gray-50'
-                    }`}>
-                    {p.label}
-                  </button>
-                ))}
-              </div>
+              <label className="block text-xs text-gray-500 mb-1">Date</label>
+              <YmdRangePicker from={datePreset === 'custom' ? customStart : presetToDates(datePreset).startDate} to={datePreset === 'custom' ? customEnd : presetToDates(datePreset).endDate} allowAllTime
+                onChange={(f, t) => { if (!f) { setDatePreset(''); return } setCustomStart(f); setCustomEnd(t); setDatePreset('custom') }} />
             </div>
 
             {/* Status */}
@@ -386,20 +379,6 @@ export default function SupplierPaymentReportsPage() {
             </button>
           </div>
 
-          {datePreset === 'custom' && (
-            <div className="flex gap-3 items-end">
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">From</label>
-                <input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)}
-                  className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
-              </div>
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">To</label>
-                <input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)}
-                  className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
-              </div>
-            </div>
-          )}
         </div>
 
         {/* ── KPI Cards ─────────────────────────────────────────────────── */}

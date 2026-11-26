@@ -1,5 +1,6 @@
 'use client'
 
+import { YmdRangePicker } from '@/components/ui/date-range-picker'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
@@ -53,30 +54,9 @@ export default function InventoryTransferReportPage() {
 
         {/* Date Range Filter */}
         <div className="flex flex-wrap items-end gap-4 mb-6">
-          <div className="flex gap-2">
-            <button
-              onClick={() => { const t = getLocalDateString(); setStartDate(t); setEndDate(t) }}
-              className="px-3 py-2 text-xs font-medium bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700 rounded-md hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
-            >
-              Today
-            </button>
-            <button
-              onClick={() => { const d = new Date(); d.setDate(d.getDate() - 1); const y = getLocalDateString(d); setStartDate(y); setEndDate(y) }}
-              className="px-3 py-2 text-xs font-medium bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
-            >
-              Yesterday
-            </button>
-          </div>
-          <div>
-            <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Start Date</label>
-            <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)}
-              className="border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" />
-          </div>
-          <div>
-            <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">End Date</label>
-            <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)}
-              className="border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" />
-          </div>
+          {/* MBM-345: the standard date range popup */}
+          <YmdRangePicker from={startDate} to={endDate}
+            onChange={(f, t) => { setStartDate(f); setEndDate(t) }} />
           <button onClick={fetchReport} className="btn-primary bg-amber-600 hover:bg-amber-700 px-4 py-2 text-white rounded-md">
             Generate
           </button>

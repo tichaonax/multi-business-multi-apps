@@ -2,6 +2,7 @@
 
 export const dynamic = 'force-dynamic'
 
+import { YmdRangePicker } from '@/components/ui/date-range-picker'
 import { useState, useEffect, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
@@ -142,18 +143,9 @@ export default function VehiclePartsReportsPage() {
 
         {tab === 'sales' && (
           <div className="flex flex-wrap items-center gap-2 mb-4 print:hidden">
-            {(['today', 'yesterday', 'week', 'month'] as const).map(p => (
-              <button
-                key={p}
-                onClick={() => applyPreset(p)}
-                className={`px-3 py-1.5 text-xs font-medium rounded-lg border ${datePreset === p ? 'bg-blue-600 text-white border-blue-600' : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600'}`}
-              >
-                {DATE_PRESET_LABELS[p]}
-              </button>
-            ))}
-            <input type="date" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setDatePreset('custom') }} className="text-xs px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
-            <span className="text-xs text-gray-400">to</span>
-            <input type="date" value={dateTo} onChange={e => { setDateTo(e.target.value); setDatePreset('custom') }} className="text-xs px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white" />
+            {/* MBM-345: the standard date range popup */}
+            <YmdRangePicker from={dateFrom} to={dateTo}
+              onChange={(f, t) => { setDateFrom(f); setDateTo(t); setDatePreset('custom') }} />
           </div>
         )}
 
