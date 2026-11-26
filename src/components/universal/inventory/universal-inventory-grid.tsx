@@ -16,6 +16,7 @@ import { useElementHeight } from '@/hooks/use-element-height'
 import { useToastContext } from '@/components/ui/toast'
 import { CollapsibleSection } from '@/components/ui/collapsible-section'
 import type { LabelData, NetworkPrinter } from '@/types/printing'
+import { SoldQuantity, fetchSold, monthToDate } from './sold-quantity'
 
 interface UniversalInventoryItem {
   id: string
@@ -207,6 +208,17 @@ export function UniversalInventoryGrid({
   })
   const { ref: filtersRef, height: filtersHeight } = useElementHeight<HTMLDivElement>()
   const [items, setItems] = useState<UniversalInventoryItem[]>([])
+  // MBM-344: quantity sold month to date for the rows shown — one request per page
+  const [soldMtd, setSoldMtd] = useState<Record<string, number>>({})
+  useEffect(() => {
+    if (!businessId || items.length === 0) return
+    let live = true
+    const { start, end } = monthToDate()
+    fetchSold(businessId, items.map(i => i.id), start, end)
+      .then(d => { if (live) setSoldMtd(prev => ({ ...prev, ...d })) })
+      .catch(() => {})
+    return () => { live = false }
+  }, [businessId, items])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
@@ -1194,6 +1206,7 @@ export function UniversalInventoryGrid({
                       <div className={getStockStatusColor(item)}>
                         {item.currentStock} {item.unit}
                       </div>
+                      <SoldQuantity businessId={businessId} itemId={item.id} unit={item.unit} mtd={soldMtd[item.id]} />
                     </td>
                     <td className="p-3 font-medium text-orange-600 dark:text-orange-400">
                       ${item.costPrice.toFixed(2)}
@@ -1365,6 +1378,7 @@ export function UniversalInventoryGrid({
                       <div className={getStockStatusColor(item)}>
                         {item.currentStock} {item.unit}
                       </div>
+                      <SoldQuantity businessId={businessId} itemId={item.id} unit={item.unit} mtd={soldMtd[item.id]} />
                     </div>
                     <div>
                       <div className="text-xs text-secondary">Unit Cost</div>
