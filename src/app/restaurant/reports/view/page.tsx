@@ -7,6 +7,7 @@ import { useState, useEffect, Suspense } from 'react'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
+import { BackLink } from '@/components/ui/back-link'
 import { formatCurrency, formatDateFull, formatDateTime } from '@/lib/date-format'
 
 function HistoricalReportViewContent() {
@@ -67,12 +68,7 @@ function HistoricalReportViewContent() {
         <div className="max-w-2xl mx-auto">
           {/* Navigation */}
           <div className="mb-6 flex gap-3">
-            <Link
-              href={posLink}
-              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
-            >
-              ← Back to POS
-            </Link>
+            <BackLink fallbackHref={posLink} className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors" />
             <Link
               href="/restaurant/reports/history"
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"

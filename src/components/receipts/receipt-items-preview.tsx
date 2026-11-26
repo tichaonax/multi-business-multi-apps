@@ -42,7 +42,8 @@ export function ReceiptItemsCell({ items }: { items?: ReceiptPreviewItem[] }) {
   const codes = main.wifiCodes ?? []
   return (
     <div className="flex items-center gap-1.5 min-w-0 max-w-[16rem]">
-      <ItemThumb url={main.imageUrl} />
+      {/* MBM-345: up to two thumbnails from the items that have an image */}
+      {items.filter(i => i.imageUrl).slice(0, 2).map((i, k) => <ItemThumb key={k} url={i.imageUrl} />)}
       <span className="truncate">
         {main.isWifi && '📶 '}{cleanName(main.name)}{main.quantity > 1 ? ` ×${main.quantity}` : ''}
       </span>

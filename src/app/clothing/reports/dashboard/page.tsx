@@ -6,6 +6,7 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect } from 'react'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import Link from 'next/link'
+import { BackLink } from '@/components/ui/back-link'
 import { IncomePieChart } from '@/components/reports/income-pie-chart'
 import { ExpensePieChart } from '@/components/reports/expense-pie-chart'
 import { DailyTrendsChart } from '@/components/reports/daily-trends-chart'
@@ -147,12 +148,7 @@ export default function ReportsDashboard() {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4">
       {/* Navigation */}
       <div className="mb-6 flex gap-3 no-print">
-        <Link
-          href={posLink}
-          className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
-        >
-          ← Back to POS
-        </Link>
+        <BackLink fallbackHref={posLink} className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors" />
         <Link
           href="/clothing/reports"
           className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"

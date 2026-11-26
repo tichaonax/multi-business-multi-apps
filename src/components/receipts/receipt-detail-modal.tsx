@@ -301,7 +301,10 @@ export default function ReceiptDetailModal({ receiptId, onClose }: ReceiptDetail
                       return (
                         <div key={index} className="px-4 py-3">
                           <div className="flex justify-between items-start gap-3">
-                            {emoji && !ayli && (
+                            {/* MBM-345: the item's thumbnail where it has an image, else its emoji */}
+                            {item.imageUrl ? (
+                              <img src={item.imageUrl} alt="" loading="lazy" className="w-12 h-12 rounded object-cover flex-shrink-0 border border-gray-200 dark:border-gray-600" />
+                            ) : emoji && !ayli && (
                               <span className="text-xl leading-none mt-0.5 flex-shrink-0">{emoji}</span>
                             )}
                             <div className="flex-1 min-w-0">

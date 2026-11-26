@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, ReactNode, useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
+import { recordVisit } from '@/lib/nav-trail'
 
 interface NavigationContextType {
   isNavigating: boolean
@@ -14,6 +15,11 @@ export function NavigationProvider({ children }: { children: ReactNode }) {
   const [isNavigating, setIsNavigating] = useState(false)
   const router = useRouter()
   const pathname = usePathname()
+
+  // MBM-345: remember the pages visited in this tab, for BackLink
+  useEffect(() => {
+    if (pathname) recordVisit(pathname + window.location.search)
+  }, [pathname])
 
   // Listen for route changes to properly hide spinner
   useEffect(() => {

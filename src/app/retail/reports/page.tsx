@@ -4,6 +4,7 @@ export const dynamic = 'force-dynamic'
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { BackLink } from '@/components/ui/back-link'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 
 export default function RetailReportsPage() {
@@ -100,12 +101,7 @@ export default function RetailReportsPage() {
   return (
     <div className="min-h-screen bg-white dark:bg-gray-900 p-4">
       <div className="mb-6">
-        <Link
-          href={posLink}
-          className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors inline-block"
-        >
-          ← Back to POS
-        </Link>
+        <BackLink fallbackHref={posLink} className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors inline-block" />
       </div>
 
       <div className="max-w-4xl mx-auto">

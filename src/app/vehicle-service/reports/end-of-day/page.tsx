@@ -9,7 +9,8 @@ export const dynamic = 'force-dynamic';
 // none of these are clothing-specific). See src/app/vehicle-service/reports/
 // dashboard/page.tsx and sales-analytics/page.tsx for the same pattern.
 //
-// Known cosmetic gap: the page derives its own "Back to POS" link as
+// Known cosmetic gap (MBM-345: now only when opened directly — the back button
+// returns to the page it was opened from): the page derives its fallback "Back to POS" link as
 // `/${businessType}/pos`, which for vehicle_service resolves to
 // `/vehicle_service/pos` (404) instead of the real route, `/universal/pos`.
 // Not worth duplicating this 1100+ line page over — the sidebar and browser

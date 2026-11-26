@@ -5,6 +5,7 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect } from 'react'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import Link from 'next/link'
+import { BackLink } from '@/components/ui/back-link'
 import { formatCurrency, formatDateFull, formatDateTime } from '@/lib/date-format'
 import { getLocalDateString } from '@/lib/utils'
 import { getCategoryEmoji, getPaymentMethodEmoji } from '@/lib/category-emojis'
@@ -217,12 +218,7 @@ export default function EndOfWeekReport() {
       <div className="min-h-screen bg-white dark:bg-gray-900 p-4">
         <div className="max-w-2xl mx-auto">
           <div className="mb-6 flex gap-3">
-            <Link
-              href={posLink}
-              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
-            >
-              ← Back to POS
-            </Link>
+            <BackLink fallbackHref={posLink} className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors" />
           </div>
 
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8 text-center">
@@ -317,12 +313,7 @@ export default function EndOfWeekReport() {
         {/* Navigation (No Print) */}
         <div className="no-print mb-6 max-w-4xl mx-auto">
           <div className="flex items-center justify-center gap-4 flex-wrap">
-            <Link
-              href={posLink}
-              className="inline-flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm whitespace-nowrap"
-            >
-              ← Back to POS
-            </Link>
+            <BackLink fallbackHref={posLink} className="inline-flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm whitespace-nowrap" />
             <Link
               href="/grocery/reports/end-of-day"
               className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm whitespace-nowrap"

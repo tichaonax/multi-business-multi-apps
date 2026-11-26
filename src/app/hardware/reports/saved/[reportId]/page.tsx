@@ -6,6 +6,7 @@ import { DailyItemSales } from '@/components/reports/daily-item-sales'
 import { useState, useEffect } from 'react'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import Link from 'next/link'
+import { BackLink } from '@/components/ui/back-link'
 import { formatCurrency, formatDateFull, formatDateTime } from '@/lib/date-format'
 import { getCategoryEmoji, getPaymentMethodEmoji } from '@/lib/category-emojis'
 import { PercentageBar } from '@/components/reports/percentage-bar'
@@ -140,12 +141,7 @@ export default function SavedReportView({ params }: { params: Promise<{ reportId
       {/* Navigation */}
       <div className="no-print mb-6 max-w-4xl mx-auto">
         <div className="flex items-center justify-center gap-4 flex-wrap">
-          <Link
-            href={posLink}
-            className="inline-flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm whitespace-nowrap"
-          >
-            ← Back to POS
-          </Link>
+          <BackLink fallbackHref={posLink} className="inline-flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm whitespace-nowrap" />
           <Link
             href="/hardware/reports/history"
             className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm whitespace-nowrap"

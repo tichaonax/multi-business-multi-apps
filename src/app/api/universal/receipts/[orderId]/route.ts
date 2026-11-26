@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { saleLineThumbnails } from '@/lib/reports/item-thumbnails'
 import { buildReceiptFromOrder } from '@/lib/printing/receipt-builder'
 import { lookupOrderTokens } from '@/lib/printing/token-lookup'
 import { isSystemAdmin } from '@/lib/permission-utils'
@@ -67,6 +68,9 @@ export async function GET(
     }
 
     // Transform order to OrderData format for receipt builder
+    // MBM-345: a thumbnail per item line where the product / inventory item has one
+    const lineThumbs = await saleLineThumbnails(order.business_order_items)
+
     const orderData = {
       id: order.id,
       orderNumber: order.orderNumber,
@@ -97,7 +101,7 @@ export async function GET(
         requestedBy: order.order_cancellation.requestedByUser?.name,
         approvedBy: order.order_cancellation.approvedByUser?.name,
       } : undefined,
-      items: order.business_order_items.map(item => {
+      items: order.business_order_items.map((item, lineIdx) => {
         const productName = item.product_variants?.business_products?.name || (item.attributes as any)?.productName || 'Unknown Product'
         const variantName = (item.product_variants as any)?.name
         // Append variant details only when they differ from the product name
@@ -113,6 +117,7 @@ export async function GET(
           discountAmount: parseFloat(item.discountAmount.toString()),
           totalPrice: parseFloat(item.totalPrice.toString()),
           attributes: item.attributes as any,
+          imageUrl: lineThumbs[lineIdx],
         }
       }),
     }
