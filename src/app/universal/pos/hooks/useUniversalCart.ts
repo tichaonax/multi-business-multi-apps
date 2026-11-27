@@ -170,6 +170,17 @@ export function useUniversalCart() {
   }, [])
 
   /**
+   * MBM-350: set a line's unit price (used when the price changed since it was added)
+   */
+  const updatePrice = useCallback((itemId: string, unitPrice: number) => {
+    setCart((prevCart) =>
+      prevCart.map((item) =>
+        item.id === itemId ? { ...item, unitPrice, totalPrice: unitPrice * item.quantity } : item
+      )
+    )
+  }, [])
+
+  /**
    * Calculate cart totals
    */
   const totals: CartTotals = useMemo(() => {
@@ -196,6 +207,7 @@ export function useUniversalCart() {
     removeFromCart,
     clearCart,
     updateItemField,
+    updatePrice,
     setDiscount,
     totals
   }

@@ -3778,6 +3778,12 @@ model Users {
   reactivatedAt                                                   DateTime?
   reactivatedBy                                                   String?
   reactivationNotes                                               String?
+  // MBM-351: suspension by a manager/admin — blocks sign-in until lifted.
+  // Separate from isActive/deactivation so lifting it restores the user as they were.
+  isSuspended                                                     Boolean                           @default(false)
+  suspendedAt                                                     DateTime?
+  suspendedBy                                                     String?
+  suspensionReason                                                String?
   createdAt                                                       DateTime                          @default(now())
   updatedAt                                                       DateTime                          @default(now())
   lastAccessedAt                                                  DateTime?
@@ -3998,6 +4004,8 @@ model Users {
   farm_control_alert_deliveries                                   FarmControlAlertDeliveries[]
   farm_camera_alerts                                              FarmCameraAlerts[]
   farm_camera_alert_pauses                                        FarmCameraAlertPauses[]
+
+  user_sessions UserSessions[]
 
   @@map("users")
 }
@@ -4367,27 +4375,27 @@ model VehicleExemptions {
 }
 
 model Vehicles {
-  id                          String                      @id @default(uuid())
-  licensePlate                String                      @unique
-  vin                         String                      @unique
+  id                          String                        @id @default(uuid())
+  licensePlate                String                        @unique
+  vin                         String                        @unique
   make                        String
   model                       String
   year                        Int
   color                       String?
-  weight                      Decimal?                    @db.Decimal(10, 2)
+  weight                      Decimal?                      @db.Decimal(10, 2)
   driveType                   DriveType
   ownershipType               OwnershipType
   currentMileage              Int
   businessId                  String?
   userId                      String?
-  isActive                    Boolean                     @default(true)
+  isActive                    Boolean                       @default(true)
   purchaseDate                DateTime?
-  purchasePrice               Decimal?                    @db.Decimal(12, 2)
+  purchasePrice               Decimal?                      @db.Decimal(12, 2)
   notes                       String?
-  createdAt                   DateTime                    @default(now())
+  createdAt                   DateTime                      @default(now())
   updatedAt                   DateTime
-  hasInitialMileage           Boolean                     @default(false)
-  mileageUnit                 String                      @default("km")
+  hasInitialMileage           Boolean                       @default(false)
+  mileageUnit                 String                        @default("km")
   titleBookUrl                String?
   titleBookName               String?
   taxClass                    String?
@@ -4397,7 +4405,7 @@ model Vehicles {
   // = "NO USE PUBLIC ROAD") had no validation, no required exemption-licence
   // details, and no history; licensingStatus is now the single authoritative
   // source of truth, set only via the validated status-transition workflow.
-  licensingStatus             VehicleLicensingStatus      @default(NON_EXEMPT)
+  licensingStatus             VehicleLicensingStatus        @default(NON_EXEMPT)
   statusEffectiveAt           DateTime?
   retirementReason            String?
   retirementReasonDescription String?
@@ -4411,12 +4419,12 @@ model Vehicles {
   vehicle_renewal_receipts    VehicleRenewalReceipts[]
   vehicle_trips               VehicleTrips[]
   vehicle_status_history      VehicleStatusHistory[]
-  businesses                  Businesses?                 @relation(fields: [businessId], references: [id])
-  users                       Users?                      @relation(fields: [userId], references: [id])
-  expense_payment_receipts    ExpensePaymentReceipts[]    @relation("ReceiptVehicle")
-  combo_request_items         ComboPaymentRequestItems[]  @relation("ComboItemVehicle")
+  businesses                  Businesses?                   @relation(fields: [businessId], references: [id])
+  users                       Users?                        @relation(fields: [userId], references: [id])
+  expense_payment_receipts    ExpensePaymentReceipts[]      @relation("ReceiptVehicle")
+  combo_request_items         ComboPaymentRequestItems[]    @relation("ComboItemVehicle")
   supplier_request_items      SupplierPaymentRequestItems[] @relation("SupplierItemVehicle")
-  petty_cash_transactions     PettyCashTransaction[]      @relation("PettyCashTransactionVehicle")
+  petty_cash_transactions     PettyCashTransaction[]        @relation("PettyCashTransactionVehicle")
 
   @@map("vehicles")
 }
@@ -6544,17 +6552,17 @@ model SupplierPaymentRequestPartials {
 }
 
 model SupplierPaymentRequestItems {
-  id             String   @id @default(cuid())
-  requestId      String
-  description    String?
-  categoryId     String?
-  subcategoryId  String?
-  amount         Decimal  @db.Decimal(12, 2)
-  taxAmount      Decimal? @db.Decimal(12, 2)
-  status         String   @default("PENDING")
-  approvedAmount Decimal? @db.Decimal(12, 2)
-  approvalNote   String?
-  managerNote    String?
+  id                   String    @id @default(cuid())
+  requestId            String
+  description          String?
+  categoryId           String?
+  subcategoryId        String?
+  amount               Decimal   @db.Decimal(12, 2)
+  taxAmount            Decimal?  @db.Decimal(12, 2)
+  status               String    @default("PENDING")
+  approvedAmount       Decimal?  @db.Decimal(12, 2)
+  approvalNote         String?
+  managerNote          String?
   // MBM-347: a vehicle cost — written to Vehicle Management when the line is approved
   vehicleId            String?
   vehicleExpenseType   String?
@@ -6886,26 +6894,26 @@ model PettyCashRequests {
 }
 
 model PettyCashTransaction {
-  id                 String   @id @default(cuid())
-  requestId          String
-  businessId         String
-  expenseAccountId   String
-  amount             Decimal  @db.Decimal(12, 2)
-  description        String // what it was spent on
-  categoryId         String?
-  payeeType          String   @default("NONE") // mirrors ExpenseAccountPayments.payeeType
-  payeeSupplierId    String?
-  payeeEmployeeId    String?
-  payeeUserId        String?
-  transactionDate    DateTime @default(now())
-  paymentId          String?  @unique // FK ExpenseAccountPayments created alongside
+  id                   String    @id @default(cuid())
+  requestId            String
+  businessId           String
+  expenseAccountId     String
+  amount               Decimal   @db.Decimal(12, 2)
+  description          String // what it was spent on
+  categoryId           String?
+  payeeType            String    @default("NONE") // mirrors ExpenseAccountPayments.payeeType
+  payeeSupplierId      String?
+  payeeEmployeeId      String?
+  payeeUserId          String?
+  transactionDate      DateTime  @default(now())
+  paymentId            String?   @unique // FK ExpenseAccountPayments created alongside
   // MBM-344: a vehicle cost — synced to Fleet Management when recorded
-  vehicleId          String?
-  vehicleExpenseType String?
-  vehicleLicenseType String? // MBM-344: LICENSING/INSURANCE — the licence it renews
+  vehicleId            String?
+  vehicleExpenseType   String?
+  vehicleLicenseType   String? // MBM-344: LICENSING/INSURANCE — the licence it renews
   vehicleLicenseExpiry DateTime? // and its new expiry date
-  createdBy          String
-  createdAt          DateTime @default(now())
+  createdBy            String
+  createdAt            DateTime  @default(now())
 
   request        PettyCashRequests       @relation("PettyCashTransactions", fields: [requestId], references: [id])
   business       Businesses              @relation("PettyCashTransactionBusiness", fields: [businessId], references: [id])
@@ -9410,4 +9418,28 @@ model FarmCameraAlertPauses {
 
   @@unique([userId, cameraId])
   @@map("farm_camera_alert_pauses")
+}
+
+// MBM-351: one row per sign-in (id = the JWT's sessionId). Lets managers see
+// who is signed in where, and end a session from another workstation — the
+// jwt callback refuses a session whose row is ended.
+model UserSessions {
+  id          String    @id
+  userId      String
+  loginAt     DateTime  @default(now())
+  lastSeenAt  DateTime  @default(now())
+  ipAddress   String?
+  userAgent   String?
+  deviceLabel String?
+  hostname    String?
+  endedAt     DateTime?
+  endReason   String?   @db.VarChar(20) // SIGNED_OUT | FORCED | SUSPENDED | EXPIRED
+  endedBy     String?
+  endMessage  String?
+
+  user Users @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, endedAt])
+  @@index([endedAt, lastSeenAt])
+  @@map("user_sessions")
 }

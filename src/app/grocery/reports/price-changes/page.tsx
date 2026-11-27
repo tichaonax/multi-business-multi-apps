@@ -32,6 +32,16 @@ interface PriceChangeReport {
   viaPOSQuickEdit: boolean
   viaBulkStockReceiving: boolean
   reason: string | null
+  via?: string | null  // MBM-350: flow label from product_price_history (e.g. CONTAINER_BATCH_REIMPORT)
+}
+
+// MBM-350: changes found only in product_price_history carry the flow that made them
+const VIA_LABELS: Record<string, string> = {
+  CONTAINER_BATCH_REIMPORT: 'warehouse container import',
+  BULK_PACK_CORRECTION: 'bulk pack correction',
+  BULK_STOCK_CONVERSION: 'bulk stock conversion',
+  BARCODE_JOB: 'barcode print job',
+  MANUAL_EDIT: 'manual edit',
 }
 
 /**
@@ -45,6 +55,7 @@ function describeChange(r: PriceChangeReport): string {
   if (r.reason) return r.reason
   if (r.viaPOSQuickEdit) return 'Changed via POS Quick-Edit — no reason captured for this change'
   if (r.viaBulkStockReceiving) return 'Changed via Bulk Stock Receiving — no reason captured for this change'
+  if (r.via && r.via !== 'MANUAL_EDIT') return `Changed via ${VIA_LABELS[r.via] ?? r.via.toLowerCase().replace(/_/g, ' ')} — no reason captured for this change`
   if (r.sourceTable === 'BARCODE_ITEM') return 'Changed via inventory item edit — no reason captured for this change'
   if (r.sourceTable === 'BUSINESS_PRODUCT') return 'Changed via product edit — no reason captured for this change'
   return 'Changed via manual edit — no reason captured for this change'

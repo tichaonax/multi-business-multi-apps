@@ -17,6 +17,7 @@ import { calcEcocashFeeFromBusiness, getEcocashSummary } from '@/lib/ecocash-uti
 import { usePrintJobMonitor } from '@/hooks/use-print-job-monitor'
 import { useCustomerDisplaySync } from '@/hooks/useCustomerDisplaySync'
 import { SyncMode } from '@/lib/customer-display/sync-manager'
+import { findPriceChanges, priceChangeAlert, lineIdsFromCartId } from '@/lib/pos/price-check'
 import type { ReceiptData, NetworkPrinter } from '@/types/printing'
 import { QuickStockFromScanModal } from '@/components/inventory/quick-stock-from-scan-modal'
 import { ManagerOverrideModal, type OrderSummary as CancelOrderSummary } from '@/components/manager-override/manager-override-modal'
@@ -566,6 +567,29 @@ export function UniversalPOS({ businessId, employeeId, terminalId, onOrderComple
   const processOrder = async () => {
     if (cart.length === 0) {
       setError('Cart is empty')
+      return
+    }
+
+    // MBM-350: correct any line whose price changed since it was added
+    const lineKey = (i: CartItem) => `${i.productId}|${i.variantId ?? ''}`
+    const priceChanges = await findPriceChanges(businessId, cart
+      .filter(i => {
+        const a: any = i.product?.attributes || {}
+        return !(a.isWiFiToken || a.wifiToken || a.r710Token || a.isCustomBulk || a.isBale || a.baleId || a.isSoldByWeight || (i.product as any)?.isSoldByWeight)
+      })
+      .map(i => ({
+        key: lineKey(i),
+        name: i.product?.name || 'Item',
+        price: i.unitPrice,
+        ...(i.variantId ? { variantId: i.variantId } : lineIdsFromCartId(i.productId)),
+      })))
+    if (priceChanges.length > 0) {
+      const byKey = new Map(priceChanges.map(c => [c.key, c.newPrice]))
+      setCart(prev => prev.map(i => {
+        const now = byKey.get(lineKey(i))
+        return now == null ? i : { ...i, unitPrice: now, totalPrice: now * i.quantity - i.discountAmount }
+      }))
+      void customAlert(priceChangeAlert(priceChanges, formatCurrency))
       return
     }
 

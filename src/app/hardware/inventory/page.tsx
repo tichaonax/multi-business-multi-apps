@@ -119,6 +119,14 @@ function HardwareInventoryContent() {
   // Check if current business is a hardware business
   const isHardwareBusiness = currentBusiness?.businessType === 'hardware'
 
+  // MBM-350: ?tab=inventory (from /hardware/products) opens that tab
+  useEffect(() => {
+    const tabParam = searchParams?.get('tab')
+    if (tabParam && ['overview', 'inventory', 'movements', 'alerts', 'reports'].includes(tabParam)) {
+      setActiveTab(tabParam as typeof activeTab)
+    }
+  }, [searchParams])
+
   // Handle productId from URL parameters
   useEffect(() => {
     const productId = searchParams?.get('productId')

@@ -3,7 +3,7 @@
 import { useSession, signOut } from 'next-auth/react'
 import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { canAccessModule, hasPermission, checkPermission, isSystemAdmin, hasUserPermission, SessionUser } from '@/lib/permission-utils'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { useFarmControl } from '@/components/farm-cameras/farm-control-provider'
@@ -14,6 +14,15 @@ import { useR710QuickSell } from '@/contexts/r710-quick-sell-context'
 import { BusinessRevenueBreakdownModal } from '@/components/dashboard/business-revenue-breakdown-modal'
 import { getDefaultPagePath } from '@/lib/business-default-pages'
 import { GALLERY_ENABLED_BUSINESS_TYPES } from '@/lib/image-gallery-config'
+
+// MBM-350: many route folders (grocery, payroll, expense-accounts, ...) each
+// have their own layout with its own <MainLayout>, so moving between them
+// mounts a brand-new Sidebar. Kept here (module scope, plus sessionStorage for
+// a full reload) so the open section, the scroll position and the business
+// list survive that, instead of everything snapping shut and reloading.
+type NavSection = 'business' | 'financeOps' | 'tools' | 'employee' | 'admin'
+const NAV_OPEN_KEY = 'mbm-sidebar-open-section'
+const navMemory: { open?: NavSection | null; scrollTop: number; businesses?: Business[] } = { scrollTop: 0 }
 
 interface Business {
   id: string
@@ -74,13 +83,37 @@ export function Sidebar() {
   const [businesses, setBusinesses] = useState<Business[]>([])
   const [businessGroups, setBusinessGroups] = useState<BusinessGroup[]>([])
   const [expandedBusinessTypes, setExpandedBusinessTypes] = useState<Set<string>>(new Set())
-  const [businessSectionExpanded, setBusinessSectionExpanded] = useState(false)
-  const [financeOpsSectionExpanded, setFinanceOpsSectionExpanded] = useState(
-    () => pathname.startsWith('/expense-accounts') || pathname.startsWith('/payroll') || pathname.startsWith('/payees') || pathname.startsWith('/reports') || pathname.startsWith('/supplier-payments')
-  )
-  const [toolsSectionExpanded, setToolsSectionExpanded] = useState(false)
-  const [employeeSectionExpanded, setEmployeeSectionExpanded] = useState(false)
-  const [adminSectionExpanded, setAdminSectionExpanded] = useState(false)
+  // MBM-350: one section open at a time. It stays open while the user clicks
+  // links inside it (even when that page remounts the sidebar), and closes only
+  // when they open another section or click its own header.
+  const [openSection, setOpenSection] = useState<NavSection | null>(() => {
+    if (navMemory.open !== undefined) return navMemory.open
+    const inFinanceOps = pathname.startsWith('/expense-accounts') || pathname.startsWith('/payroll') || pathname.startsWith('/payees') || pathname.startsWith('/reports') || pathname.startsWith('/supplier-payments')
+    return inFinanceOps ? 'financeOps' : null
+  })
+  const toggleSection = (section: NavSection) => setOpenSection(prev => (prev === section ? null : section))
+  const businessSectionExpanded = openSection === 'business'
+  const financeOpsSectionExpanded = openSection === 'financeOps'
+  const toolsSectionExpanded = openSection === 'tools'
+  const employeeSectionExpanded = openSection === 'employee'
+  const adminSectionExpanded = openSection === 'admin'
+  useEffect(() => {
+    // First load of the app in this tab (or a full reload): restore from sessionStorage
+    if (navMemory.open === undefined) {
+      try {
+        const saved = sessionStorage.getItem(NAV_OPEN_KEY)
+        if (saved) { navMemory.open = saved === 'none' ? null : saved as NavSection; setOpenSection(navMemory.open) }
+      } catch { /* storage unavailable */ }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  useEffect(() => {
+    navMemory.open = openSection
+    try { sessionStorage.setItem(NAV_OPEN_KEY, openSection ?? 'none') } catch { /* storage unavailable */ }
+  }, [openSection])
+  // Keep the nav's scroll position across remounts
+  const navRef = useRef<HTMLElement>(null)
+  const mountedAtRef = useRef(Date.now())
   const [loadingBusinesses, setLoadingBusinesses] = useState(false)
   const [showRevenueModal, setShowRevenueModal] = useState(false)
   const [esp32IntegrationEnabled, setEsp32IntegrationEnabled] = useState(false)
@@ -112,6 +145,9 @@ export function Sidebar() {
     hasPermission,
     isBusinessOwner
   } = useBusinessPermissionsContext()
+  // MBM-351: system admins and business owners/managers manage signed-in users
+  const canManageSessions = isSystemAdmin(currentUser) ||
+    (businessMemberships ?? []).some((m: any) => m.isActive !== false && (m.role === 'business-owner' || m.role === 'business-manager'))
 
   // Get global cart for real-time sidebar badge updates
   const { getCartItemCount: getGlobalCartCount } = useGlobalCart()
@@ -142,7 +178,14 @@ export function Sidebar() {
     const user = currentUser as SessionUser
     if (!user) return
 
-    setLoadingBusinesses(true)
+    // MBM-350: show the list remembered from the previous page at once, then
+    // refresh it quietly (no "Loading" flash on every page change)
+    if (navMemory.businesses) {
+      setBusinesses(navMemory.businesses)
+      groupBusinessesByType(navMemory.businesses)
+    } else {
+      setLoadingBusinesses(true)
+    }
 
     // For system admins, fetch all businesses
     if (isSystemAdmin(user)) {
@@ -152,6 +195,7 @@ export function Sidebar() {
           // API returns { businesses, isAdmin }
           const businessList = data.businesses || []
           if (businessList && Array.isArray(businessList)) {
+            navMemory.businesses = businessList
             setBusinesses(businessList)
             groupBusinessesByType(businessList)
           }
@@ -343,6 +387,16 @@ export function Sidebar() {
 
     setBusinessGroups(grouped)
   }
+
+  // MBM-350: put the nav back where it was scrolled to. Sections fill in as
+  // their data arrives, so try again as the business list appears — but only
+  // just after mounting, never once the user has started using the new page.
+  useEffect(() => {
+    const nav = navRef.current
+    if (!nav || !navMemory.scrollTop) return
+    if (Date.now() - mountedAtRef.current > 3000) return
+    nav.scrollTop = navMemory.scrollTop
+  }, [businessGroups.length])
 
   // Auto-expand current business type (separate effect to prevent unnecessary re-fetching)
   useEffect(() => {
@@ -634,7 +688,7 @@ export function Sidebar() {
         )}
       </div>
       
-  <nav className="flex-1 p-4 space-y-1 overflow-y-auto overscroll-contain scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-700 scrollbar-track-transparent pr-2 max-h-[calc(100vh-4rem)]">
+  <nav ref={navRef} onScroll={e => { const top = e.currentTarget.scrollTop; if (Date.now() - mountedAtRef.current < 3000 && top < navMemory.scrollTop) return; navMemory.scrollTop = top }} className="flex-1 p-4 space-y-1 overflow-y-auto overscroll-contain scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-700 scrollbar-track-transparent pr-2 max-h-[calc(100vh-4rem)]">
         <Link
           href="/dashboard"
           className="sidebar-link flex items-center space-x-3"
@@ -744,7 +798,7 @@ export function Sidebar() {
           <>
             <button
               type="button"
-              onClick={() => setBusinessSectionExpanded(prev => !prev)}
+              onClick={() => toggleSection('business')}
               className="w-full flex items-center justify-between pt-4 pb-2 text-left"
             >
               <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -1582,7 +1636,7 @@ export function Sidebar() {
           return (
         <button
           type="button"
-          onClick={() => setFinanceOpsSectionExpanded(prev => !prev)}
+          onClick={() => toggleSection('financeOps')}
           className="w-full flex items-center justify-between pt-4 pb-2 text-left"
         >
           <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Finance &amp; Operations</h3>
@@ -2130,7 +2184,7 @@ export function Sidebar() {
 
         <button
           type="button"
-          onClick={() => setToolsSectionExpanded(prev => !prev)}
+          onClick={() => toggleSection('tools')}
           className="w-full flex items-center justify-between pt-4 pb-2 text-left"
         >
           <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Tools</h3>
@@ -2325,7 +2379,7 @@ export function Sidebar() {
           <>
             <button
               type="button"
-              onClick={() => setEmployeeSectionExpanded(prev => !prev)}
+              onClick={() => toggleSection('employee')}
               className="w-full flex items-center justify-between pt-4 pb-2 text-left"
             >
               <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Employee Management</h3>
@@ -2416,11 +2470,11 @@ export function Sidebar() {
           </>
         )}
 
-  {(hasPermission('canManageBusinessUsers') || hasPermission('canManageBusinessSettings')) && (
+  {(hasPermission('canManageBusinessUsers') || hasPermission('canManageBusinessSettings') || canManageSessions) && (
           <>
             <button
               type="button"
-              onClick={() => setAdminSectionExpanded(prev => !prev)}
+              onClick={() => toggleSection('admin')}
               className="w-full flex items-center justify-between pt-4 pb-2 text-left"
             >
               <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Administration</h3>
@@ -2504,6 +2558,17 @@ export function Sidebar() {
               </Link>
             )}
             
+            {/* MBM-351: who is signed in where; sign out / suspend */}
+            {canManageSessions && (
+              <Link
+                href="/admin/user-sessions"
+                className={getLinkClasses('/admin/user-sessions')}
+              >
+                <span className="text-lg">🔐</span>
+                <span>Signed-in Users</span>
+              </Link>
+            )}
+
             {hasPermission('canManageBusinessUsers') && (
               <Link 
                 href="/admin/users" 

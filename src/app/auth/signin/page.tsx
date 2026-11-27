@@ -18,6 +18,14 @@ export default function SignIn() {
       if (u) setIdentifier(u)
     } catch { /* ignore */ }
   }, [])
+  // MBM-351: why this workstation was signed out (manager's message), shown once
+  const [signedOutNotice, setSignedOutNotice] = useState<string | null>(null)
+  useEffect(() => {
+    try {
+      const n = sessionStorage.getItem('mbm-signed-out-notice')
+      if (n) { setSignedOutNotice(n); sessionStorage.removeItem('mbm-signed-out-notice') }
+    } catch { /* storage unavailable */ }
+  }, [])
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -51,7 +59,10 @@ export default function SignIn() {
         redirect: false,
       })
 
-      if (result?.error) {
+      if (result?.error === 'ACCOUNT_SUSPENDED') {
+        // MBM-351
+        setError('Your account is suspended. Contact your manager.')
+      } else if (result?.error) {
         setError('Invalid credentials')
       } else {
         router.push('/auth/redirect')
@@ -141,6 +152,13 @@ export default function SignIn() {
                 style={{ WebkitTextSecurity: 'disc' } as React.CSSProperties}
               />
             </div>
+
+            {signedOutNotice && (
+              <div className="bg-amber-50 border border-amber-300 rounded-lg p-4">
+                <p className="text-amber-900 text-sm font-semibold">You were signed out</p>
+                <p className="text-amber-800 text-sm mt-1 whitespace-pre-line">{signedOutNotice}</p>
+              </div>
+            )}
 
             {error && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-4">

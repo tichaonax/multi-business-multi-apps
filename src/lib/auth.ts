@@ -4,6 +4,7 @@ import CredentialsProvider from 'next-auth/providers/credentials'
 import bcrypt from 'bcryptjs'
 import { prisma } from './prisma'
 import { SessionUser } from './permission-utils'
+import { registerSession, isSessionAllowed, markSignedOut } from './user-sessions'
 
 console.log('🔐 Auth configuration loading at:', new Date().toISOString())
 console.log('🔑 NEXTAUTH_SECRET configured:', !!process.env.NEXTAUTH_SECRET)
@@ -62,13 +63,15 @@ export const authOptions: NextAuthOptions = {
           const emp = await prisma.employees.findFirst({
             where: { employeeNumber: c.employeeNumber, isActive: true },
             select: {
-              users: { select: { id: true, email: true, name: true, role: true, isActive: true } },
+              users: { select: { id: true, email: true, name: true, role: true, isActive: true, isSuspended: true } },
             },
           })
           if (!emp?.users || !emp.users.isActive) {
             console.log('❌ Card scan: no active user account for employee:', c.employeeNumber)
             return null
           }
+          // MBM-351: a suspended user can't sign in until a manager lifts it
+          if (emp.users.isSuspended) throw new Error('ACCOUNT_SUSPENDED')
           console.log('✅ Card scan login for:', emp.users.email)
           return { id: emp.users.id, email: emp.users.email, name: emp.users.name, role: emp.users.role } as any
         }
@@ -113,6 +116,12 @@ export const authOptions: NextAuthOptions = {
           return null
         }
 
+        // MBM-351: checked after the password, so it's only revealed to the account holder
+        if (user.isSuspended) {
+          console.log('❌ User account is suspended')
+          throw new Error('ACCOUNT_SUSPENDED')
+        }
+
         console.log('✅ Authentication successful for:', user.email)
         console.log('🎭 User system role:', user.role)
 
@@ -140,6 +149,15 @@ export const authOptions: NextAuthOptions = {
         t.loginTime = Date.now()
 
         console.log('🔑 New session created:', t.sessionId, 'for user:', (user as any).email)
+        // MBM-351: record the sign-in (workstation, time) for the Signed-in Users screen
+        try { await registerSession(t.sessionId, t.sub) } catch (e) { console.error('[auth] could not record session:', e) }
+      } else {
+        // MBM-351: a manager may have signed this session out (or suspended the
+        // user). Throwing makes NextAuth clear the cookie: signed out everywhere.
+        const t: any = token
+        if (!(await isSessionAllowed(t.sessionId, t.sub, t.loginTime))) {
+          throw new Error('SESSION_ENDED')
+        }
       }
       return token
     },
@@ -175,6 +193,7 @@ export const authOptions: NextAuthOptions = {
       })
     },
     async signOut({ token, session }) {
+      await markSignedOut((token as any)?.sessionId || (session as any)?.sessionId)
       console.log('🚪 Sign-out event:', {
         sessionId: (token as any)?.sessionId || (session as any)?.sessionId,
         userId: (token as any)?.sub || (session as any)?.users?.id,

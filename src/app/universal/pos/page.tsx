@@ -29,6 +29,8 @@ import { useCustomerDisplaySync } from '@/hooks/useCustomerDisplaySync'
 import { SyncMode } from '@/lib/customer-display/sync-manager'
 import { getBusinessTypeConfig, getSupportedBusinessTypes } from './config/business-type-config'
 import { toast } from 'sonner'
+import { useAlert } from '@/components/ui/confirm-modal'
+import { findPriceChanges, priceChangeAlert, lineIdsFromCartId } from '@/lib/pos/price-check'
 import type { ReceiptData } from '@/types/printing'
 import { generatePlainTextReceipt } from '@/lib/printing/plain-text-receipt'
 import { SalespersonEodModal } from '@/components/eod/salesperson-eod-modal'
@@ -117,8 +119,10 @@ export default function UniversalPOS() {
     removeFromCart,
     clearCart,
     setDiscount,
+    updatePrice,
     totals
   } = useUniversalCart()
+  const customAlert = useAlert()
 
   // Customer Display Sync — every other POS page (restaurant/grocery/
   // clothing/hardware) broadcasts cart state to the customer-facing
@@ -682,6 +686,24 @@ export default function UniversalPOS() {
     amountPaid?: number,
     ecocashData?: { ecocashTransactionCode: string; ecocashFeeAmount: number; totalWithFee: number }
   ) => {
+    // MBM-350: correct any line whose price changed since it was added, and let
+    // the cashier confirm the new total before taking payment
+    const priceChanges = await findPriceChanges(currentBusinessId, cart
+      .filter(i => !(i.isWiFiToken || i.isService || i.isCustomBulk || i.isBOGOFree || i.isCombo || i.weight))
+      .map(i => ({
+        key: i.id,
+        name: i.name,
+        price: i.unitPrice,
+        ...(i.baleId ? { baleId: i.baleId }
+          : i.id.startsWith('inv_') ? lineIdsFromCartId(i.id)
+          : { variantId: i.variantId, productId: i.productId }),
+      })))
+    if (priceChanges.length > 0) {
+      priceChanges.forEach(c => updatePrice(c.key, c.newPrice))
+      void customAlert(priceChangeAlert(priceChanges))
+      return
+    }
+
     await processCheckout(cart, totals, {
       paymentMethod,
       amountPaid,

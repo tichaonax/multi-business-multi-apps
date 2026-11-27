@@ -56,6 +56,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const [unreadCount, setUnreadCount] = useState(0)
 
   const userId = (session?.user as any)?.id as string | undefined
+  const sessionId = (session as any)?.sessionId as string | undefined
   // Mirrors ConditionalGlobalHeader's own gating — the bell/panel this feeds
   // is already hidden here, but the provider itself wasn't: a stale/leftover
   // session cookie can briefly make useSession() report 'authenticated' with
@@ -104,6 +105,14 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
     socket.on('connect', () => {
       socket.emit('join-notification-room', { userId })
+      // MBM-351: this session's own room, for a manager's sign-out
+      if (sessionId) socket.emit('join-session-room', { sessionId })
+    })
+
+    // MBM-351: a manager signed this session out — SessionEndWatcher shows the
+    // message and countdown, then signs out
+    socket.on('session:force-logout', (payload: unknown) => {
+      window.dispatchEvent(new CustomEvent('mbm:session-ending', { detail: payload }))
     })
 
     // MBM-340: camera alerts for the 📹 panel (farm-alerts-provider listens on window)
@@ -165,7 +174,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       socket.disconnect()
       socketRef.current = null
     }
-  }, [status, userId, isAuthPage]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [status, userId, sessionId, isAuthPage]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const markRead = useCallback(async (id: string) => {
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n))

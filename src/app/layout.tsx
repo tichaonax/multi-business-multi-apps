@@ -1,3 +1,4 @@
+import { SessionEndWatcher } from '@/components/auth/session-end-watcher'
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
 
@@ -101,6 +102,8 @@ export default function RootLayout({
                               <FloatingChat />
                             </ConfirmProvider>
                             <GlobalLoadingSpinner />
+                            {/* MBM-351: a manager's sign-out notice + countdown */}
+                            <SessionEndWatcher />
                           </div>
                           <GlobalBarcodeModalManager />
                           <R710QuickSellModal />

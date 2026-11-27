@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
+import { useAlert } from '@/components/ui/confirm-modal'
 
 interface ScanResult {
   found: boolean
@@ -20,6 +21,7 @@ interface ScanResult {
 
 export function CardScanOverlay() {
   const router = useRouter()
+  const customAlert = useAlert()
 
   // ── Scan state ────────────────────────────────────────────────────────────
   const [scanState, setScanState] = useState<'idle' | 'scanning' | 'result'>('idle')
@@ -142,6 +144,8 @@ export function CardScanOverlay() {
       router.push('/auth/redirect')
     } else {
       setIsLoggingIn(false)
+      // MBM-351
+      if (result?.error === 'ACCOUNT_SUSPENDED') void customAlert({ title: 'Account suspended', description: 'Your account is suspended. Contact your manager.' })
     }
   }
 

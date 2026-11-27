@@ -6,6 +6,7 @@ import { useSession } from 'next-auth/react'
 import { createPortal } from 'react-dom'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { useAlert } from '@/components/ui/confirm-modal'
+import { findPriceChanges, priceChangeAlert, lineIdsFromCartId } from '@/lib/pos/price-check'
 import { useBusinessContext } from '@/components/universal'
 import { BarcodeScanner, UniversalProduct } from '@/components/universal'
 import { ReceiptPreview } from '@/components/printing/receipt-preview'
@@ -1680,6 +1681,30 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
     return hasLargeDiscount || isLargeTransaction
   }
 
+  // MBM-350: before payment, correct any cart line whose price changed since it
+  // was added (the till keeps the price it loaded; the orders API charges it).
+  // Returns false when it changed the cart, so the cashier checks the new total.
+  const checkCartPrices = async (): Promise<boolean> => {
+    const changes = await findPriceChanges(businessId, cart
+      .filter(i => {
+        const a: any = i.attributes || {}
+        return !(i.isReturn || a.isWiFiToken || a.wifiToken || a.r710Token || a.isCustomBulk || a.isSoldByWeight || i.id.startsWith('cbulk_'))
+      })
+      .map(i => {
+        const a: any = i.attributes || {}
+        const ids = a.baleId ? { baleId: a.baleId as string }
+          : a.inventoryItemId ? { inventoryItemId: a.inventoryItemId as string }
+          : (i.id.startsWith('inv_') || i.id.startsWith('bale_')) ? lineIdsFromCartId(i.id)
+          : { variantId: i.variantId || i.id, productId: i.productId }
+        return { key: i.id, name: i.name, price: i.price, ...ids }
+      }))
+    if (changes.length === 0) return true
+    const byKey = new Map(changes.map(c => [c.key, c.newPrice]))
+    setCart(prev => prev.map(i => byKey.has(i.id) ? { ...i, price: byKey.get(i.id)! } : i))
+    void customAlert(priceChangeAlert(changes))
+    return false
+  }
+
   const processPayment = async () => {
     if (requiresSupervisorOverride() && !supervisorOverride?.supervisorId) {
       setSupervisorOverride({
@@ -3212,8 +3237,9 @@ export function ClothingAdvancedPOS({ businessId, employeeId, terminalId, onOrde
 
             <button
               type="button"
-              onClick={() => {
+              onClick={async () => {
                 if (mode === 'exchange' && !exchangeApproval) { toast.error('Get manager approval for the return side first'); return }
+                if (!(await checkCartPrices())) return
                 setEcocashTxCode(''); setCashTendered(''); setShowPaymentModal(true)
               }}
               disabled={cart.length === 0}

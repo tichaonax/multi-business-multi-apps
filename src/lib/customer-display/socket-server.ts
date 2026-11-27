@@ -86,6 +86,14 @@ export function initSocketServer(httpServer: HTTPServer): SocketIOServer {
       console.log(`[Socket.io] Client ${clientId} joined chat:general`)
     })
 
+    // MBM-351: one room per signed-in session, so a manager can sign out one
+    // workstation's session (session:force-logout) without touching the others
+    socket.on('join-session-room', (data: { sessionId: string }) => {
+      if (typeof data?.sessionId === 'string' && data.sessionId.length < 200) {
+        socket.join(`session:${data.sessionId}`)
+      }
+    })
+
     // Join personal notification room — client sends their userId
     socket.on('join-notification-room', (data: { userId: string }) => {
       try {

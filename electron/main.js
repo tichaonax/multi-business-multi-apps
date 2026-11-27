@@ -809,6 +809,17 @@ function buildMenu() {
 
 app.whenReady().then(() => {
   console.log(`[App] Multi-Business Management Platform v${app.getVersion()} starting…`)
+
+  // MBM-351: tell the server which workstation this is. The Signed-in Users
+  // screen reads "MBM-POS/<version>" and "host/<computer name>" from the
+  // User-Agent of every request, so a manager can see (and sign out) the
+  // session on e.g. TILL-2 rather than just an IP address.
+  try {
+    const host = require('os').hostname().replace(/[^A-Za-z0-9._-]/g, '-').slice(0, 63)
+    app.userAgentFallback = `${app.userAgentFallback} MBM-POS/${app.getVersion()} host/${host}`
+  } catch (e) {
+    console.warn('[App] Could not add workstation name to User-Agent:', e && e.message)
+  }
   buildMenu()
 
   const lastUsed = registry.getLastUsed()

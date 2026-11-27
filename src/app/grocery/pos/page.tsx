@@ -1132,9 +1132,9 @@ function GroceryPOSContent() {
   }, [currentBusinessId])
 
   // Fetch desk products (BarcodeInventoryItems) for desk mode grid
-  const fetchDeskProducts = useCallback(async () => {
+  const fetchDeskProducts = useCallback(async (silent = false) => {
     if (!currentBusinessId) return
-    setDeskProductsLoading(true)
+    if (!silent) setDeskProductsLoading(true)
     try {
       const res = await fetch(`/api/grocery/desk-products?businessId=${currentBusinessId}`)
       if (!res.ok) return
@@ -1158,6 +1158,16 @@ function GroceryPOSContent() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deskMode, currentBusinessId])
+
+  // MBM-350: keep the desk grid's prices current while the till stays open —
+  // quietly (no spinner) every 60 s and whenever the till window regains focus.
+  useEffect(() => {
+    if (!deskMode || !currentBusinessId) return
+    const refresh = () => { if (document.visibilityState === 'visible') fetchDeskProducts(true) }
+    const interval = setInterval(refresh, 60000)
+    window.addEventListener('focus', refresh)
+    return () => { clearInterval(interval); window.removeEventListener('focus', refresh) }
+  }, [deskMode, currentBusinessId, fetchDeskProducts])
 
   // Poll product stats every 30s while in desk mode so sold counts reset at day boundary
   useEffect(() => {
@@ -1923,13 +1933,85 @@ function GroceryPOSContent() {
     return { subtotal, tax, total: finalTotal, rewardCredit, snapEligibleAmount, loyaltyPoints }
   }
 
-  const handlePayment = async () => {
-    const totals = calculateTotals()
+  // MBM-350: a price can change while this till is open (Inventory edit, another
+  // till's quick edit). The grid and the saved cart keep the price they were
+  // loaded with, and the orders API charges the price the till sends. Before
+  // taking payment, read today's prices from the same two sources the grid uses
+  // and correct any cart line that is out of date. Returns false when it changed
+  // the cart, so the cashier sees the new total before the customer pays.
+  // If the prices can't be read (network), the sale is not blocked.
+  const checkCartPrices = async (): Promise<boolean> => {
+    if (!currentBusinessId) return true
+    const skip = (i: CartItem) => {
+      const a = i as any
+      return a.wifiToken || a.r710Token || i.baleId || i.customBulkId || i.id.startsWith('cbulk_') ||
+        i.isSoldByWeight || i.weight || i.weightRequired
+    }
+    if (!cart.some(i => !skip(i))) return true
+    try {
+      const [prodRes, deskRes] = await Promise.all([
+        fetch(`/api/universal/products?businessId=${currentBusinessId}&businessType=grocery&includeVariants=true&limit=5000`),
+        fetch(`/api/grocery/desk-products?businessId=${currentBusinessId}`),
+      ])
+      const prodMap = new Map<string, number>()
+      const deskMap = new Map<string, number>()
+      const prodData = prodRes.ok ? await prodRes.json() : null
+      for (const p of prodData?.data ?? []) {
+        if (p.variants?.length) {
+          for (const v of p.variants) prodMap.set(v.id, parseFloat(v.price || p.basePrice || 0))
+        } else {
+          prodMap.set(p.id, parseFloat(p.basePrice || 0))
+        }
+      }
+      const deskData = deskRes.ok ? await deskRes.json() : null
+      for (const d of deskData?.items ?? []) {
+        if (!d.isSoldByWeight && d.price > 0) deskMap.set(d.id, Number(d.price))
+      }
+      // The grid in use decides which price wins when an item is in both lists
+      const first = deskMode ? deskMap : prodMap
+      const second = deskMode ? prodMap : deskMap
+      const priceNow = (id: string) => first.get(id) ?? second.get(id)
 
+      const changes: string[] = []
+      const newCart = cart.map(item => {
+        if (skip(item)) return item
+        const now = priceNow(item.id)
+        if (!now || now <= 0 || Math.abs(now - item.price) < 0.005) return item
+        changes.push(`${item.name}: $${item.price.toFixed(2)} → $${now.toFixed(2)}`)
+        return { ...item, price: now, subtotal: now * item.quantity }
+      })
+
+      if (deskData?.success) { setDeskProducts(deskData.items); setDeskCategories(deskData.categories) }
+      if (prodMap.size) setProducts(prev => prev.map(p => prodMap.has(p.id) ? { ...p, price: prodMap.get(p.id)! } : p))
+
+      if (changes.length === 0) return true
+      setCart(newCart)
+      broadcastCartState(newCart)
+      void customAlert({
+        title: 'Prices have changed',
+        description: (
+          <div>
+            <p>The cart has been updated to today&apos;s prices. Check the new total with the customer, then press Pay again.</p>
+            <ul className="mt-2 list-disc pl-5">{changes.map(c => <li key={c}>{c}</li>)}</ul>
+          </div>
+        )
+      })
+      return false
+    } catch (e) {
+      console.error('[grocery-pos] price check failed, continuing with cart prices:', e)
+      return true
+    }
+  }
+
+  const handlePayment = async () => {
     if (cart.length === 0) {
       void customAlert({ title: 'Cart empty', description: 'Cart is empty!' })
       return
     }
+
+    if (!(await checkCartPrices())) return
+
+    const totals = calculateTotals()
 
     if (paymentMethod === 'snap' && customer?.snapBalance) {
       if (customer.snapBalance < totals.snapEligibleAmount) {

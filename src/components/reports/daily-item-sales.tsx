@@ -10,6 +10,7 @@
 import { useEffect, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { formatCurrency } from '@/lib/date-format'
+import { Pagination } from '@/components/ui/pagination'
 
 interface ItemSalesRow {
   key: string
@@ -43,6 +44,9 @@ export function DailyItemSales({ businessId, date, start, end, collapsible = fal
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [restockOnly, setRestockOnly] = useState(false)
+  // MBM-345: search, total on top, 25 rows a page (the printout has every row)
+  const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
   const router = useRouter()
   const pathname = usePathname() || ''
   const businessPath = pathname.split('/')[1]
@@ -73,7 +77,14 @@ export function DailyItemSales({ businessId, date, start, end, collapsible = fal
     return () => { live = false }
   }, [open, rows, businessId, date, start, end, isRange])
 
-  const shown = (rows || []).filter(r => !restockOnly || r.restockNeeded)
+  const q = search.trim().toLowerCase()
+  const shown = (rows || []).filter(r =>
+    (!restockOnly || r.restockNeeded) &&
+    (!q || r.name.toLowerCase().includes(q) || (r.sku || '').toLowerCase().includes(q)))
+  const PAGE_SIZE = 25
+  const totalPages = Math.max(1, Math.ceil(shown.length / PAGE_SIZE))
+  const currentPage = Math.min(page, totalPages)
+  const onPage = (i: number) => i >= (currentPage - 1) * PAGE_SIZE && i < currentPage * PAGE_SIZE
   const totalQty = shown.reduce((s, r) => s + r.quantity, 0)
   const totalSales = shown.reduce((s, r) => s + r.total, 0)
   const restockCount = (rows || []).filter(r => r.restockNeeded).length
@@ -91,10 +102,15 @@ export function DailyItemSales({ businessId, date, start, end, collapsible = fal
           <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100">🧾 Items Sold</h3>
         )}
         {open && rows && rows.length > 0 && (
-          <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 print:hidden">
-            <input type="checkbox" checked={restockOnly} onChange={e => setRestockOnly(e.target.checked)} />
-            Restock needed only
-          </label>
+          <div className="flex flex-wrap items-center gap-3 print:hidden">
+            <input type="search" value={search} onChange={e => { setSearch(e.target.value); setPage(1) }}
+              placeholder="Search item or SKU…"
+              className="w-56 border border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400" />
+            <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+              <input type="checkbox" checked={restockOnly} onChange={e => { setRestockOnly(e.target.checked); setPage(1) }} />
+              Restock needed only
+            </label>
+          </div>
         )}
       </div>
 
@@ -115,11 +131,22 @@ export function DailyItemSales({ businessId, date, start, end, collapsible = fal
                     <th className="py-2 px-3 text-right">Remaining stock</th>
                     <th className="py-2 pl-3">Restock needed</th>
                   </tr>
+                  {/* Total of the rows shown (search / restock filter), on top */}
+                  <tr className="border-b border-gray-300 dark:border-gray-600 font-bold text-gray-900 dark:text-gray-100 bg-gray-50 dark:bg-gray-700/40">
+                    <td className="py-2 pr-3">Total <span className="font-normal text-gray-500 dark:text-gray-400">({shown.length} item{shown.length === 1 ? '' : 's'})</span></td>
+                    <td />
+                    <td className="py-2 px-3 text-right">{totalQty}</td>
+                    <td className="py-2 px-3 text-right">{formatCurrency(totalSales)}</td>
+                    <td colSpan={2} />
+                  </tr>
                 </thead>
                 <tbody>
-                  {shown.map(r => (
+                  {shown.length === 0 && (
+                    <tr><td colSpan={6} className="py-4 text-center text-gray-500 dark:text-gray-400">No items match.</td></tr>
+                  )}
+                  {shown.map((r, i) => (
                     <tr key={r.key}
-                      className={`border-b border-gray-100 dark:border-gray-700 ${viewHref(r) ? 'cursor-pointer hover:bg-blue-50 dark:hover:bg-gray-700/50' : ''}`}
+                      className={`border-b border-gray-100 dark:border-gray-700 ${onPage(i) ? '' : 'hidden print:table-row'} ${viewHref(r) ? 'cursor-pointer hover:bg-blue-50 dark:hover:bg-gray-700/50' : ''}`}
                       title={viewHref(r) ? 'View details' : undefined}
                       onClick={() => { const h = viewHref(r); if (h) router.push(h) }}>
                       <td className="py-1.5 pr-3 text-gray-900 dark:text-gray-100">
@@ -149,16 +176,13 @@ export function DailyItemSales({ businessId, date, start, end, collapsible = fal
                     </tr>
                   ))}
                 </tbody>
-                <tfoot>
-                  <tr className="font-bold text-gray-900 dark:text-gray-100">
-                    <td className="py-2 pr-3">Total</td>
-                    <td />
-                    <td className="py-2 px-3 text-right">{totalQty}</td>
-                    <td className="py-2 px-3 text-right">{formatCurrency(totalSales)}</td>
-                    <td colSpan={2} />
-                  </tr>
-                </tfoot>
               </table>
+              {totalPages > 1 && (
+                <div className="print:hidden">
+                  <Pagination currentPage={currentPage} totalPages={totalPages} totalItems={shown.length}
+                    pageSize={PAGE_SIZE} onPageChange={setPage} />
+                </div>
+              )}
             </div>
           )}
         </div>

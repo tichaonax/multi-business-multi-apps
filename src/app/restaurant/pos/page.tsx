@@ -12,6 +12,8 @@ import { BarcodeScanner } from '@/components/universal/barcode-scanner'
 import { UniversalProduct } from '@/components/universal/product-card'
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useToastContext } from '@/components/ui/toast'
+import { useAlert } from '@/components/ui/confirm-modal'
+import { findPriceChanges, priceChangeAlert, lineIdsFromCartId } from '@/lib/pos/price-check'
 import { CollapsibleSection } from '@/components/ui/collapsible-section'
 import { useSession } from 'next-auth/react'
 
@@ -359,6 +361,7 @@ export default function RestaurantPOS() {
 
   // Toast context (hook) must be called unconditionally to preserve hooks order
   const toast = useToastContext()
+  const customAlert = useAlert()
 
   // Global cart context for mini cart sync
   const { cart: globalCart, clearCart: clearGlobalCart, replaceCart: replaceGlobalCart } = useGlobalCart()
@@ -2855,7 +2858,36 @@ export default function RestaurantPOS() {
     return a.name.localeCompare(b.name)
   })
 
-  const handleProcessOrderClick = () => {
+  // MBM-350: before payment, correct any plain menu/inventory line whose price
+  // changed since it was added (the till keeps the price it loaded; the orders
+  // API charges it). Specials, combos, samples, weighed items and WiFi tokens
+  // are priced differently and are left alone. Returns false when it changed
+  // the cart, so the cashier checks the new total first.
+  const checkCartPrices = async (): Promise<boolean> => {
+    const changes = await findPriceChanges(businessId, cart
+      .filter(i => {
+        const a: any = i
+        return !(i.isTodaysSpecial || i.isTodaysSpecialAddOn || i.isTodaysSpecialCredit || i.isCombo ||
+          i.isSoldByWeight || a.sampleProductId || a.isAYLICombo || a.aylicData || a.esp32Token || a.r710Token ||
+          a.wifiToken || a.isWiFiToken || a.attributes?.isCustomBulk)
+      })
+      .map(i => ({
+        key: i.id,
+        name: i.name,
+        price: i.price,
+        ...((i as any).attributes?.inventoryItemId
+          ? { inventoryItemId: (i as any).attributes.inventoryItemId as string }
+          : lineIdsFromCartId(i.id)),
+      })))
+    if (changes.length === 0) return true
+    const byKey = new Map(changes.map(c => [c.key, c.newPrice]))
+    const newCart = cart.map(i => byKey.has(i.id) && !i.isTodaysSpecial ? { ...i, price: byKey.get(i.id)! } : i)
+    setCart(newCart)
+    void customAlert(priceChangeAlert(changes))
+    return false
+  }
+
+  const handleProcessOrderClick = async () => {
     console.log('🔄 Process Order clicked')
     if (cart.length === 0) {
       console.log('❌ Cart is empty, not processing')
@@ -2876,6 +2908,8 @@ export default function RestaurantPOS() {
       toast.error(`Delivery blocked: ${deliveryAccount.blacklistReason || 'Customer is blacklisted from delivery'}`)
       return
     }
+
+    if (!(await checkCartPrices())) return
 
     // Calculate totals for payment broadcast (must match component-level total with discounts)
     const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0)
