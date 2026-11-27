@@ -1,3 +1,4 @@
+import { vehicleLinesMissingDetails } from '@/lib/vehicles/vehicle-expense-types'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
@@ -44,6 +45,11 @@ export async function POST(
     }
 
     // MBM-335: every item the cashier flagged must be marked fixed first
+    // MBM-347: a Vehicle expense must say which vehicle and what kind of cost
+    const missingVehicle = await vehicleLinesMissingDetails(prisma, items)
+    if (missingVehicle.length > 0) {
+      return NextResponse.json({ error: `Choose the vehicle and the kind of cost for ${missingVehicle.map(d => `"${d}"`).join(', ')} — it is a Vehicle expense` }, { status: 400 })
+    }
     const openFlags = items.filter(i => i.flagNote && !i.flagResolvedAt)
     if (openFlags.length > 0) {
       return NextResponse.json({ error: `Fix the flagged item${openFlags.length === 1 ? '' : 's'} first: ${openFlags.map(i => `"${i.description}"`).join(', ')}` }, { status: 400 })

@@ -8,6 +8,7 @@
 //   then); a closed section is left out of the printout.
 // - Otherwise the table shows straight away (the report page).
 import { useEffect, useState } from 'react'
+import { usePathname, useRouter } from 'next/navigation'
 import { formatCurrency } from '@/lib/date-format'
 
 interface ItemSalesRow {
@@ -21,7 +22,11 @@ interface ItemSalesRow {
   reorderLevel: number | null
   restockNeeded: boolean
   imageUrl?: string | null
+  inventoryId?: string | null
 }
+
+// MBM-345: a row opens the item's View Details on that business's inventory page
+const INVENTORY_PAGES = ['clothing', 'grocery', 'hardware', 'restaurant']
 
 export function DailyItemSales({ businessId, date, start, end, collapsible = false }: {
   businessId: string
@@ -38,6 +43,13 @@ export function DailyItemSales({ businessId, date, start, end, collapsible = fal
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [restockOnly, setRestockOnly] = useState(false)
+  const router = useRouter()
+  const pathname = usePathname() || ''
+  const businessPath = pathname.split('/')[1]
+  const viewHref = (r: ItemSalesRow) =>
+    r.inventoryId && INVENTORY_PAGES.includes(businessPath)
+      ? `/${businessPath}/inventory?viewItem=${encodeURIComponent(r.inventoryId)}&returnTo=${encodeURIComponent(pathname + (typeof window !== 'undefined' ? window.location.search : ''))}`
+      : null
 
   useEffect(() => { setRows(null) }, [businessId, date, start, end])
 
@@ -106,7 +118,10 @@ export function DailyItemSales({ businessId, date, start, end, collapsible = fal
                 </thead>
                 <tbody>
                   {shown.map(r => (
-                    <tr key={r.key} className="border-b border-gray-100 dark:border-gray-700">
+                    <tr key={r.key}
+                      className={`border-b border-gray-100 dark:border-gray-700 ${viewHref(r) ? 'cursor-pointer hover:bg-blue-50 dark:hover:bg-gray-700/50' : ''}`}
+                      title={viewHref(r) ? 'View details' : undefined}
+                      onClick={() => { const h = viewHref(r); if (h) router.push(h) }}>
                       <td className="py-1.5 pr-3 text-gray-900 dark:text-gray-100">
                         {/* MBM-345: thumbnail where the item has an image */}
                         <div className="flex items-center gap-2">

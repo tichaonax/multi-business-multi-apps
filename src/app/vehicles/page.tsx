@@ -478,7 +478,7 @@ export default function VehiclesPage() {
         <div className="space-y-6">
           {/* Toast */}
           {toastMessage && (
-            <div className="fixed top-5 right-5 z-50">
+            <div className="fixed top-20 right-5 z-50">
               <div className="px-4 py-2 bg-black text-white rounded shadow">{toastMessage}</div>
             </div>
           )}

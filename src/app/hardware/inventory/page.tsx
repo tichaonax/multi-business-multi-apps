@@ -41,12 +41,26 @@ function HardwareInventoryContent() {
   const [refreshKey, setRefreshKey] = useState(0)
   const [isLoadingProduct, setIsLoadingProduct] = useState(false)
   const [insightsTarget, setInsightsTarget] = useState<{ type: 'bale' | 'inventory'; id: string; productId?: string } | null>(null)
+  // MBM-345: set when a report's item row opened it (?viewItem=…&returnTo=…)
+  const [viewReturnTo, setViewReturnTo] = useState<string | null>(null)
   const [selectedDepartment, setSelectedDepartment] = useState('')
   const [filterCount, setFilterCount] = useState<number | null>(null)
   const [stats, setStats] = useState<any>(null)
   const searchParams = useSearchParams()
   const { data: session, status } = useSession()
   const router = useRouter()
+
+  // MBM-345: a report's item row links here with ?viewItem=<id>&returnTo=<report>
+  // — opens the same View Details as the item's menu; closing it goes back
+  useEffect(() => {
+    const viewItem = searchParams?.get('viewItem')
+    if (!viewItem) return
+    setViewReturnTo(searchParams?.get('returnTo') || null)
+    setInsightsTarget(viewItem.startsWith('inv_')
+      ? { type: 'inventory', id: viewItem }
+      : { type: 'inventory', id: '', productId: viewItem })
+    router.replace('/hardware/inventory', { scroll: false })
+  }, [searchParams, router])
   const customAlert = useAlert()
   const confirm = useConfirm()
   const { addToCart } = useGlobalCart()
@@ -729,7 +743,10 @@ function HardwareInventoryContent() {
               itemId={insightsTarget.id}
               productId={insightsTarget.productId}
               businessId={businessId}
-              onClose={() => setInsightsTarget(null)}
+              onClose={() => {
+                setInsightsTarget(null)
+                if (viewReturnTo) { const to = viewReturnTo; setViewReturnTo(null); router.push(to) }
+              }}
             />
           )}
 

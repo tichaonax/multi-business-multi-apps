@@ -227,6 +227,36 @@ function ClothingInventoryContent() {
     }
   }
 
+  // MBM-345: a report's item row links here with ?viewItem=<id>&returnTo=<report>
+  // — opens the same View Details as the item's menu; closing it goes back
+  const [viewReturnTo, setViewReturnTo] = useState<string | null>(null)
+  useEffect(() => {
+    const viewItem = searchParams?.get('viewItem')
+    if (!viewItem || !currentBusinessId) return
+    setViewReturnTo(searchParams?.get('returnTo') || null)
+    fetch(`/api/inventory/${currentBusinessId}/items/${encodeURIComponent(viewItem)}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.data) {
+          setSelectedItem(data.data)
+          setShowViewModal(true)
+        } else {
+          showToast('Could not open that item — it may have been deleted.', { type: 'error' })
+        }
+      })
+      .catch(() => showToast('Could not open that item — it may have been deleted.', { type: 'error' }))
+    router.replace('/clothing/inventory', { scroll: false })
+  }, [searchParams, currentBusinessId, router])
+  const closeViewModal = () => {
+    setShowViewModal(false)
+    setSelectedItem(null)
+    if (viewReturnTo) {
+      const to = viewReturnTo
+      setViewReturnTo(null)
+      router.push(to)
+    }
+  }
+
   // Handle productId from URL parameters
   useEffect(() => {
     const productId = searchParams?.get('productId')
@@ -2129,10 +2159,7 @@ function ClothingInventoryContent() {
                       </div>
                     </div>
                     <button
-                      onClick={() => {
-                        setShowViewModal(false)
-                        setSelectedItem(null)
-                      }}
+                      onClick={closeViewModal}
                       className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                     >
                       ✕
@@ -2370,10 +2397,7 @@ function ClothingInventoryContent() {
                     </button>
                   )}
                   <button
-                    onClick={() => {
-                      setShowViewModal(false)
-                      setSelectedItem(null)
-                    }}
+                    onClick={closeViewModal}
                     className="flex-1 btn-secondary"
                   >
                     Close

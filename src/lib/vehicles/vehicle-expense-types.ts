@@ -28,3 +28,22 @@ export function vehicleLineFields(item: any) {
     vehicleLicenseExpiry: vehicleId && item.vehicleLicenseExpiry ? new Date(item.vehicleLicenseExpiry) : null,
   }
 }
+
+/** MBM-347: the expense domain whose lines are vehicle costs */
+export const VEHICLE_DOMAIN_ID = 'domain-vehicle'
+
+/** MBM-347: lines classified under the Vehicle domain that don't say which
+ *  vehicle or what kind of cost — they can't be submitted. Returns their
+ *  descriptions (empty: all fine). `db` is a Prisma client or transaction. */
+export async function vehicleLinesMissingDetails(
+  db: any,
+  lines: Array<{ description?: string | null; categoryId?: string | null; vehicleId?: string | null; vehicleExpenseType?: string | null }>,
+): Promise<string[]> {
+  const ids = [...new Set(lines.map(l => l.categoryId).filter((v): v is string => !!v))]
+  if (!ids.length) return []
+  const vehicleCats = await db.expenseCategories.findMany({ where: { id: { in: ids }, domainId: VEHICLE_DOMAIN_ID }, select: { id: true } })
+  const vehicleSet = new Set(vehicleCats.map((c: { id: string }) => c.id))
+  return lines
+    .filter(l => l.categoryId && vehicleSet.has(l.categoryId) && (!l.vehicleId || !l.vehicleExpenseType))
+    .map(l => l.description?.trim() || 'an item')
+}

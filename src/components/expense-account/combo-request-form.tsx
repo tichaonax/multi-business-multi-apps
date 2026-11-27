@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { VEHICLE_DOMAIN_ID } from '@/components/vehicles/vehicle-cost-picker'
 import { useRouter } from 'next/navigation'
 import { useToastContext } from '@/components/ui/toast'
 import { ComboRequestSection, ComboSection, SectionType } from './combo-request-section'
@@ -338,6 +339,8 @@ export function ComboRequestForm({ accountId, requestId }: ComboRequestFormProps
       if (!i.description.trim()) submitProblems.push(`${label}: add a description`)
       const amt = parseFloat(i.estimatedAmount)
       if (isNaN(amt) || amt <= 0) submitProblems.push(`${label}: add an amount`)
+      // MBM-347: a Vehicle expense must say which vehicle and what kind of cost
+      if (i.domainId === VEHICLE_DOMAIN_ID && (!i.vehicleId || !i.vehicleExpenseType)) submitProblems.push(`${label}: choose the vehicle and the kind of cost`)
       if (isBusinessLoan && !i.payee && !s.payee) submitProblems.push(`${label}: add a payee (needed for a loan)`)
       if (isBusinessLoan && i.expenseLineId) submitProblems.push(`${label}: recorded restaurant expenses can't go in a loan`)
       if (i.flagNote && !i.flagResolved) submitProblems.push(`${label}: 🚩 fix what the cashier flagged, then tick "Mark as fixed"`)

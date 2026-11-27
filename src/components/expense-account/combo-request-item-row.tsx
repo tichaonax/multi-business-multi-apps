@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { VehicleCostPicker } from '@/components/vehicles/vehicle-cost-picker'
+import { VehicleCostPicker, VEHICLE_DOMAIN_ID } from '@/components/vehicles/vehicle-cost-picker'
 import { PayeeSelector } from './payee-selector'
 
 export interface Domain {
@@ -160,7 +160,9 @@ export function ItemCategorySelector({
   description: string
   onChange: (categoryId: string, subcategoryId: string) => void
   initialLabel?: string
-  onLabel?: (label: string) => void
+  /** The built "Domain › Category › Sub" label — and (MBM-347) the domain chosen,
+   *  so a Vehicle line knows it must name its vehicle */
+  onLabel?: (label: string, domainId: string) => void
 }) {
   const [domainId, setDomainId] = useState(defaultDomainId ?? '')
   // MBM-335: once chosen, the three pickers fold into one line (✎ Change re-opens)
@@ -249,7 +251,7 @@ export function ItemCategorySelector({
   ].filter(Boolean).join(' › ')
   const label = (categoryId && builtLabel.includes('›')) ? builtLabel : (initialLabel || builtLabel)
   useEffect(() => {
-    if (onLabel && categoryId && builtLabel.includes('›')) onLabel(builtLabel)
+    if (onLabel && categoryId && builtLabel.includes('›')) onLabel(builtLabel, domainId)
   }, [builtLabel]) // eslint-disable-line react-hooks/exhaustive-deps
   const chosen = !!categoryId && (!!subcategoryId || (!loadingSubs && subcategories.length === 0 && !!label))
   if (chosen && !editing && !showSuggestions) {
@@ -398,17 +400,24 @@ export function ComboRequestItemRow({
   const [showExtra, setShowExtra] = useState(!!item.payee)
   const descRef = useRef<HTMLInputElement>(null)
 
-  // Auto-calculate total when qty × unit price are both filled
-  useEffect(() => {
-    const qty = parseFloat(item.quantity)
-    const price = parseFloat(item.unitPrice)
-    if (!isNaN(qty) && !isNaN(price) && qty > 0 && price > 0) {
-      const total = (qty * price).toFixed(2)
-      if (total !== item.estimatedAmount) {
-        onChange({ ...item, estimatedAmount: total })
-      }
+  // MBM-347: quantity is only ever typed. Unit price and total fill each
+  // other in: type a unit price → total = qty × price; type a total → unit
+  // price = total ÷ qty. Changing the quantity recalculates whichever of the
+  // two the user did NOT type.
+  const typedRef = useRef<'price' | 'total'>(item.unitPrice ? 'price' : 'total')
+  const withQty = (qtyStr: string, priceStr: string, totalStr: string, typed: 'price' | 'total') => {
+    const q = parseFloat(qtyStr)
+    if (isNaN(q) || q <= 0) return { unitPrice: priceStr, estimatedAmount: totalStr }
+    if (typed === 'price') {
+      const p = parseFloat(priceStr)
+      return { unitPrice: priceStr, estimatedAmount: !isNaN(p) && p > 0 ? (q * p).toFixed(2) : totalStr }
     }
-  }, [item.quantity, item.unitPrice]) // eslint-disable-line react-hooks/exhaustive-deps
+    const t = parseFloat(totalStr)
+    return { unitPrice: !isNaN(t) && t > 0 ? String(Math.round((t / q) * 100) / 100) : priceStr, estimatedAmount: totalStr }
+  }
+  const setQuantity = (v: string) => onChange({ ...item, quantity: v, ...withQty(v, item.unitPrice, item.estimatedAmount, typedRef.current) })
+  const setUnitPrice = (v: string) => { typedRef.current = 'price'; onChange({ ...item, ...withQty(item.quantity, v, item.estimatedAmount, 'price') }) }
+  const setTotal = (v: string) => { typedRef.current = 'total'; onChange({ ...item, ...withQty(item.quantity, item.unitPrice, v, 'total') }) }
 
   function update(field: keyof ComboItem, value: string | null | { type: string; id: string; name: string }) {
     onChange({ ...item, [field]: value })
@@ -442,7 +451,7 @@ export function ComboRequestItemRow({
 
   const qty = parseFloat(item.quantity)
   const unitPrice = parseFloat(item.unitPrice)
-  const isAutoCalc = !isNaN(qty) && !isNaN(unitPrice) && qty > 0 && unitPrice > 0
+  const isAutoCalc = !isNaN(qty) && !isNaN(unitPrice) && qty > 0 && unitPrice > 0 // shows the "="
 
   const inputBase = 'w-full border border-gray-300 dark:border-gray-600 rounded-md px-2 py-1.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500'
   const labelBase = 'block text-xs text-gray-400 dark:text-gray-500 mb-0.5'
@@ -526,7 +535,7 @@ export function ComboRequestItemRow({
       <div className="flex gap-2 items-end">
         <div className="w-16 shrink-0">
           <label className={labelBase}>Qty</label>
-          <input type="number" value={item.quantity} onChange={e => update('quantity', e.target.value)} placeholder="0" min="0" className={inputBase} />
+          <input type="number" value={item.quantity} onChange={e => setQuantity(e.target.value)} placeholder="0" min="0" className={inputBase} />
         </div>
         <div className="w-16 shrink-0">
           <label className={labelBase}>Unit</label>
@@ -534,7 +543,7 @@ export function ComboRequestItemRow({
         </div>
         <div className="w-24 shrink-0">
           <label className={labelBase}>Unit Price</label>
-          <input type="number" value={item.unitPrice} onChange={e => update('unitPrice', e.target.value)} placeholder="0.00" min="0" step="0.01" className={inputBase} />
+          <input type="number" value={item.unitPrice} onChange={e => setUnitPrice(e.target.value)} placeholder="0.00" min="0" step="0.01" className={inputBase} />
         </div>
         <div className="flex items-end gap-1 flex-1 min-w-0">
           {isAutoCalc && <span className="text-gray-400 dark:text-gray-500 pb-1.5 text-sm">=</span>}
@@ -543,12 +552,11 @@ export function ComboRequestItemRow({
             <input
               type="number"
               value={item.estimatedAmount}
-              onChange={e => update('estimatedAmount', e.target.value)}
+              onChange={e => setTotal(e.target.value)}
               placeholder="0.00"
               min="0"
               step="0.01"
-              readOnly={isAutoCalc}
-              className={`${inputBase} ${isAutoCalc ? 'bg-gray-50 dark:bg-gray-600/50 cursor-default' : ''}`}
+              className={inputBase}
             />
           </div>
         </div>
@@ -565,7 +573,7 @@ export function ComboRequestItemRow({
             description={item.description}
             onChange={(catId, subId) => onChange({ ...item, categoryId: catId, subcategoryId: subId, ...(catId ? {} : { classificationLabel: '' }) })}
             initialLabel={item.classificationLabel}
-            onLabel={label => { if (label !== item.classificationLabel) onChange({ ...item, classificationLabel: label }) }}
+            onLabel={(label, domainId) => { if (label !== item.classificationLabel || domainId !== item.domainId) onChange({ ...item, classificationLabel: label, domainId }) }}
           />
         </div>
         <button
@@ -578,7 +586,7 @@ export function ComboRequestItemRow({
       </div>
 
       {/* MBM-344: a vehicle cost (Fleet Management gets it on approval) */}
-      <VehicleCostPicker compact
+      <VehicleCostPicker compact required={item.domainId === VEHICLE_DOMAIN_ID}
         value={{ vehicleId: item.vehicleId ?? null, vehicleExpenseType: item.vehicleExpenseType ?? null, vehicleLicenseType: item.vehicleLicenseType ?? null, vehicleLicenseExpiry: item.vehicleLicenseExpiry ?? null }}
         onChange={v => onChange({ ...item, ...v })} />
 

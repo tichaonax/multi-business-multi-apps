@@ -7,7 +7,7 @@
 // range popup), with item thumbnails.
 export const dynamic = 'force-dynamic'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { DailyItemSales } from '@/components/reports/daily-item-sales'
@@ -20,6 +20,23 @@ export default function DailyItemSalesPage() {
   const [range, setRange] = useState(() => ({ from: getLocalDateString(), to: getLocalDateString() }))
   const oneDay = range.from === range.to
   const [label, setLabel] = useState('Today')
+  // MBM-345: the range is kept in the address (?from=&to=&label=), so coming
+  // back from an item's View Details shows the same range again
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search)
+    const f = q.get('from'), t = q.get('to')
+    if (f && t && /^\d{4}-\d{2}-\d{2}$/.test(f) && /^\d{4}-\d{2}-\d{2}$/.test(t)) {
+      setRange({ from: f, to: t })
+      setLabel(q.get('label') || `${f} to ${t}`)
+    }
+  }, [])
+  const pickRange = (from: string, to: string, newLabel: string) => {
+    setRange({ from, to })
+    setLabel(newLabel)
+    const q = new URLSearchParams(window.location.search)
+    q.set('from', from); q.set('to', to); q.set('label', newLabel)
+    window.history.replaceState(window.history.state, '', `${window.location.pathname}?${q.toString()}`)
+  }
   const businessType = currentBusiness?.businessType || 'grocery'
   const reportsHref = `/${businessType === 'vehicle_service' ? 'vehicle-service' : businessType}/reports`
 
@@ -33,7 +50,7 @@ export default function DailyItemSalesPage() {
         </div>
         <div className="flex items-end gap-2">
           <YmdRangePicker from={range.from} to={range.to} title="Items sold"
-            onChange={(f, t, change) => { if (f && t) { setRange({ from: f, to: t }); setLabel(change.label) } }} />
+            onChange={(f, t, change) => { if (f && t) pickRange(f, t, change.label) }} />
           <button onClick={() => window.print()} className="px-3 py-1.5 rounded bg-gray-700 text-white text-sm hover:bg-gray-800">🖨 Print</button>
         </div>
       </div>

@@ -29,6 +29,21 @@ const ToastContext = createContext<{
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([])
   const [mounted, setMounted] = useState(false)
+  // MBM-345: toasts sit just below the top navigation bar, never over it, so
+  // the profile menu and the header buttons stay usable while they show
+  const [toastTop, setToastTop] = useState(24)
+  useEffect(() => {
+    if (toasts.length === 0) return
+    const place = () => {
+      const header = document.querySelector('header')
+      const bottom = header ? Math.max(0, header.getBoundingClientRect().bottom) : 0
+      setToastTop(Math.round(bottom) + 12)
+    }
+    place()
+    window.addEventListener('resize', place)
+    window.addEventListener('scroll', place, { passive: true })
+    return () => { window.removeEventListener('resize', place); window.removeEventListener('scroll', place) }
+  }, [toasts.length])
 
   useEffect(() => {
     setMounted(true)
@@ -95,7 +110,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {children}
       {/* Render toasts into document.body via portal to avoid stacking-context issues; apply very high z-index */}
       {mounted && typeof document !== 'undefined' && createPortal(
-        <div style={{ position: 'fixed', top: 24, right: 24, display: 'flex', flexDirection: 'column', gap: 8, zIndex: 10000, pointerEvents: 'none', maxWidth: '400px' }}>
+        <div style={{ position: 'fixed', top: toastTop, right: 24, display: 'flex', flexDirection: 'column', gap: 8, zIndex: 10000, pointerEvents: 'none', maxWidth: '400px' }}>
           {toasts.map((t) => (
             <div
               key={t.id}

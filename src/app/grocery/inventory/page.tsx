@@ -185,6 +185,36 @@ function GroceryInventoryContent() {
     }
   }
 
+  // MBM-345: a report's item row links here with ?viewItem=<id>&returnTo=<report>
+  // — opens the same View Details as the item's menu; closing it goes back
+  const [viewReturnTo, setViewReturnTo] = useState<string | null>(null)
+  useEffect(() => {
+    const viewItem = searchParams?.get('viewItem')
+    if (!viewItem || !currentBusinessId) return
+    setViewReturnTo(searchParams?.get('returnTo') || null)
+    fetch(`/api/inventory/${currentBusinessId}/items/${encodeURIComponent(viewItem)}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.data) {
+          setSelectedItem(data.data)
+          setShowViewModal(true)
+        } else {
+          showToast('Could not open that item — it may have been deleted.', { type: 'error' })
+        }
+      })
+      .catch(() => showToast('Could not open that item — it may have been deleted.', { type: 'error' }))
+    router.replace('/grocery/inventory', { scroll: false })
+  }, [searchParams, currentBusinessId, router])
+  const closeViewModal = () => {
+    setShowViewModal(false)
+    setSelectedItem(null)
+    if (viewReturnTo) {
+      const to = viewReturnTo
+      setViewReturnTo(null)
+      router.push(to)
+    }
+  }
+
   // Handle productId from URL parameters
   useEffect(() => {
     const productId = searchParams?.get('productId')
@@ -1071,13 +1101,13 @@ function GroceryInventoryContent() {
           {showViewModal && selectedItem && (
             <ModalPortal>
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-              <div className="absolute inset-0 bg-black/50" onClick={() => setShowViewModal(false)} />
+              <div className="absolute inset-0 bg-black/50" onClick={closeViewModal} />
               <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
                 <div className="p-6 pb-0 shrink-0">
                   <div className="flex items-center justify-between mb-6">
                     <h3 className="text-xl font-semibold text-primary">Product Details</h3>
                     <button
-                      onClick={() => setShowViewModal(false)}
+                      onClick={closeViewModal}
                       className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-400"
                     >
                       ✕
@@ -1286,10 +1316,7 @@ function GroceryInventoryContent() {
                     </button>
                   )}
                   <button
-                    onClick={() => {
-                      setShowViewModal(false)
-                      setSelectedItem(null)
-                    }}
+                    onClick={closeViewModal}
                     className="flex-1 btn-secondary"
                   >
                     Close

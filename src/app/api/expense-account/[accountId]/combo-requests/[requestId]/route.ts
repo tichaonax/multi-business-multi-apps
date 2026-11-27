@@ -1,3 +1,4 @@
+import { vehicleLinesMissingDetails } from '@/lib/vehicles/vehicle-expense-types'
 import { NextRequest, NextResponse } from 'next/server'
 import { isVehicleExpenseType } from '@/lib/vehicles/vehicle-expense-types'
 import { prisma } from '@/lib/prisma'
@@ -239,6 +240,13 @@ export async function PATCH(
     if (sections !== undefined) {
       const linkError = await validateExpenseLinks(accountId, sections, requestId)
       if (linkError) return NextResponse.json({ error: linkError }, { status: 400 })
+      // MBM-347: an already-submitted request keeps its vehicle details
+      if (existing.status === 'SUBMITTED') {
+        const missingVehicle = await vehicleLinesMissingDetails(prisma, (sections as any[]).flatMap((s: any) => s.items || []))
+        if (missingVehicle.length > 0) {
+          return NextResponse.json({ error: `Choose the vehicle and the kind of cost for ${missingVehicle.map(d => `"${d}"`).join(', ')} — it is a Vehicle expense` }, { status: 400 })
+        }
+      }
     }
 
     const updated = await prisma.$transaction(async (tx) => {

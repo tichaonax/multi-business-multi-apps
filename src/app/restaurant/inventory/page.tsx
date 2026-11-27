@@ -49,6 +49,8 @@ function RestaurantInventoryContent() {
   const [categoryCounts, setCategoryCounts] = useState<Record<string, number>>({})
   const [isLoadingProduct, setIsLoadingProduct] = useState(false)
   const [insightsTarget, setInsightsTarget] = useState<{ type: 'bale' | 'inventory'; id: string; productId?: string } | null>(null)
+  // MBM-345: set when a report's item row opened it (?viewItem=…&returnTo=…)
+  const [viewReturnTo, setViewReturnTo] = useState<string | null>(null)
   const [isInventoryTracked, setIsInventoryTracked] = useState(false)
   const [reorderLevel, setReorderLevel] = useState(0)
   const [isSoldByWeight, setIsSoldByWeight] = useState(false)
@@ -62,6 +64,18 @@ function RestaurantInventoryContent() {
   const searchParams = useSearchParams()
   const { data: session, status } = useSession()
   const router = useRouter()
+
+  // MBM-345: a report's item row links here with ?viewItem=<id>&returnTo=<report>
+  // — opens the same View Details as the item's menu; closing it goes back
+  useEffect(() => {
+    const viewItem = searchParams?.get('viewItem')
+    if (!viewItem) return
+    setViewReturnTo(searchParams?.get('returnTo') || null)
+    setInsightsTarget(viewItem.startsWith('inv_')
+      ? { type: 'inventory', id: viewItem }
+      : { type: 'inventory', id: '', productId: viewItem })
+    router.replace('/restaurant/inventory', { scroll: false })
+  }, [searchParams, router])
 
   // Use the business permissions context for proper business management
   const {
@@ -968,7 +982,10 @@ function RestaurantInventoryContent() {
               itemId={insightsTarget.id}
               productId={insightsTarget.productId}
               businessId={businessId}
-              onClose={() => setInsightsTarget(null)}
+              onClose={() => {
+                setInsightsTarget(null)
+                if (viewReturnTo) { const to = viewReturnTo; setViewReturnTo(null); router.push(to) }
+              }}
             />
           )}
 

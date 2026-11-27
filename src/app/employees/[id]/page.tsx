@@ -1328,7 +1328,7 @@ export default function EmployeeDetailPage() {
 
       {/* Success/Error Message */}
       {message && (
-        <div className={`fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg ${
+        <div className={`fixed top-20 right-4 z-50 p-4 rounded-lg shadow-lg ${
           message.type === 'success' 
             ? 'bg-green-100 border border-green-400 text-green-700 dark:bg-green-900 dark:border-green-600 dark:text-green-200' 
             : 'bg-red-100 border border-red-400 text-red-700 dark:bg-red-900 dark:border-red-600 dark:text-red-200'

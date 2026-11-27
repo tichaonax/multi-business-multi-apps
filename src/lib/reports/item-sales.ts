@@ -25,6 +25,9 @@ export interface ItemSalesRow {
   restockNeeded: boolean
   /** MBM-345: thumbnail where the product / inventory item has an image */
   imageUrl: string | null
+  /** The id the inventory page knows it by (a product id, or "inv_<id>") — opens
+   *  its View Details; null for bales, bulk products and unlinked lines */
+  inventoryId: string | null
 }
 
 const DEFAULT_REORDER_LEVEL = 10
@@ -53,9 +56,9 @@ export async function buildItemSales(orders: any[], businessId: string): Promise
 
   const refs = (kind: string) => [...rows.values()].filter(r => r.kind === kind).map(r => r.ref as string)
   const [variants, invById, invBySku, bales, bulks] = await Promise.all([
-    refs('variant').length ? prisma.productVariants.findMany({ where: { id: { in: refs('variant') } }, select: { id: true, stockQuantity: true, reorderLevel: true, business_products: { select: { productType: true } } } }) : [],
+    refs('variant').length ? prisma.productVariants.findMany({ where: { id: { in: refs('variant') } }, select: { id: true, productId: true, stockQuantity: true, reorderLevel: true, business_products: { select: { productType: true } } } }) : [],
     refs('inventory').length ? prisma.barcodeInventoryItems.findMany({ where: { id: { in: refs('inventory') } }, select: { id: true, stockQuantity: true, reorderLevel: true } }) : [],
-    refs('inventorySku').length ? prisma.barcodeInventoryItems.findMany({ where: { businessId, sku: { in: refs('inventorySku') } }, select: { sku: true, stockQuantity: true, reorderLevel: true } }) : [],
+    refs('inventorySku').length ? prisma.barcodeInventoryItems.findMany({ where: { businessId, sku: { in: refs('inventorySku') } }, select: { id: true, sku: true, stockQuantity: true, reorderLevel: true } }) : [],
     refs('bale').length ? prisma.clothingBales.findMany({ where: { id: { in: refs('bale') } }, select: { id: true, remainingCount: true } }) : [],
     refs('bulk').length ? prisma.customBulkProducts.findMany({ where: { id: { in: refs('bulk') } }, select: { id: true, remainingCount: true } }) : [],
   ])
@@ -73,6 +76,17 @@ export async function buildItemSales(orders: any[], businessId: string): Promise
     }
     if (r.kind === 'bale') { const b = (bales as any[]).find(x => x.id === r.ref); return b ? { stock: b.remainingCount, level: null } : null }
     if (r.kind === 'bulk') { const b = (bulks as any[]).find(x => x.id === r.ref); return b ? { stock: b.remainingCount, level: null } : null }
+    return null
+  }
+
+  // The inventory page's id for a row: the product, or "inv_<id>" for an inventory item
+  const inventoryIdOf = (r: Acc): string | null => {
+    if (r.kind === 'variant') return (variants as any[]).find(x => x.id === r.ref)?.productId ?? null
+    if (r.kind === 'inventory') return r.ref ? `inv_${r.ref}` : null
+    if (r.kind === 'inventorySku') {
+      const m = (invBySku as any[]).filter(x => x.sku === r.ref)
+      return m.length === 1 ? `inv_${m[0].id}` : null
+    }
     return null
   }
 
@@ -100,6 +114,7 @@ export async function buildItemSales(orders: any[], businessId: string): Promise
         reorderLevel: level,
         restockNeeded: !!s && level !== null && s.stock <= level,
         imageUrl: thumbOf.get(r.key) ?? null,
+        inventoryId: inventoryIdOf(r),
       }
     })
     .sort((a, b) => b.total - a.total)

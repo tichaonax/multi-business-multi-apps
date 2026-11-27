@@ -1,3 +1,4 @@
+import { vehicleLinesMissingDetails } from '@/lib/vehicles/vehicle-expense-types'
 import { NextRequest, NextResponse } from 'next/server'
 import { isVehicleExpenseType } from '@/lib/vehicles/vehicle-expense-types'
 import { prisma } from '@/lib/prisma'
@@ -113,6 +114,13 @@ export async function POST(
     if (linkError) return NextResponse.json({ error: linkError }, { status: 400 })
 
     const isSubmitting = status === 'SUBMITTED'
+    // MBM-347: a Vehicle expense must say which vehicle and what kind of cost
+    if (isSubmitting) {
+      const missingVehicle = await vehicleLinesMissingDetails(prisma, (sections as any[]).flatMap((s: any) => s.items || []))
+      if (missingVehicle.length > 0) {
+        return NextResponse.json({ error: `Choose the vehicle and the kind of cost for ${missingVehicle.map(d => `"${d}"`).join(', ')} — it is a Vehicle expense` }, { status: 400 })
+      }
+    }
     const now = new Date()
 
     // MBM-333: business-loan fields (target business + receiving account)

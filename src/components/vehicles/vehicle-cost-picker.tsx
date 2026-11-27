@@ -6,6 +6,9 @@
 // Management (on approval / when recorded). No vehicle = not a vehicle cost.
 import { useEffect, useState } from 'react'
 import { VEHICLE_EXPENSE_TYPES } from '@/lib/vehicles/vehicle-expense-types'
+import { SearchableSelect } from '@/components/ui/searchable-select'
+
+export { VEHICLE_DOMAIN_ID } from '@/lib/vehicles/vehicle-expense-types'
 
 interface VehicleOption { id: string; label: string }
 
@@ -40,12 +43,14 @@ const LICENSE_TYPES = [
   { value: 'INSPECTION', label: 'Inspection' },
 ]
 
-export function VehicleCostPicker({ value, onChange, disabled, compact }: {
+export function VehicleCostPicker({ value, onChange, disabled, compact, required }: {
   value: VehicleCost
   onChange: (v: VehicleCost) => void
   disabled?: boolean
   /** One line, small (a request line) */
   compact?: boolean
+  /** MBM-347: a Vehicle-category line — the vehicle and the kind of cost must be chosen */
+  required?: boolean
 }) {
   const [vehicles, setVehicles] = useState<VehicleOption[]>([])
   useEffect(() => { loadVehicles().then(setVehicles) }, [])
@@ -58,16 +63,33 @@ export function VehicleCostPicker({ value, onChange, disabled, compact }: {
   return (
     <div className={`flex flex-wrap items-center gap-2 ${compact ? '' : 'mt-1'}`}>
       <span className={small}>🚗 Vehicle</span>
-      <select className={cls} value={vehicleId || ''} disabled={disabled}
-        onChange={e => e.target.value ? set({ vehicleId: e.target.value, vehicleExpenseType: expenseType || 'FUEL' }) : onChange(NO_VEHICLE_COST)}>
-        <option value="">Not a vehicle cost</option>
-        {vehicles.map(v => <option key={v.id} value={v.id}>{v.label}</option>)}
-      </select>
-      {vehicleId && (
-        <select className={cls} value={expenseType || 'FUEL'} disabled={disabled}
-          onChange={e => set({ vehicleExpenseType: e.target.value, ...(e.target.value === 'LICENSING' || e.target.value === 'INSURANCE' ? {} : { vehicleLicenseType: null, vehicleLicenseExpiry: null }) })}>
-          {VEHICLE_EXPENSE_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-        </select>
+      {/* MBM-347: searchable — type part of the plate or the make */}
+      <div className={compact ? 'min-w-[14rem]' : 'min-w-[16rem]'}>
+        <SearchableSelect
+          options={vehicles.map(v => ({ value: v.id, label: v.label }))}
+          value={vehicleId || ''}
+          onChange={id => id ? set({ vehicleId: id, vehicleExpenseType: expenseType || (required ? '' : 'FUEL') || null }) : onChange(NO_VEHICLE_COST)}
+          placeholder={required ? 'Choose the vehicle…' : 'Not a vehicle cost'}
+          searchPlaceholder="Search plate, make, model…"
+          allLabel="Not a vehicle cost"
+          required={required}
+          disabled={disabled}
+          error={required && !vehicleId ? 'Vehicle required' : undefined}
+        />
+      </div>
+      {(vehicleId || required) && (
+        <div className={compact ? 'min-w-[11rem]' : 'min-w-[12rem]'}>
+          <SearchableSelect
+            options={VEHICLE_EXPENSE_TYPES.map(t => ({ value: t.value, label: t.label }))}
+            value={expenseType || ''}
+            onChange={t => set({ vehicleExpenseType: t || null, ...(t === 'LICENSING' || t === 'INSURANCE' ? {} : { vehicleLicenseType: null, vehicleLicenseExpiry: null }) })}
+            placeholder="Kind of cost…"
+            searchPlaceholder="Search…"
+            required
+            disabled={disabled || !vehicleId}
+            error={required && vehicleId && !expenseType ? 'Kind of cost required' : undefined}
+          />
+        </div>
       )}
       {vehicleId && expenseType === 'LICENSING' && (
         <select className={cls} value={value.vehicleLicenseType || ''} disabled={disabled}
