@@ -212,6 +212,10 @@ export function CardScanOverlay() {
       // For fresh clock-ins — keep open so user can respond to login prompt
       if (data.found && data.clockedIn) return
 
+      // Already clocked in today (e.g. signed out or was signed out by a
+      // manager) — no second clock-in, but they can sign back in
+      if (data.found && data.alreadyClockedIn && data.canLogin) return
+
       // For exempt users who can login — keep open for the login dialog
       if (data.found && data.isExempt && data.canLogin) return
 
@@ -260,13 +264,14 @@ export function CardScanOverlay() {
   useEffect(() => {
     if (
       (scanResult?.found && scanResult.clockedIn) ||
+      (scanResult?.found && scanResult.alreadyClockedIn && scanResult.canLogin) ||
       (scanResult?.found && scanResult.isManagement && scanResult.canLogin) ||
       (scanResult?.found && scanResult.isExempt && scanResult.canLogin)
     ) {
       startCamera()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scanResult?.clockedIn, scanResult?.isManagement, scanResult?.isExempt, scanResult?.canLogin])
+  }, [scanResult?.clockedIn, scanResult?.alreadyClockedIn, scanResult?.isManagement, scanResult?.isExempt, scanResult?.canLogin])
 
   // Re-assign stream once cameraActive flips true and the <video> element is in the DOM
   useEffect(() => {
@@ -329,8 +334,9 @@ export function CardScanOverlay() {
     const isNewClockIn = !!scanResult.clockedIn
     const isManagementWithLogin = !!scanResult.isManagement && !!scanResult.canLogin
     const isExemptWithLogin = !!scanResult.isExempt && !!scanResult.canLogin
-    const showCameraSection = isNewClockIn || isManagementWithLogin || isExemptWithLogin
-    const showLoginPrompt = (isNewClockIn || isManagementWithLogin || isExemptWithLogin) && scanResult.canLogin
+    const isReturnWithLogin = !!scanResult.alreadyClockedIn && !!scanResult.canLogin
+    const showCameraSection = isNewClockIn || isManagementWithLogin || isExemptWithLogin || isReturnWithLogin
+    const showLoginPrompt = (isNewClockIn || isManagementWithLogin || isExemptWithLogin || isReturnWithLogin) && scanResult.canLogin
 
     const clockMsg = scanResult.isManagement
       ? 'Management — no clock-in required'
@@ -391,7 +397,7 @@ export function CardScanOverlay() {
             <div className="flex gap-2">
               <button onClick={handleLoginNo} disabled={isLoggingIn}
                 className="flex-1 py-2 text-sm border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
-                {isManagementWithLogin || isExemptWithLogin ? 'No, just scan' : 'No, just clock in'}
+                {isReturnWithLogin ? 'No, close' : isManagementWithLogin || isExemptWithLogin ? 'No, just scan' : 'No, just clock in'}
               </button>
               <button
                 onClick={() => handleLoginYes(scanResult.employee!.employeeNumber)}
@@ -404,7 +410,7 @@ export function CardScanOverlay() {
         )}
 
         {/* Dismiss for non-interactive results */}
-        {!isNewClockIn && !isManagementWithLogin && !isExemptWithLogin && (
+        {!isNewClockIn && !isManagementWithLogin && !isExemptWithLogin && !isReturnWithLogin && (
           <button onClick={dismiss}
             className="w-full py-2 text-xs text-gray-400 hover:text-gray-600 border border-gray-200 rounded-lg">
             Dismiss

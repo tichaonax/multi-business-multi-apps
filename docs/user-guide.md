@@ -274,6 +274,20 @@
     - [Pictures in Sales and Receipts](#pictures-in-sales-and-receipts)
     - [Saved Reports History Fits the Screen](#saved-reports-history-fits-the-screen)
     - ["← Back" Goes Where You Came From](#-back-goes-where-you-came-from)
+76. [Signed-in Users — Sign People Out, Suspend a User](#76-signed-in-users--sign-people-out-suspend-a-user)
+    - [Who Is Signed In](#who-is-signed-in)
+    - [Signing Someone Out (with a Message)](#signing-someone-out-with-a-message)
+    - [Suspending a User](#suspending-a-user)
+    - [What the Signed-Out User Sees](#what-the-signed-out-user-sees)
+77. [Tills Check Prices Before Payment](#77-tills-check-prices-before-payment)
+78. [POS App Updates & the R710 Agent](#78-pos-app-updates--the-r710-agent)
+    - [The "Update required" Screen](#the-update-required-screen)
+    - [Updating a Till (Update now)](#updating-a-till-update-now)
+    - [First Install on a Till (Administrator, Once)](#first-install-on-a-till-administrator-once)
+    - [The R710 Agent Comes With the POS App](#the-r710-agent-comes-with-the-pos-app)
+    - [Continue for Now (Admin PIN)](#continue-for-now-admin-pin)
+    - [Shortcuts](#shortcuts)
+    - [Troubleshooting Updates](#troubleshooting-updates)
 
 ---
 
@@ -2816,6 +2830,14 @@ Your manager will give you a personal barcode card with your name and photo. To 
 
 > **You do not need to log in to use your scan card.** Just scan and go.
 
+**Scanning on the sign-in screen:**
+
+- **First scan of the day:** clocks you in and asks *"Would you like to log into the system?"*.
+- **Scanning again while you are clocked in** (e.g. after you signed out, or a manager signed you out): shows *"Already clocked in at …"* and **Yes, log in** / **No, close**. It does **not** clock you in a second time; your first clock-in stays.
+- **After you have clocked out for the day:** shows *"Already clocked out today"*.
+
+**Scanning your own card while you are signed in** clocks you out for the day **and signs you out**, however you signed in (card or password). A manager scanning *someone else's* card clocks that person out but stays signed in.
+
 #### Without a Scan Card
 
 1. Go to **Employees → Clock-In** (or ask your manager for the link).
@@ -4768,6 +4790,8 @@ To fix, on the **application server** (not the workstation), follow the exact `m
 
 1. Restart the server so it picks up the corrected certificate files.
 2. **Revoke that pairing and re-pair it** — this is the step that's easy to miss. Just restarting the agent is not enough: the bad or missing certificate is already saved in the agent's own pairing file, and only a fresh pairing hands it a corrected one. Re-pairing does not require downloading the agent again (see the Revoke Pairing note above).
+
+> **Tills with the POS app (1.0.38 or later):** the agent comes with the POS app and is updated with it. There is no separate download on those tills. See **Section 78**. The steps below are for PCs that run the agent on its own.
 
 **Updating the agent to a newer version:** the Agent panel automatically compares the connected workstation's reported version against the latest one available and shows an **⚠️ Update available** banner when they differ, with a direct download link. To update:
 1. Click the **Download the latest r710-agent.zip** link in the banner (same link as the original install).
@@ -15579,3 +15603,198 @@ The back button on report pages no longer always says **Back to POS**. It return
 
 - Going back repeatedly retraces your steps, e.g. a saved report → Saved Reports → Reports → POS.
 - If you opened the report directly (a bookmark or a new tab), it says **Back to POS**.
+
+---
+
+## 76. Signed-in Users — Sign People Out, Suspend a User
+
+> **Who reads this:** System admins, business owners and managers.
+
+**Admin → 🔐 Signed-in Users** (`/admin/user-sessions`) shows who is signed in, on which workstation, and lets you sign them out, with a message they see on their screen.
+
+**Who can use it:**
+
+| You are | You can act on |
+|---|---|
+| **System admin** | Everyone except yourself. Other admins can be signed out but **not suspended**. |
+| **Business owner / manager** | Users in **your own businesses** only, never admins, other owners/managers, or yourself. |
+
+Every action is recorded in the audit log: who did it, to whom, and the message.
+
+---
+
+### Who Is Signed In
+
+The page has three tabs:
+
+- **Signed in now:** one line per session, grouped by user, so someone signed in on 3 workstations shows 3 lines. Each line shows:
+  - the workstation: the computer name on POS app 1.0.37 or later, otherwise the IP address and browser;
+  - when they signed in, when they were last active, and how long ago;
+  - **"This session"** marks your own.
+- **Suspended:** suspended users, with when, by whom and why. **Lift suspension** is here, and so is **Suspend a user…** for anyone, signed in or not.
+- **History:** the last 200 sessions that ended, and how: signed out, signed out by *name*, suspended, or expired (8 hours without activity).
+
+The page refreshes itself every 20 seconds. Use the search box to find a person.
+
+---
+
+### Signing Someone Out (with a Message)
+
+- **One or more sessions:** tick them → **Sign out selected**.
+- **A person on every workstation:** **Sign out everywhere** on that person.
+- **Everyone (except you):** **Sign out everyone** at the top, e.g. before maintenance.
+
+Each asks for:
+
+1. **A message**, e.g. *"We are deploying software, please wrap up in two minutes."*
+2. **When:** **Now**, **30 s**, **1 min** (default) or **2 min**. A countdown lets a cashier finish the sale in progress.
+
+---
+
+### Suspending a User
+
+For an individual only, e.g. a dismissed employee or someone who must not use the system for now.
+
+1. Click **Suspend…** on the person (or **Suspend a user…** on the Suspended tab).
+2. Enter the **reason** (required; only managers see it) and the **message** they will see.
+3. They are signed out **at once on every workstation**, and **can't sign in again**, by password or by card, until the suspension is lifted.
+
+To undo it: **Suspended** tab → **Lift suspension**. Their account is exactly as it was before.
+
+> A suspension is separate from deactivating an account. A **deactivated** user is now also signed out on their next click, instead of keeping their session until it expires.
+
+---
+
+### What the Signed-Out User Sees
+
+- **A full-screen message** with the manager's text and a countdown: *"Signing out in 60 s"*.
+- **OK** shrinks it to a small amber pill just under the header, so they can finish what they are doing. The header stays usable, and clicking the pill shows the full message again.
+- **At zero** they are signed out, and the sign-in page repeats the message.
+- **Suspended:** the message has no countdown and no OK. Signing in says *"Your account is suspended. Contact your manager."*
+
+> If the till is offline when it happens, it still signs out within about 30 seconds of reconnecting, and any action it tries is refused.
+
+**Card sign-in after being signed out:** an employee who is already clocked in for the day can scan their card to sign back in. The card shows **"Already clocked in at …"** and **Yes, log in**, and their morning clock-in stays as it is. See Section 6.
+
+---
+
+## 77. Tills Check Prices Before Payment
+
+> **Who reads this:** Cashiers and managers.
+
+When a price is changed (e.g. $4.50 → $4.70) while a till already has the item in its cart, the till used to charge the old price until the page was refreshed.
+
+Now every till checks the cart against the current prices when you press **Pay / Proceed to Payment**: grocery, restaurant, clothing, hardware and the universal POS.
+
+- **All prices current:** payment opens as normal.
+- **A price changed:** a **"Prices have changed"** message lists each item, old → new. The cart is updated to the new prices. Check the new total with the customer, then press Pay again.
+- Promotions are included: the price checked is the price the customer would pay now.
+- **Not checked:** items whose price is set at the till, i.e. WiFi tokens, weighed items, custom bulk, restaurant specials and add-ons, combos and samples.
+
+The grocery till also refreshes its prices quietly every minute and whenever you come back to the window.
+
+> To see **who** changed a price and **when**, use the **Price Change Report** (Section 63).
+
+---
+
+## 78. POS App Updates & the R710 Agent
+
+> **Who reads this:** Everyone who uses a till with the POS app (the desktop app), and administrators who set tills up.
+
+A till must run the same POS app version as its server. The **R710 agent**, needed for remote printing and R710 WiFi tokens, now **comes with the POS app**, so one update keeps both in step.
+
+---
+
+### The "Update required" Screen
+
+The POS app covers the screen with **Update required** while:
+
+- the **POS app** is older than the server's, or
+- the **R710 agent** isn't running on this PC, or is older than the server's.
+
+It shows this till's versions next to the server's, with the one that's behind in red.
+
+- **At start-up or sign-in** it shows at once.
+- **In the middle of work** (e.g. the server was updated during a sale), a red bar appears first: *"Update required: finish what you are doing, then click here"*. The full screen comes on the next page change or after 2 minutes without input.
+- **"Getting this till ready":** the agent takes a few seconds to start after the POS app opens. For up to 45 seconds you see a spinner, *"Starting the R710 agent, please wait…"*, and it clears by itself. Only if it still isn't running after that do you get the **Start the R710 agent** button.
+- **Not shown** when this till is *ahead* of the server (the server needs updating, not the till), or when the server has no installer to give.
+- **In Chrome or Edge on a PC** (not the POS app) nothing is blocked, but a warning appears when the agent isn't running or is out of date, because remote printing won't work there. Phones and tablets are never checked.
+
+---
+
+### Updating a Till (Update now)
+
+1. Click **Update now**.
+2. **The POS app closes while it updates and reopens by itself in about a minute.** Please be patient and don't reopen it yourself.
+3. While it installs, a small window says **"Updating the POS app… It will reopen by itself"**, with its progress.
+4. The app reopens on the new version and starts the agent.
+
+**No Windows prompt, for any user:** once a till has been set up by an administrator (below), Update now needs no administrator password, even for a standard Windows user. A locked Windows task, **MBM POS Updater**, does the install.
+- It only installs from the server the administrator set up.
+- It checks the download's fingerprint (SHA-256) before installing.
+- Nobody but an administrator can change it.
+
+**Until then** (or if that updater fails), Update now downloads the installer and Windows asks for permission:
+- an administrator clicks **Yes**;
+- anyone else needs an administrator to type their password.
+
+That install also sets up the no-prompt updater for next time.
+
+---
+
+### First Install on a Till (Administrator, Once)
+
+POS app **1.0.37 or older** can't update itself. Those tills show **Download the POS app** instead of Update now.
+
+> **Before deploying a server with this change, install POS app 1.0.38 or later on every till.** Otherwise those tills are locked out until an administrator installs it.
+
+As administrator on the till, either:
+
+- run `deploy\workstation\install-pos.ps1 -Server https://<server>:8080` (add `-StartAtLogin` to start the app whenever someone signs in to Windows); or
+- click **Download the POS app**, run the installer and approve the Windows prompt.
+
+Either way also sets up the **MBM POS Updater** for that server. From then on, updates are one click for anyone.
+
+---
+
+### The R710 Agent Comes With the POS App
+
+- The agent is installed with the POS app, in `C:\Program Files\Multi-Business POS\resources\agent\`. There is nothing to download or unzip separately on a till any more.
+- **Starting the POS app starts the agent.** If an older, separately unzipped agent is running, it is replaced, and the agent's **Start with Windows** setting is pointed at the new one.
+- Updating the POS app updates the agent.
+- The agent runs hidden: no black console windows should appear. If some flash every so often, the till has an old POS app; update it.
+
+The separate `r710-agent.zip` download (Section 13) is still there for PCs that don't use the POS app.
+
+---
+
+### Continue for Now (Admin PIN)
+
+If an update can't be done right now (e.g. it fails, or the server is unreachable), click **Continue for now (admin PIN)** at the bottom of the screen. Enter the POS app's admin PIN, the same one used to add or remove servers.
+
+- This lets **this session only** through. The screen comes back after the app is reopened.
+- Not available on POS app 1.0.37 or older.
+
+---
+
+### Shortcuts
+
+The POS app installs a **desktop shortcut** and a **Start menu** entry for all users. If someone deletes one, the next update puts it back.
+
+**Taskbar:** Windows doesn't let an installer pin apps to the taskbar. Each user can do it once: right-click the desktop shortcut → **Pin to taskbar** (on Windows 11 it may be under **Show more options**).
+
+---
+
+### Troubleshooting Updates
+
+| What you see | What to do |
+|---|---|
+| An error under **Update now** | It shows the reason. The app tries the Windows prompt next; if that's not possible, ask an administrator. |
+| The app closed and didn't reopen after ~2 minutes | Open it from the desktop shortcut. Then tell the administrator. |
+| **"R710 agent: not running"** after 45 seconds | Click **Start the R710 agent**. If it still fails, reopen the POS app. |
+
+**For administrators,** the updater's log is in `C:\ProgramData\MBM POS\`:
+
+- `updater.log`: every check, download and install, and every setup.
+- `update-status.json`: the last result.
+- `updater.json`: the server it updates from, and its pinned certificate.

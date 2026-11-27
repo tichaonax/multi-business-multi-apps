@@ -10,6 +10,7 @@ All detailed project plans live in `ai-contexts/project-plans/`.
 
 | ID | Title | File | Status |
 |----|-------|------|--------|
+| MBM-352 | Tills must match the server: Update required screen; POS app bundles + starts the R710 agent; "Update now" (no-password SYSTEM updater task) | [view](ai-contexts/project-plans/review/projectplan-MBM-352-pos-app-update-button-2026-11-27.md) | ✅ DONE (tested on workstation; POS app 1.0.45) |
 | MBM-351 | Signed-in Users screen; managers/admins sign users out (with on-screen message + countdown); suspend an individual user until lifted | [view](ai-contexts/project-plans/review/projectplan-MBM-351-signed-in-users-force-logout-suspend-2026-11-27.md) | ✅ CODE DONE (not yet tested; POS app 1.0.37 built) |
 | MBM-350 | Tills (all businesses) charged old prices until refresh; left nav closed its section on every page change; Price Change Report missed some changes; hardware/restaurant Products pages empty | [view](ai-contexts/project-plans/review/projectplan-MBM-350-stale-pos-prices-sidebar-state-price-report-gaps-2026-11-27.md) | ✅ CODE DONE (not yet checked in browser) |
 | MBM-349 | Grocery Products page was an empty placeholder; now opens Inventory → Inventory Items | [view](ai-contexts/project-plans/review/projectplan-MBM-349-grocery-products-page-empty-2026-11-27.md) | ✅ CODE DONE (not yet checked in browser) |

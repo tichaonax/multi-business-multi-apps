@@ -91,8 +91,19 @@ export function SessionEndWatcher() {
 
   if (minimised && secondsLeft > 0 && !suspended) {
     return (
-      <div className="fixed top-0 inset-x-0 z-[10000] bg-amber-500 text-black text-sm font-semibold px-4 py-2 text-center shadow-lg" role="status">
-        🔒 Signing out in {secondsLeft} s{ending.message ? ` — ${ending.message}` : ''}
+      // A small pill just under the header (h-14 / sm:h-16) so the header's
+      // links stay clickable; it only covers a little of the page's top centre.
+      // Clicking it shows the full message again.
+      <div className="fixed top-14 sm:top-16 inset-x-0 z-[10000] flex justify-center px-4 pointer-events-none mt-1">
+        <button
+          type="button"
+          onClick={() => setMinimised(false)}
+          title={ending.message ?? undefined}
+          className="pointer-events-auto max-w-full truncate rounded-full bg-amber-500 hover:bg-amber-400 text-black text-xs sm:text-sm font-semibold px-4 py-1 shadow-lg"
+          role="status"
+        >
+          🔒 Signing out in {secondsLeft} s{ending.message ? ` — ${ending.message}` : ''}
+        </button>
       </div>
     )
   }

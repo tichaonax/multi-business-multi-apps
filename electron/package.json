@@ -1,6 +1,6 @@
 {
   "name": "multi-business-pos-electron",
-  "version": "1.0.37",
+  "version": "1.0.45",
   "description": "Electron wrapper for Multi-Business POS with automatic dual-monitor support",
   "main": "main.js",
   "author": "Multi-Business POS",
@@ -37,7 +37,14 @@
       "scale-service.js",
       "server-registry.js",
       "connection-test.js",
+      "updater.js",
       "renderer/**/*"
+    ],
+    "extraResources": [
+      { "from": "../agent/r710-local-agent/dist", "to": "agent", "filter": ["r710-agent.exe", "Stop R710 Agent.bat"] },
+      { "from": "../agent/r710-local-agent/dist/node_modules", "to": "agent/node_modules", "filter": ["**/*"] },
+      { "from": "../agent/r710-local-agent/package.json", "to": "agent/package.json" },
+      { "from": "updater", "to": "updater" }
     ],
     "win": {
       "target": "nsis",

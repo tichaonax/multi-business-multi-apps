@@ -23,6 +23,17 @@ contextBridge.exposeInMainWorld('electron', {
 
   getAppVersion: () => ipcRenderer.invoke('app:getVersion'),
 
+  // MBM-352 — Update required screen (POS app 1.0.38+)
+  installUpdate: () => ipcRenderer.invoke('update:install'),
+  onUpdateProgress: (callback) => {
+    const handler = (_e, data) => callback(data)
+    ipcRenderer.on('update:progress', handler)
+    return () => ipcRenderer.removeListener('update:progress', handler)
+  },
+  getBundledAgentVersion: () => ipcRenderer.invoke('agent:bundledVersion'),
+  ensureAgent: () => ipcRenderer.invoke('agent:ensure'),
+  verifyPin: (pin) => ipcRenderer.invoke('pin:verify', pin),
+
   // Clears this window's session HTTP cache and force-reloads bypassing it --
   // fixes the server-bundle-went-stale-in-Electron's-own-cache problem (see
   // main.js), independent of the Electron shell's own installer version.

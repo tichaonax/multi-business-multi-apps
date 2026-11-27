@@ -47,6 +47,12 @@ export interface ElectronAPI {
   getActiveServer: () => Promise<ActiveServer | null>
   getAppVersion: () => Promise<string>
   clearCacheAndReload: () => Promise<void>
+  // MBM-352 — POS app 1.0.38+ only
+  installUpdate?: () => Promise<{ ok: boolean; error?: string; message?: string }>
+  onUpdateProgress?: (callback: (data: { phase: string; percent?: number; message: string }) => void) => () => void
+  getBundledAgentVersion?: () => Promise<string | null>
+  ensureAgent?: () => Promise<void>
+  verifyPin?: (pin: string) => Promise<boolean>
   getDefaultBusiness: () => Promise<DefaultBusiness | null>
   setDefaultBusiness: (pin: string, businessId: string, businessLabel: string) => Promise<SetDefaultBusinessResult>
   hasPin: () => Promise<boolean>

@@ -19,6 +19,7 @@ const path = require('path')
 const scaleService = require('./scale-service')
 const registry = require('./server-registry')
 const { testConnection } = require('./connection-test')
+const updater = require('./updater') // MBM-352
 
 // ─── EPIPE protection ───────────────────────────────────────────────────────
 // Wrap console output in try-catch so a USB unplug (which closes stdout/stderr)
@@ -634,6 +635,21 @@ ipcMain.handle('servers:getActive', () => (activeServerId ? registry.get(activeS
 // the same way the r710-agent update check reads its own).
 ipcMain.handle('app:getVersion', () => app.getVersion())
 
+// MBM-352 — the Update required screen. "Update now" installs the server's
+// POS app (which carries the R710 agent); see updater.js.
+ipcMain.handle('update:install', (event) => {
+  const entry = activeServerId ? registry.get(activeServerId) : null
+  const serverSession = entry ? electronSession.fromPartition(partitionNameFor(entry.id), { cache: true }) : null
+  const progress = (p) => { try { event.sender.send('update:progress', p) } catch (_) {} }
+  return updater.installUpdate(entry, serverSession, progress)
+})
+// The agent bundled with this POS app, and (re)starting it when it's missing
+// or a different version is running.
+ipcMain.handle('agent:bundledVersion', () => updater.bundledAgentVersion())
+ipcMain.handle('agent:ensure', () => updater.ensureAgent())
+// "Continue for now (admin PIN)" on the Update required screen.
+ipcMain.handle('pin:verify', (_e, pin) => registry.hasPin() && registry.verifyPin(String(pin || '')))
+
 ipcMain.handle('servers:getOpenContext', () => {
   const ctx = pendingOpenContext
   pendingOpenContext = null
@@ -821,6 +837,9 @@ app.whenReady().then(() => {
     console.warn('[App] Could not add workstation name to User-Agent:', e && e.message)
   }
   buildMenu()
+
+  // MBM-352: starting the POS app starts its bundled R710 agent.
+  updater.ensureAgent()
 
   const lastUsed = registry.getLastUsed()
   if (lastUsed) {

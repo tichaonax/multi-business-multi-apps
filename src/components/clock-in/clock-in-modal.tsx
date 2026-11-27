@@ -204,13 +204,10 @@ export function ClockInModal({ isOpen, onClose, employee, clockState, attendance
 
       const now = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
 
-      // Only sign out after clock-out if this is the logged-in user's own card.
-      // kioskLogin alone is not enough — an admin can manage other employees' clock-outs
-      // on a kiosk session without signing themselves out.
-      const shouldSignOut =
-        action === 'clockOut' &&
-        isOwnCard &&
-        sessionStorage.getItem('kioskLogin') === 'true'
+      // Sign out after clock-out when it's the logged-in user's own card, however
+      // they signed in (card or password). Someone else's card (a manager
+      // clocking an employee out) never signs the manager out.
+      const shouldSignOut = action === 'clockOut' && !!isOwnCard
 
       if (shouldSignOut) {
         sessionStorage.removeItem('kioskLogin')

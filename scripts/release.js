@@ -130,6 +130,11 @@ try {
   // 2b. The POS app (Electron) installer, from the same commit. The server
   // serves it at /api/public/electron/download; tills install it with
   // deploy/workstation/install-pos.ps1. Its node_modules aren't shipped.
+  // MBM-352: the POS app carries the R710 agent (electron/package.json →
+  // extraResources), so the agent must have built above
+  if (!fs.existsSync(path.join(work, 'agent', 'r710-local-agent', 'dist', 'r710-agent.exe'))) {
+    throw new Error('the R710 agent did not build (agent/r710-local-agent/dist/r710-agent.exe): the POS app installer needs it')
+  }
   const ew = path.join(work, 'electron')
   const epkg = JSON.parse(fs.readFileSync(path.join(ew, 'package.json'), 'utf8'))
   const eout = path.join(work, 'electron-build')

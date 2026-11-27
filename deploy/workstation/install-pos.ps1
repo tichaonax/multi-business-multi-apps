@@ -11,6 +11,14 @@
      closes the running app first and starts the new one).
   4. Says old -> new version.
 
+  The installer also sets up the "MBM POS Updater" task for this server
+  (MBM-352): from then on the POS app's "Update now" installs new versions
+  without a Windows prompt, for any user. The POS app carries the R710
+  agent, so this updates the agent too.
+
+  Before deploying a server with MBM-352, run this once on every till on POS
+  app 1.0.37 or older: those can't update themselves and would be blocked.
+
   -StartAtLogin: also start the POS app whenever anyone signs in to this
   machine (a shortcut in the all-users Startup folder). For a server whose
   screen is used as a till (e.g. prod; not MBM-SRV1). It also skips starting
@@ -67,6 +75,9 @@ Ok ("$($info.file), SHA-256 checked")
 
 Step "Install"
 $installArgs = if ($StartAtLogin) { @('/S') } else { @('/S', '--force-run') }
+# MBM-352: the installer also sets up the "MBM POS Updater" task for this
+# server, so the till can update itself from the POS app afterwards (no admin)
+$installArgs += "--mbm-server=$Server"
 $p = Start-Process $file -ArgumentList $installArgs -Wait -PassThru
 Remove-Item $file -Force -ErrorAction SilentlyContinue
 if ($p.ExitCode -ne 0) { Halt "the installer exited with $($p.ExitCode)" }
