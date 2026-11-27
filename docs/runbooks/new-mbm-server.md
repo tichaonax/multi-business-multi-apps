@@ -214,6 +214,12 @@ powershell -ExecutionPolicy Bypass -File C:\MBM\setup\install-release.ps1
 Backup first → switch (previous kept) → migrations → start → "the server
 answers <version>". Something wrong: `rollback-release.ps1`.
 
+`deploy.ps1` does all this for you. Since MBM-348 it runs `install-release.ps1`
+(and any rollback) as a one-off scheduled task on the server (`MBM deploy`,
+SYSTEM), logging to `C:\MBM\logs\deploy-<time>.log`, and prints that log as
+it grows. A dropped SSH connection only pauses the watching; the install
+carries on. The task is removed when it ends; the log stays.
+
 A copy stopped half-way (or cut by a restart) can leave the partial zip
 locked on the server, and the next copy then fails: delete it after a
 restart, then copy again. `install-release.ps1` checks the SHA-256, so a
@@ -271,6 +277,72 @@ so the tills need nothing.
    signing key came along in `data\`, so nothing changes for FarmNet unless the
    server's address changed (then FarmNet registers the new address).
 6. Keep the old server switched off but intact for two weeks.
+
+### 8a. MBM-SRV1 replaces the current prod (USERABO-JM67FK6): checklist
+
+Written 2026-11-27 while MBM-SRV1 ships to Zimbabwe (plan MBM-348). SRV1
+already runs releases (`C:\MBM`) and holds a **trial** copy of prod's data
+and settings from 23 Nov. It is deploy target `srv1`. Today's prod runs
+releases too (converted 27 Nov), so both sides use the same scripts.
+
+**A. When it arrives: prod keeps running, no downtime**
+
+1. Plug it in, **wired** if possible. Tailscale up.
+   `.\deploy\deploy.ps1 -Status` must show srv1 answering.
+2. Its network must be **Private** (`Get-NetConnectionProfile`). Prod's Wi-Fi was
+   *Public*, and the 8080 firewall rule (Domain, Private) blocked the tills
+   until it was changed.
+3. Latest code, the same release prod runs:
+   `.\deploy\deploy.ps1 -Target srv1 -Release <prod's release>`
+4. Latest settings: copy prod's `C:\MBM\app\.env.local`, `certs\` and `data\`
+   to SRV1 (e.g. `C:\MBM\from-old`), then `04-configure.ps1 -From C:\MBM\from-old`.
+   The same ENCRYPTION_KEY, NEXTAUTH_SECRET and QZ keys, so encrypted fields,
+   sign-ins and printing carry over.
+5. **Rehearsal (recommended):**
+   - `backup-now.ps1` on prod (no downtime);
+   - restore it on SRV1 (steps B4–B5);
+   - compare the counts; sign in and try a sale on SRV1's own address.
+   - This times the real cut-over and finds problems while prod is still live.
+6. POS app on SRV1: `install-pos.ps1` **without** `-StartAtLogin` (no one uses
+   its screen). Prod's screen has it at sign-in.
+
+**B. Cut-over day: quiet hours, about 30–60 min down**
+
+1. Tell people: MBM is unavailable for about an hour.
+2. **Old prod:** stop the MBM service, then `C:\MBM\setup\backup-now.ps1`. This
+   is the final data; nothing may change on it after this.
+3. **Copy** that `.dump` + `.sha256` to SRV1's `C:\MBM\incoming\`.
+   - Server to server over the shop network is fast.
+   - Through the workstation it's ~106 MB at prod's ~140 KB/s, about 13 min.
+   - The SHA-256 must match.
+4. **SRV1:**
+   - stop its service;
+   - **empty its database** (only at the owner's word: the trial data is replaced);
+   - `restore.ps1 -Dump C:\MBM\incoming\<dump>`, then start it (only the newer migrations run).
+5. **Compare the counts** that `restore.ps1` shows with old prod. Copy
+   `public\uploads\` and `public\exports\` from old prod again.
+6. **Address:** the tills, printers and bookmarks must reach SRV1. Choose one:
+   - **(a) the same address (no till changes):**
+     - switch old prod off the network;
+     - give SRV1 **192.168.1.211** (router reservation);
+     - give SRV1 old prod's tailnet name (§10), so `userabo-jm67fk6.tail2cac9d.ts.net` keeps working.
+   - **(b) SRV1's own address:** repoint every till:
+     - `install-pos.ps1 -Server …` and `setup-printing.ps1 -Server …`;
+     - bookmarks;
+     - Farm Control's MBM address (§10 step 4).
+7. **Deploy targets** (`%USERPROFILE%\.mbm\deploy-targets.json`): srv1 gets
+   `production: true`; old prod is removed.
+8. **Check from a till:** sign-in, a sale, a receipt print, a payroll PDF.
+
+**C. Retiring the old server**
+
+1. Keep it **switched off but intact for two weeks**: it is the way back.
+2. Then a last `backup-now.ps1` for the archive, and wipe it.
+
+**Slow-line lessons from prod (27 Nov)**
+- **The copy:** the ~650 MB release zip took ~87 min.
+- **A dropped copy:** SSH dropped once during it. Stop the stale `mbm-ai` `sftp-server`/`sshd`, delete the locked `.part`, and copy again.
+- **A dropped install:** SSH also dropped mid-install and killed it after the switch. `deploy.ps1` now runs the install as a task on the server (MBM-348), so this can't happen again.
 
 ## 9. Converting an old server in place (a git checkout → `C:\MBM`)
 
@@ -355,3 +427,4 @@ The AI's SSH uses the tailnet address, which doesn't change.
 | 2026-11-23 | `bdfa2c68` | MBM-SRV1 | First update by `install-release.ps1`; rollback and forward tested |
 | 2026-11-23 | `bdfa2c68` | MBM-SRV1 | Production's data (backup of 20:53), settings and files; counts and image bytes equal |
 | 2026-11-23 | `bdfa2c68` | MBM-DEV1 (was desktop-4us91kl) | Converted in place from its git checkout (§9), by the AI as `mbm-ai`; same database (13 users). 2026-11-24: tailnet name too, now `mbm-dev1.tail2cac9d.ts.net` (Farm Control on it updated by the user) |
+| 2026-11-27 | `07df2647` | Prod (USERABO-JM67FK6, 192.168.1.211) | Converted in place from its git checkout (§9), by the AI as `mbm-ai`; same database (13 users); 5 migrations (MBM-339 to 347); about 7 min down. The ~650 MB copy took ~87 min on prod's line, and SSH dropped twice (the copy, then `05-install` mid-switch), so the rest ran as a scheduled task on the server. The Wi-Fi was a *Public* network, so the 8080 rule (Domain, Private) blocked the LAN until it was set to Private; before, an old allow rule for Node 20's `node.exe` had let it in. POS app 1.0.30 -> 1.0.36 with `install-pos.ps1 -StartAtLogin`. Old checkout kept as the way back |

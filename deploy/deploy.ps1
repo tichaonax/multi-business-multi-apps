@@ -10,7 +10,7 @@
 
   Build (npm run release, or reuse the zip already built for that commit) ->
   check the server -> copy (as .part, renamed when complete, SHA-256 checked)
-  -> install-release.ps1 over SSH (backup first, previous kept, migrations,
+  -> install-release.ps1 as a task on the server (backup first, previous kept, migrations,
   start, version check) -> check from here -> on failure, rollback-release.ps1
   at once -> summary (with the POS app: do the tills need it?).
 
@@ -73,18 +73,83 @@ function RemoteJson($t, $script) {
   if ($r.code -ne 0 -or -not $line) { return $null }
   try { return ($line | ConvertFrom-Json) } catch { return $null }
 }
-# Streams a server script's output, each line with the time since it started
-function RemoteStream($t, $command) {
+# MBM-348: runs a server script (install-release / rollback-release) as a
+# one-off scheduled task on the server (SYSTEM), so a dropped SSH connection
+# can't stop it half-way (2026-11-27: prod's SSH dropped after the switch,
+# before the migrations). Its output goes to C:\MBM\logs\deploy-<time>.log;
+# this reads that log every 10 s and prints it as it comes, each line with the
+# time since it started. If the connection drops, the watching pauses and
+# retries; the script carries on. Returns the script's exit code.
+$TaskName = 'MBM deploy'
+function RemoteTask($t, $file, $arguments) {
   $t0 = Get-Date
   $script:streamed = New-Object System.Collections.ArrayList
-  & ssh.exe @(SshArgs $t) "$($t.user)@$($t.host)" $command 2>&1 | ForEach-Object {
-    $l = "$_"
-    # an empty line on the server's error stream shows as this: not an error
-    if ($l -eq 'System.Management.Automation.RemoteException') { $l = '' }
-    [void]$script:streamed.Add([pscustomobject]@{ at = Get-Date; line = $l })
-    if ($l.Trim()) { Write-Host ("  [" + (Took $t0) + "] " + $l) }
+  $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+  $log = "C:\MBM\logs\deploy-$stamp.log"; $exitFile = "C:\MBM\logs\deploy-$stamp.exit"
+  # What the task runs: the script, every line appended to the log as it comes, then its exit code
+  $inner = @'
+$env:Path = '__NODE__;' + $env:Path
+& powershell -NoProfile -ExecutionPolicy Bypass -File '__FILE__' __ARGS__ 2>&1 | ForEach-Object { Add-Content -Path '__LOG__' -Value "$_" -Encoding UTF8 }
+Set-Content -Path '__EXIT__' -Value $LASTEXITCODE -Encoding ascii
+'@
+  $start = @'
+New-Item -ItemType Directory 'C:\MBM\logs' -Force | Out-Null
+$old = Get-ScheduledTask -TaskName '__TASK__' -ErrorAction SilentlyContinue
+if ($old -and $old.State -eq 'Running') { 'TASK-BUSY'; exit 3 }
+$node = Get-Command node -ErrorAction SilentlyContinue
+$inner = '__INNER__'.Replace('__NODE__', $(if ($node) { Split-Path $node.Source } else { '' }))
+$enc = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($inner))
+$a = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -ExecutionPolicy Bypass -EncodedCommand $enc"
+$p = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
+$s = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Hours 2) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
+Register-ScheduledTask -TaskName '__TASK__' -Action $a -Principal $p -Settings $s -Force | Out-Null
+Start-ScheduledTask -TaskName '__TASK__'
+'TASK-STARTED'
+'@
+  $inner = $inner.Replace('__FILE__', $file).Replace('__ARGS__', $arguments).Replace('__LOG__', $log).Replace('__EXIT__', $exitFile)
+  $start = $start.Replace('__TASK__', $TaskName).Replace('__INNER__', $inner.Replace("'", "''"))
+  $r = Remote $t $start
+  if ($r.out -contains 'TASK-BUSY') { Warn "another deploy's task is still running on the server ('$TaskName'): not started"; return 3 }
+  if ($r.code -ne 0 -or -not ($r.out -contains 'TASK-STARTED')) { $r.out | ForEach-Object { Info $_ }; Warn "could not start the task on the server"; return 2 }
+  Info "running on the server as the task '$TaskName' (log $log)"
+
+  # Watch the log until the exit code appears. The exit file is checked BEFORE
+  # the log is read, so once it's there the lines read are the last ones.
+  $seen = 0; $lost = $false; $noTask = 0
+  $deadline = (Get-Date).AddMinutes(125)   # the task itself stops at 2 hours
+  $poll = @'
+$done = if (Test-Path '__EXIT__') { (Get-Content '__EXIT__' -Raw).Trim() } else { $null }
+if (Test-Path '__LOG__') { Get-Content '__LOG__' -Encoding UTF8 | Select-Object -Skip __SEEN__ | ForEach-Object { 'L|' + $_ } }
+if ($null -ne $done) { 'EXIT|' + $done }
+'TASK|' + (Get-ScheduledTask -TaskName '__TASK__' -ErrorAction SilentlyContinue).State
+'@
+  $poll = $poll.Replace('__EXIT__', $exitFile).Replace('__LOG__', $log).Replace('__TASK__', $TaskName)
+  $code = $null
+  while ($true) {
+    $r = Remote $t $poll.Replace('__SEEN__', "$seen")
+    if ($r.code -ne 0) {
+      if (-not $lost) { Warn "lost the connection: the install carries on on the server; watching again when it's back"; $lost = $true }
+    } else {
+      if ($lost) { Ok "connection back"; $lost = $false }
+      foreach ($o in $r.out) {
+        if ($o.StartsWith('L|')) {
+          $l = $o.Substring(2); $seen++
+          if ($l -eq 'System.Management.Automation.RemoteException') { $l = '' }
+          [void]$script:streamed.Add([pscustomobject]@{ at = Get-Date; line = $l })
+          if ($l.Trim()) { Write-Host ("  [" + (Took $t0) + "] " + $l) }
+        }
+        elseif ($o.StartsWith('EXIT|')) { $code = [int]($o.Substring(5)) }
+        elseif ($o.StartsWith('TASK|')) { if ($o -ne 'TASK|Running') { $noTask++ } else { $noTask = 0 } }
+      }
+      if ($null -ne $code) { break }
+      # The task stopped without writing its exit code (killed, or the machine restarted)
+      if ($noTask -ge 3) { Warn "the task on the server stopped without finishing (see $log on the server)"; $code = 1; break }
+    }
+    if ((Get-Date) -gt $deadline) { Warn "no result after 2 hours: see $log on the server"; $code = 1; break }
+    Start-Sleep 10
   }
-  return $LASTEXITCODE
+  [void](Remote $t "Unregister-ScheduledTask -TaskName '$TaskName' -Confirm:`$false -ErrorAction SilentlyContinue")
+  return $code
 }
 $Probe = @'
 $r = @{}
@@ -195,7 +260,7 @@ if ($Rollback) {
   elseif (-not (Ask "Put the previous release back on $($t.name)?")) { exit 1 }
   Step "Rolling back"
   $r0 = Get-Date
-  $code = RemoteStream $t "powershell -NoProfile -ExecutionPolicy Bypass -File C:\MBM\setup\rollback-release.ps1"
+  $code = RemoteTask $t 'C:\MBM\setup\rollback-release.ps1' ''
   $after = Probe $t
   $nowName = if ($after -and $after.release) { $after.release.name } else { '?' }
   $result = if ($code -eq 0) { 'rolled back' } else { 'ROLLBACK FAILED' }
@@ -341,7 +406,7 @@ $Phases['copy'] = Took $c0
 # ---------------------------------------------------------------- install
 Step "Installing on $($t.name) (install-release.ps1: backup, switch, migrations, start)"
 $i0 = Get-Date
-$code = RemoteStream $t "powershell -NoProfile -ExecutionPolicy Bypass -File C:\MBM\setup\install-release.ps1 -Zip C:\MBM\incoming\$name.zip"
+$code = RemoteTask $t 'C:\MBM\setup\install-release.ps1' "-Zip C:\MBM\incoming\$name.zip"
 $installOut = @($script:streamed)
 $Phases['install'] = Took $i0
 $backup = $null
@@ -378,7 +443,7 @@ if ($code -ne 0) {
   if ($nowName -and $nowName -ne $before.release.name -and $before.release) {
     Step "The install failed after the switch: rolling back at once"
     $rb0 = Get-Date
-    $rbCode = RemoteStream $t "powershell -NoProfile -ExecutionPolicy Bypass -File C:\MBM\setup\rollback-release.ps1"
+    $rbCode = RemoteTask $t 'C:\MBM\setup\rollback-release.ps1' ''
     $Phases['rollback'] = Took $rb0
     $after = Probe $t
     $nowName = if ($after -and $after.release) { $after.release.name } else { '?' }
