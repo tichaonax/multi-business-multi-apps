@@ -34,7 +34,7 @@ function Read-Pem($text) {
 }
 # curl.exe uses Windows' certificate store: what it trusts, Chrome and Edge trust
 function Get-Text($url, [switch]$AnyCert) {
-  $tls = if ($AnyCert) { @('-k') } else { @() }
+  [string[]]$tls = @(); if ($AnyCert) { $tls = @('-k') }
   $ErrorActionPreference = 'Continue'   # curl's errors are an answer here, not a stop
   # --ssl-no-revoke: a private root (mkcert) has no revocation list, and
   # Windows' curl fails without one; Chrome and Edge don't ask for it

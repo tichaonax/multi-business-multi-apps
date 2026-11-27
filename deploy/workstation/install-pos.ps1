@@ -11,15 +11,21 @@
      closes the running app first and starts the new one).
   4. Says old -> new version.
 
+  -StartAtLogin: also start the POS app whenever anyone signs in to this
+  machine (a shortcut in the all-users Startup folder). For a server whose
+  screen is used as a till (e.g. prod; not MBM-SRV1). It also skips starting
+  the app straight after installing: run over SSH, that would start a hidden
+  copy no one can see. Sign in (or double-click the shortcut) to start it.
+
   -Insecure: the till doesn't trust the server's certificate yet (install
   it with npm run cert:install instead when you can). The SHA-256 is still
   checked.
 #>
-param([Parameter(Mandatory)][string]$Server, [switch]$Insecure, [switch]$Force)
+param([Parameter(Mandatory)][string]$Server, [switch]$Insecure, [switch]$Force, [switch]$StartAtLogin)
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 $Server = $Server.TrimEnd('/')
-$curlTls = if ($Insecure) { @('-k') } else { @() }
+[string[]]$curlTls = @(); if ($Insecure) { $curlTls = @('-k') }
 
 function Step($t) { Write-Host ""; Write-Host "== $t" -ForegroundColor Cyan }
 function Ok($t) { Write-Host "  OK    $t" -ForegroundColor Green }
@@ -28,6 +34,17 @@ function Installed-Version {
   $keys = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*', 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*'
   $k = Get-ItemProperty $keys -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -like 'Multi-Business POS*' } | Select-Object -First 1
   if ($k) { $k.DisplayVersion } else { $null }
+}
+function Set-StartAtLogin {
+  if (-not $StartAtLogin) { return }
+  $exe = Join-Path $env:ProgramFiles 'Multi-Business POS\Multi-Business POS.exe'
+  if (-not (Test-Path $exe)) { Halt "no $exe to start at sign-in" }
+  $lnk = Join-Path $env:ProgramData 'Microsoft\Windows\Start Menu\Programs\StartUp\Multi-Business POS.lnk'
+  $sc = (New-Object -ComObject WScript.Shell).CreateShortcut($lnk)
+  $sc.TargetPath = $exe
+  $sc.WorkingDirectory = Split-Path $exe
+  $sc.Save()
+  Ok "starts at every sign-in ($lnk)"
 }
 
 Step "What the server has"
@@ -38,7 +55,7 @@ if (-not $info.sha256) { Halt "the server's release carries no POS app installer
 Ok ("server: POS app " + $info.version)
 $before = Installed-Version
 Ok ("this till: " + $(if ($before) { $before } else { "not installed" }))
-if ($before -eq $info.version -and -not $Force) { Write-Host ""; Write-Host "Nothing to do." -ForegroundColor Cyan; exit 0 }
+if ($before -eq $info.version -and -not $Force) { Set-StartAtLogin; Write-Host ""; Write-Host "Nothing to do." -ForegroundColor Cyan; exit 0 }
 
 Step "Download"
 $file = Join-Path $env:TEMP $info.file
@@ -49,12 +66,14 @@ if ($hash -ne $info.sha256.ToLower()) { Remove-Item $file -Force; Halt "SHA-256 
 Ok ("$($info.file), SHA-256 checked")
 
 Step "Install"
-$p = Start-Process $file -ArgumentList '/S', '--force-run' -Wait -PassThru
+$installArgs = if ($StartAtLogin) { @('/S') } else { @('/S', '--force-run') }
+$p = Start-Process $file -ArgumentList $installArgs -Wait -PassThru
 Remove-Item $file -Force -ErrorAction SilentlyContinue
 if ($p.ExitCode -ne 0) { Halt "the installer exited with $($p.ExitCode)" }
 $after = Installed-Version
 if ($after -ne $info.version) { Halt "installed version is $after, not $($info.version)" }
 Ok "installed"
+Set-StartAtLogin
 
 Write-Host ""
 Write-Host ("POS app: " + $(if ($before) { $before } else { "none" }) + "  ->  $after") -ForegroundColor Cyan
