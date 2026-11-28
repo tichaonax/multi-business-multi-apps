@@ -149,7 +149,8 @@ export async function GET(
 
     // Fetch deposits and payments
     const fetchDeposits = transactionType !== 'PAYMENT'
-    const fetchPayments = transactionType !== 'DEPOSIT'
+    // MBM-357: a source filter is a deposit filter: no payments with it
+    const fetchPayments = transactionType !== 'DEPOSIT' && !sourceType
 
     const [deposits, payments] = await Promise.all([
       fetchDeposits

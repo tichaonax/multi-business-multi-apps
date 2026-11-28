@@ -247,14 +247,18 @@ function ClothingInventoryContent() {
       .catch(() => showToast('Could not open that item — it may have been deleted.', { type: 'error' }))
     router.replace('/clothing/inventory', { scroll: false })
   }, [searchParams, currentBusinessId, router])
+  // MBM-355: going on from View Details (Edit / Insights / Activity) still
+  // ends back on the report that opened it
+  const backToReport = () => {
+    if (!viewReturnTo) return
+    const to = viewReturnTo
+    setViewReturnTo(null)
+    router.push(to)
+  }
   const closeViewModal = () => {
     setShowViewModal(false)
     setSelectedItem(null)
-    if (viewReturnTo) {
-      const to = viewReturnTo
-      setViewReturnTo(null)
-      router.push(to)
-    }
+    backToReport()
   }
 
   // Handle productId from URL parameters
@@ -2346,6 +2350,8 @@ function ClothingInventoryContent() {
                   <button
                     onClick={() => {
                       setShowViewModal(false)
+                      // MBM-355: saving / cancelling the edit goes back to the report
+                      if (viewReturnTo) { setEditReturnTo(viewReturnTo); setViewReturnTo(null) }
                       handleItemEdit(selectedItem)
                     }}
                     className="flex-1 btn-primary"
@@ -2414,7 +2420,7 @@ function ClothingInventoryContent() {
               type={insightsTarget.type}
               itemId={insightsTarget.id}
               businessId={businessId}
-              onClose={() => setInsightsTarget(null)}
+              onClose={() => { setInsightsTarget(null); backToReport() }}
             />
           )}
 
@@ -2533,7 +2539,7 @@ function ClothingInventoryContent() {
 
     <InventoryActivityReportModal
       isOpen={showActivityReport}
-      onClose={() => { setShowActivityReport(false); setReportItemId(null); setReportItemName('') }}
+      onClose={() => { setShowActivityReport(false); setReportItemId(null); setReportItemName(''); backToReport() }}
       businessId={businessId}
       businessName={currentBusiness?.businessName}
       itemId={reportItemId ?? undefined}

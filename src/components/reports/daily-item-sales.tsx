@@ -7,7 +7,7 @@
 // - `collapsible`: the EOD report's section, closed until opened (it loads
 //   then); a closed section is left out of the printout.
 // - Otherwise the table shows straight away (the report page).
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { formatCurrency } from '@/lib/date-format'
 import { Pagination } from '@/components/ui/pagination'
@@ -28,6 +28,8 @@ interface ItemSalesRow {
 
 // MBM-345: a row opens the item's View Details on that business's inventory page
 const INVENTORY_PAGES = ['clothing', 'grocery', 'hardware', 'restaurant']
+// MBM-355: what to restore when coming back from an item's View Details
+const RETURN_KEY = 'mbm:item-sales-return'
 
 export function DailyItemSales({ businessId, date, start, end, collapsible = false }: {
   businessId: string
@@ -52,7 +54,7 @@ export function DailyItemSales({ businessId, date, start, end, collapsible = fal
   const businessPath = pathname.split('/')[1]
   const viewHref = (r: ItemSalesRow) =>
     r.inventoryId && INVENTORY_PAGES.includes(businessPath)
-      ? `/${businessPath}/inventory?viewItem=${encodeURIComponent(r.inventoryId)}&returnTo=${encodeURIComponent(pathname + (typeof window !== 'undefined' ? window.location.search : ''))}`
+      ? `/${businessPath}/inventory?viewItem=${encodeURIComponent(r.inventoryId)}&returnTo=${encodeURIComponent(pathname + (typeof window !== 'undefined' ? window.location.search : '') + '#item-sales')}`
       : null
 
   useEffect(() => { setRows(null) }, [businessId, date, start, end])
@@ -103,10 +105,43 @@ export function DailyItemSales({ businessId, date, start, end, collapsible = fal
   }, [])
 
   const hasRows = open && !!rows && rows.length > 0
-  const openRow = (r: ItemSalesRow) => { const h = viewHref(r); if (h) router.push(h) }
+  // MBM-355: coming back from an item's View Details (#item-sales on the way
+  // back) reopens this section with the same search, filter and page, and
+  // scrolls to the row that was opened, also inside the EOD report
+  const openRow = (r: ItemSalesRow) => {
+    const h = viewHref(r)
+    if (!h) return
+    try { sessionStorage.setItem(RETURN_KEY, JSON.stringify({ businessId, search, restockOnly, page: currentPage, key: r.key })) } catch { /* no storage: still goes back, section closed */ }
+    router.push(h)
+  }
+  const [restoreKey, setRestoreKey] = useState<string | null>(null)
+  useEffect(() => {
+    if (!businessId || window.location.hash !== '#item-sales') return
+    let key = ''
+    try {
+      const s = JSON.parse(sessionStorage.getItem(RETURN_KEY) || 'null')
+      sessionStorage.removeItem(RETURN_KEY)
+      if (s && s.businessId === businessId) {
+        setSearch(s.search || ''); setRestockOnly(!!s.restockOnly); setPage(Number(s.page) || 1); key = s.key || ''
+      }
+    } catch { /* nothing remembered: just reopen */ }
+    setOpen(true)
+    setRestoreKey(key)
+    window.history.replaceState(window.history.state, '', window.location.pathname + window.location.search)
+  }, [businessId])
+  useEffect(() => {
+    if (restoreKey === null || !rows) return
+    const t = setTimeout(() => {
+      const row = [...document.querySelectorAll<HTMLElement>('[data-isr]')].find(e => e.dataset.isr === restoreKey && e.offsetParent !== null)
+      ;(row || sectionRef.current)?.scrollIntoView({ block: row ? 'center' : 'start' })
+      setRestoreKey(null)
+    }, 50)
+    return () => clearTimeout(t)
+  }, [restoreKey, rows])
+  const sectionRef = useRef<HTMLElement>(null)
 
   return (
-    <section className={`card p-4 sm:p-6 mb-6 ${open ? '' : 'print:hidden'}`}>
+    <section ref={sectionRef} className={`card p-4 sm:p-6 mb-6 ${open ? '' : 'print:hidden'}`}>
       {/* MBM-353: while open, the heading, the total sold and the search stay
           pinned under the app header (h-14 / sm:h-16) until the section has
           scrolled past. Closed, nothing is pinned. Solid background: rows
@@ -159,7 +194,7 @@ export function DailyItemSales({ businessId, date, start, end, collapsible = fal
             <ul className="sm:hidden print:hidden divide-y divide-gray-100 dark:divide-gray-700">
               {shown.length === 0 && <li className="py-4 text-center text-sm text-gray-500 dark:text-gray-400">No items match.</li>}
               {shown.map((r, i) => onPage(i) && (
-                <li key={r.key} onClick={() => openRow(r)}
+                <li key={r.key} data-isr={r.key} onClick={() => openRow(r)}
                   className={`py-2 flex items-start gap-3 ${viewHref(r) ? 'cursor-pointer active:bg-blue-50 dark:active:bg-gray-700/50' : ''}`}>
                   {r.imageUrl && <img src={r.imageUrl} alt="" loading="lazy" className="w-10 h-10 rounded object-cover shrink-0 border border-gray-200 dark:border-gray-600" />}
                   <div className="min-w-0 flex-1 text-sm">
@@ -203,7 +238,7 @@ export function DailyItemSales({ businessId, date, start, end, collapsible = fal
                     <tr><td colSpan={6} className="py-4 text-center text-gray-500 dark:text-gray-400">No items match.</td></tr>
                   )}
                   {shown.map((r, i) => (
-                    <tr key={r.key}
+                    <tr key={r.key} data-isr={r.key}
                       className={`border-b border-gray-100 dark:border-gray-700 ${onPage(i) ? '' : 'hidden print:table-row'} ${viewHref(r) ? 'cursor-pointer hover:bg-blue-50 dark:hover:bg-gray-700/50' : ''}`}
                       title={viewHref(r) ? 'View details' : undefined}
                       onClick={() => openRow(r)}>

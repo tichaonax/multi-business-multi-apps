@@ -10,6 +10,9 @@ All detailed project plans live in `ai-contexts/project-plans/`.
 
 | ID | Title | File | Status |
 |----|-------|------|--------|
+| MBM-357 | Expense account history: a Source filter shows only deposits from that source (no payments mixed in) | [view](ai-contexts/project-plans/review/projectplan-MBM-357-transaction-source-filter-2026-11-28.md) | 🧪 built, to test |
+| MBM-356 | ESC closes any modal window (like its Close / Cancel button) | [view](ai-contexts/project-plans/review/projectplan-MBM-356-esc-closes-modals-2026-11-28.md) | ❌ dropped (user, 2026-11-28) |
+| MBM-355 | Item Sales: back to the report (EOD too) after View Details / Edit / Insights / Activity; thumbnails need item images | [view](ai-contexts/project-plans/review/projectplan-MBM-355-item-sales-return-and-thumbnails-2026-11-28.md) | 🧪 built, to test |
 | MBM-354 | One receipt for registration + radio licence + insurance: "included" boxes on the licence form; renewed together, fee on the registration | [view](ai-contexts/project-plans/review/projectplan-MBM-354-registration-includes-radio-insurance-2026-11-28.md) | 🧪 built, to test |
 | MBM-353 | Item Sales: phone layout (no sideways scroll); heading + total sold pinned while scrolling | [view](ai-contexts/project-plans/review/projectplan-MBM-353-item-sales-mobile-sticky-total-2026-11-28.md) | 🧪 built, to test |
 | MBM-352 | Tills must match the server: Update required screen; POS app bundles + starts the R710 agent; "Update now" (no-password SYSTEM updater task) | [view](ai-contexts/project-plans/review/projectplan-MBM-352-pos-app-update-button-2026-11-27.md) | ✅ DONE (tested on workstation; POS app 1.0.45) |

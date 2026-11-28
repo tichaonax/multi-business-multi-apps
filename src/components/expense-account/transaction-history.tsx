@@ -1005,7 +1005,9 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
             <label className="block text-[10px] font-medium text-gray-500 dark:text-gray-400 mb-0.5 uppercase tracking-wide">Type</label>
             <select
               value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value)}
+              // MBM-357: a source is a deposit's source, so it only goes with
+              // Deposits; switching to Payments / All Transactions clears it
+              onChange={(e) => { setTypeFilter(e.target.value); if (e.target.value !== 'DEPOSIT') setSourceTypeFilter(''); setPage(0) }}
               className="px-2 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500"
             >
               <option value="">All Transactions</option>
@@ -1017,10 +1019,10 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
           {/* Deposit Source */}
           {typeFilter !== 'PAYMENT' && (
             <div>
-              <label className="block text-[10px] font-medium text-gray-500 dark:text-gray-400 mb-0.5 uppercase tracking-wide">Source</label>
+              <label className="block text-[10px] font-medium text-gray-500 dark:text-gray-400 mb-0.5 uppercase tracking-wide">Deposit source</label>
               <select
                 value={sourceTypeFilter}
-                onChange={(e) => { setSourceTypeFilter(e.target.value); setPage(0) }}
+                onChange={(e) => { setSourceTypeFilter(e.target.value); if (e.target.value) setTypeFilter('DEPOSIT'); setPage(0) }}
                 className="px-2 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-md bg-background text-primary focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">All Sources</option>
