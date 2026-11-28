@@ -4,6 +4,7 @@
 // Force dynamic rendering for session-based pages
 export const dynamic = 'force-dynamic';
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { PosQuickLinks } from '@/components/pos/pos-quick-links'
 import { POSFinancialPanel } from '@/components/pos/POSFinancialPanel'
 import { CollapsibleSection } from '@/components/ui/collapsible-section'
 import { useSearchParams } from 'next/navigation'
@@ -791,6 +792,8 @@ export default function UniversalPOS() {
           POS render their grids outside it too). These wrapper classes match
           ContentLayout's own so spacing/width stay identical. */}
       <div className="max-w-full mx-auto px-2 sm:px-0 py-1 min-w-0 w-full">
+        {/* MBM-360: shortcuts, always visible */}
+        <PosQuickLinks businessType={businessType} businessId={currentBusinessId} className="mb-2 justify-end" />
         {/* EOD deadline warning banner */}
         {!eodGate?.hasPending && eodGate?.deadlinePassed && eodGate?.todayStatus === 'PENDING' && currentBusinessId && (
           <div className="mb-3 px-4 py-2.5 bg-amber-50 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 rounded-lg flex items-center justify-between gap-3">

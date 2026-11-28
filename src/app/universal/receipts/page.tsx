@@ -121,7 +121,8 @@ function ReceiptHistoryPageContent() {
   // MBM-359: Group by — the receipts folded into one row per period /
   // salesperson / payment method (totals from the server, for the whole
   // range); one group open at a time, listing its receipts as usual
-  const [groupBy, setGroupByState] = useState('')
+  // Day by default; a choice made on this device (No grouping too) is kept
+  const [groupBy, setGroupByState] = useState('day')
   const [groups, setGroups] = useState<ReceiptGroup[] | null>(null)
   const [groupSummary, setGroupSummary] = useState<ReceiptGroupSummary | null>(null)
   const [groupsLoading, setGroupsLoading] = useState(false)
@@ -345,8 +346,8 @@ function ReceiptHistoryPageContent() {
   // MBM-359: the remembered Group by choice
   useEffect(() => {
     try {
-      const v = localStorage.getItem(GROUP_BY_STORAGE) || ''
-      if (GROUP_BY_OPTIONS.some(([k]) => k === v)) setGroupByState(v)
+      const v = localStorage.getItem(GROUP_BY_STORAGE)
+      if (v !== null && GROUP_BY_OPTIONS.some(([k]) => k === v)) setGroupByState(v)
     } catch { /* no storage */ }
   }, [])
 
@@ -635,7 +636,7 @@ function ReceiptHistoryPageContent() {
                 <span className="shrink-0">{openGroup === g.key ? '▾' : '▸'}</span>
                 <span className={`font-semibold truncate ${openGroup === g.key ? '' : 'text-gray-900 dark:text-white'}`}>{g.label}</span>
               </span>
-              <span className={`font-bold whitespace-nowrap ${openGroup === g.key ? '' : 'text-gray-900 dark:text-white'}`}>{money(g.total)}</span>
+              <span className={`font-bold whitespace-nowrap ${openGroup === g.key ? 'text-green-200' : 'text-green-700 dark:text-green-400'}`}>{money(g.total)}</span>
             </div>
             <div className={`mt-0.5 flex flex-wrap gap-x-2 text-xs ${openGroup === g.key ? 'text-blue-100' : 'text-gray-500 dark:text-gray-400'}`}>
               <span>{g.count} receipt{g.count === 1 ? '' : 's'}</span>
@@ -646,7 +647,8 @@ function ReceiptHistoryPageContent() {
                 <button type="button" title="Open the highest receipt"
                   onClick={e => { e.stopPropagation(); handleReceiptClick(g.top!.id) }}
                   className={`underline decoration-dotted underline-offset-2 ${openGroup === g.key ? 'text-white hover:text-blue-100' : 'text-amber-700 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-300'}`}>
-                  · ⭐ highest {g.top.orderNumber} {money(g.top.amount)}
+                  · ⭐ highest {g.top.orderNumber}{' '}
+                  <span className={`font-semibold ${openGroup === g.key ? 'text-green-200' : 'text-green-700 dark:text-green-400'}`}>{money(g.top.amount)}</span>
                 </button>
               )}
             </div>

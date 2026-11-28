@@ -4,6 +4,7 @@
 // Force dynamic rendering for session-based pages
 export const dynamic = 'force-dynamic';
 import { BusinessTypeRoute } from '@/components/auth/business-type-route'
+import { PosQuickLinks } from '@/components/pos/pos-quick-links'
 import { BusinessTypeRedirect } from '@/components/business-type-redirect'
 import { ContentLayout } from '@/components/layout/content-layout'
 import {
@@ -516,7 +517,10 @@ export default function ClothingPOSPage() {
               <h1 className="text-base font-bold text-primary">Advanced POS — {currentBusiness?.businessName}</h1>
               {/* MBM-299 — collapsed by default (mobile + desktop), matching
                   the same treatment applied to grocery/restaurant POS. */}
-              <CollapsibleSection title="POS Mode & Tools" icon="🛠️">
+              {/* MBM-360: shortcuts, always visible */}
+              <div className="flex items-start gap-2">
+              <PosQuickLinks businessType="clothing" businessId={currentBusinessId} className="shrink-0 pt-0.5" />
+              <CollapsibleSection className="flex-1 min-w-0" title="POS Mode & Tools" icon="🛠️">
               <div className="flex items-center gap-2">
                 {hasPermission('canEnterManualOrders') && (
                   <button
@@ -546,6 +550,7 @@ export default function ClothingPOSPage() {
                 </button>
               </div>
               </CollapsibleSection>
+              </div>
             </div>
             {/* Financial Summary — only for users with canAccessFinancialData.
                 MBM-299: collapsed by default. */}
@@ -621,7 +626,10 @@ export default function ClothingPOSPage() {
             </div>
 
             {/* Quick Actions — MBM-299: collapsed by default (mobile + desktop). */}
-            <CollapsibleSection title="Quick Actions" icon="🔗">
+            {/* MBM-360: shortcuts, always visible */}
+            <div className="flex items-start gap-2">
+            <PosQuickLinks businessType="clothing" businessId={currentBusinessId} className="shrink-0 pt-0.5" />
+            <CollapsibleSection className="flex-1 min-w-0" title="Quick Actions" icon="🔗">
               <div className="flex gap-2 flex-wrap">
                 {!isMobile && (
                   <button
@@ -657,6 +665,7 @@ export default function ClothingPOSPage() {
                 )}
               </div>
             </CollapsibleSection>
+            </div>
 
             {/* Financial Summary — only for users with canAccessFinancialData.
                 MBM-299: collapsed by default. */}

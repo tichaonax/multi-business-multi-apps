@@ -4,6 +4,7 @@
 // Force dynamic rendering for session-based pages
 export const dynamic = 'force-dynamic';
 import { BusinessTypeRoute } from '@/components/auth/business-type-route'
+import { PosQuickLinks } from '@/components/pos/pos-quick-links'
 import { BusinessTypeRedirect } from '@/components/business-type-redirect'
 import { ContentLayout } from '@/components/layout/content-layout'
 import {
@@ -345,7 +346,10 @@ export default function HardwarePOSPage() {
 
               {/* MBM-299 — collapsed by default (mobile + desktop), matching
                   the same treatment applied to grocery/restaurant/clothing POS. */}
-              <CollapsibleSection title="POS Tools" icon="🛠️">
+              {/* MBM-360: shortcuts, always visible */}
+              <div className="flex items-start gap-2">
+              <PosQuickLinks businessType="hardware" businessId={currentBusinessId} className="shrink-0 pt-0.5" />
+              <CollapsibleSection className="flex-1 min-w-0" title="POS Tools" icon="🛠️">
               <div className="flex gap-2 py-2 flex-wrap">
                 {!isMobile && (
                   <button
@@ -381,6 +385,7 @@ export default function HardwarePOSPage() {
                 )}
               </div>
               </CollapsibleSection>
+              </div>
             </div>
 
             {/* Salesperson selector */}

@@ -4,6 +4,7 @@
 // Force dynamic rendering for session-based pages
 export const dynamic = 'force-dynamic';
 import { Suspense } from 'react'
+import { PosQuickLinks } from '@/components/pos/pos-quick-links'
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { BusinessTypeRoute } from '@/components/auth/business-type-route'
 import { BusinessTypeRedirect } from '@/components/business-type-redirect'
@@ -3188,7 +3189,10 @@ function GroceryPOSContent() {
           MBM-299: collapsed by default (mobile + desktop) — still sticky
           either way, so it's one tap away without needing to scroll back up. */}
       <div ref={toolbarRef} className="sticky top-14 sm:top-16 z-20 bg-white dark:bg-gray-900 py-2 mb-2 px-2 sm:px-0">
-      <CollapsibleSection title="POS Mode & Tools" icon="🛠️">
+      {/* MBM-360: shortcuts, always visible */}
+      <div className="flex items-start gap-2">
+      <PosQuickLinks businessType="grocery" businessId={currentBusinessId} className="shrink-0 pt-0.5" />
+      <CollapsibleSection className="flex-1 min-w-0" title="POS Mode & Tools" icon="🛠️">
       <div className="flex flex-wrap items-center gap-2">
         {/* POS mode toggle (Live / Manual) */}
         {(isAdmin || hasPermission('canEnterManualOrders')) && (
@@ -3259,6 +3263,7 @@ function GroceryPOSContent() {
         )}
       </div>
       </CollapsibleSection>
+      </div>
       </div>
 
       {/* Manual Entry Mode */}

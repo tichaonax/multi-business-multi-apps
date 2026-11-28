@@ -7,6 +7,7 @@ export const dynamic = 'force-dynamic';
 console.log('🔥🔥🔥 [Restaurant POS] MODULE LOADED 🔥🔥🔥')
 
 import { BusinessTypeRoute } from '@/components/auth/business-type-route'
+import { PosQuickLinks } from '@/components/pos/pos-quick-links'
 import { BusinessTypeRedirect } from '@/components/business-type-redirect'
 import { BarcodeScanner } from '@/components/universal/barcode-scanner'
 import { UniversalProduct } from '@/components/universal/product-card'
@@ -3635,7 +3636,10 @@ export default function RestaurantPOS() {
               </div>
               {/* MBM-299 — collapsed by default (mobile + desktop), matching
                   the same treatment applied to grocery POS. */}
-              <CollapsibleSection title="Quick Actions" icon="🔗">
+              {/* MBM-360: shortcuts, always visible */}
+              <div className="flex items-start gap-2">
+              <PosQuickLinks businessType="restaurant" businessId={currentBusinessId} className="shrink-0 pt-0.5" />
+              <CollapsibleSection className="flex-1 min-w-0" title="Quick Actions" icon="🔗">
               <div className="flex gap-1.5 sm:gap-2 flex-wrap">
                 {/* No second screen to put this on a phone/tablet — see
                     the isMobile comment above. */}
@@ -3695,6 +3699,7 @@ export default function RestaurantPOS() {
                 )}
               </div>
               </CollapsibleSection>
+              </div>
             </div>
 
             {/* Live / Manual Entry Mode Toggle + Scale Toggle — MBM-299:
