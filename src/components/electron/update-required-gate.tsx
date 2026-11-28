@@ -218,9 +218,19 @@ export function UpdateRequiredGate() {
           {busy ? 'Updating…' : appBehind ? 'Update now' : 'Start the R710 agent'}
         </button>
       ) : (
-        <a href="/api/public/electron/download" className="px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold">
-          Download the POS app
-        </a>
+        // target=_blank: old POS apps (≤1.0.37) send it to the web browser,
+        // which shows the download's progress. Downloaded in-app, the file
+        // showed up at once but stayed locked ("Another program is currently
+        // using this file") until the download ended, with nothing to show it.
+        <div className="flex flex-col items-center gap-1">
+          <a href="/api/public/electron/download" target="_blank" rel="noopener noreferrer"
+            className="px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold">
+            Download the POS app
+          </a>
+          <span className="text-xs text-gray-600 dark:text-gray-300">
+            Opens in your web browser. When the download has finished, run it from there.
+          </span>
+        </div>
       )}
     </div>
   )

@@ -15751,7 +15751,7 @@ POS app **1.0.37 or older** can't update itself. Those tills show **Download the
 As administrator on the till, either:
 
 - run `deploy\workstation\install-pos.ps1 -Server https://<server>:8080` (add `-StartAtLogin` to start the app whenever someone signs in to Windows); or
-- click **Download the POS app**, run the installer and approve the Windows prompt.
+- click **Download the POS app**: it opens in the web browser. When the download has finished, run the installer from there and approve the Windows prompt.
 
 Either way also sets up the **MBM POS Updater** for that server. From then on, updates are one click for anyone.
 
