@@ -971,7 +971,10 @@ export function VehicleDetailModal({ vehicle, onClose, onUpdate, autoRenewLicens
                               </div>
                               <div className="text-xs text-gray-600 mt-1">
                                 Effective: {formatDateByFormat(license.issueDate, globalDateFormat)} • Expires: {formatDateByFormat(license.expiryDate, globalDateFormat)}
-                                {license.renewalCost && <span> • Cost: ${license.renewalCost.toLocaleString()}</span>}
+                                {/* MBM-354: came on the registration's receipt (its fee is there) */}
+                                {(license as any).includedInLicenseId
+                                  ? <span> • Included in the registration&apos;s receipt</span>
+                                  : Number(license.renewalCost) > 0 && <span> • Cost: ${license.renewalCost!.toLocaleString()}</span>}
                               </div>
                             </div>
                           </div>
@@ -1064,9 +1067,13 @@ export function VehicleDetailModal({ vehicle, onClose, onUpdate, autoRenewLicens
                                 <span className="font-medium">
                                   Expires: {formatDateByFormat(license.expiryDate, globalDateFormat)}
                                 </span>
-                                {license.renewalCost && (
+                                {(license as any).includedInLicenseId ? (
+                                  <span className="font-medium text-blue-700 dark:text-blue-300">
+                                    Included in the registration&apos;s receipt
+                                  </span>
+                                ) : Number(license.renewalCost) > 0 && (
                                   <span className="font-medium text-green-700 dark:text-green-400">
-                                    Cost: ${license.renewalCost.toLocaleString()}
+                                    Cost: ${license.renewalCost!.toLocaleString()}
                                   </span>
                                 )}
                                 <span className="opacity-60">

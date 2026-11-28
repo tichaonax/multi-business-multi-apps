@@ -494,7 +494,7 @@ const SELF_REFERENTIAL_TABLES: Record<string, string[]> = {
   'vehicleServiceJobs': ['reworkOfJobId'],  // References vehicleServiceJobs.id (MBM-262)
   'images': ['thumbnailImageId'],  // References images.id — a full-size image's thumbnail is itself another Images row (MBM-297 Phase C)
   'chatMessages': ['parentId'],  // A thread reply references its own parent chatMessages row (MBM-210/301)
-  'vehicleLicenses': ['supersedesLicenseId'],  // A renewal references the exact license row it replaces (MBM-306)
+  'vehicleLicenses': ['supersedesLicenseId', 'includedInLicenseId'],  // A renewal references the exact license row it replaces (MBM-306); a radio/insurance licence the registration it came with (MBM-354)
   'comboPaymentRequests': ['outgoingLoanId']  // MBM-333: the loan (accountOutgoingLoans) is restored later in RESTORE_ORDER
 }
 

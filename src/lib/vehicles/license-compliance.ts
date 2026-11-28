@@ -65,16 +65,21 @@ export async function getVehicleLicenseAlerts(vehicleId?: string): Promise<Vehic
     },
     include: {
       vehicles: { select: { id: true, licensePlate: true, make: true, model: true, licensingStatus: true } },
+      includedIn: { select: { isActive: true } },
     },
     orderBy: { expiryDate: 'asc' },
   }).then(rows => rows.filter(l =>
+    // MBM-354: a radio licence / insurance that came on the registration's
+    // receipt is renewed with it, so only the registration alerts. Once that
+    // registration has been renewed on its own, this one alerts again.
+    !l.includedIn?.isActive &&
     // A non-exempt vehicle is only alerted on its standard licenses; an
     // exempt vehicle only on its exemption license — defensive filtering
     // even though a status transition already deactivates whatever doesn't
     // apply, same self-healing philosophy as the dedupe below.
-    l.vehicles.licensingStatus === 'EXEMPT'
+    (l.vehicles.licensingStatus === 'EXEMPT'
       ? l.licenseType === 'EXEMPTION'
-      : l.licenseType !== 'EXEMPTION' // NON_EXEMPT
+      : l.licenseType !== 'EXEMPTION') // NON_EXEMPT
   ))
 
   // A vehicle should only ever carry one alert per license type. Renewing a

@@ -4180,8 +4180,15 @@ model VehicleLicenses {
   supersedesLicenseId      String?                 @unique
   supersedes               VehicleLicenses?        @relation("LicenseRenewal", fields: [supersedesLicenseId], references: [id])
   supersededBy             VehicleLicenses?        @relation("LicenseRenewal")
+  // MBM-354: the authorities issue registration, radio licence and insurance
+  // on one receipt. The licence that carries the receipt's fee (the
+  // registration) is the main one; the others point to it and cost 0.
+  includedInLicenseId      String?
+  includedIn               VehicleLicenses?        @relation("LicenseIncluded", fields: [includedInLicenseId], references: [id], onDelete: SetNull)
+  includes                 VehicleLicenses[]       @relation("LicenseIncluded")
 
   @@index([renewalReceiptId])
+  @@index([includedInLicenseId])
   @@map("vehicle_licenses")
 }
 

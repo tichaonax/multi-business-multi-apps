@@ -31,6 +31,10 @@ const LICENSE_TYPES = [
   { value: 'INSPECTION', label: 'Inspection' }
 ]
 
+// MBM-354: the authorities issue these three on one receipt
+const COMBINED_TYPES = ['REGISTRATION', 'RADIO', 'INSURANCE']
+const COMBINED_LABEL: Record<string, string> = { REGISTRATION: 'Registration', RADIO: 'Radio licence', INSURANCE: 'Insurance' }
+
 export function LicenseFormModal({ vehicleId, license, renewFrom, isOpen, onClose, onSave }: LicenseFormModalProps) {
   const [formData, setFormData] = useState({
     licenseType: license?.licenseType || renewFrom?.licenseType || 'REGISTRATION',
@@ -51,6 +55,29 @@ export function LicenseFormModal({ vehicleId, license, renewFrom, isOpen, onClos
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  // MBM-354: the other licences on the same receipt, renewed with this one
+  const [includeTypes, setIncludeTypes] = useState<string[]>([])
+  const otherCombined = COMBINED_TYPES.filter(t => t !== formData.licenseType)
+  const showIncludes = !license && COMBINED_TYPES.includes(formData.licenseType)
+
+  // Renewing: tick the licences that came on the same receipt last time
+  useEffect(() => {
+    setIncludeTypes([])
+    if (!isOpen || !renewFrom || !COMBINED_TYPES.includes(renewFrom.licenseType)) return
+    let live = true
+    fetchWithValidation(`/api/vehicles/licenses?vehicleId=${vehicleId}&isActive=true&limit=100`)
+      .then((res: any) => {
+        if (!live || !res?.success) return
+        const rootOf = (l: any) => l.includedInLicenseId || l.id
+        const root = rootOf(renewFrom)
+        const same = (res.data as any[])
+          .filter(l => l.id !== renewFrom.id && COMBINED_TYPES.includes(l.licenseType) && rootOf(l) === root)
+          .map(l => l.licenseType as string)
+        setIncludeTypes([...new Set(same)])
+      })
+      .catch(() => {})
+    return () => { live = false }
+  }, [isOpen, renewFrom, vehicleId])
   const [authorities, setAuthorities] = useState<Array<{ id: string; name: string }>>([])
   const [showNewAuthorityInput, setShowNewAuthorityInput] = useState(false)
   const [newAuthorityName, setNewAuthorityName] = useState('')
@@ -241,6 +268,8 @@ export function LicenseFormModal({ vehicleId, license, renewFrom, isOpen, onClos
             // it hasn't expired yet (the normal "Add License" 409-on-active-
             // duplicate guard still applies when this isn't set).
             ...(renewFrom ? { supersedesLicenseId: renewFrom.id } : {}),
+            // MBM-354: the other licences on the same receipt
+            ...(showIncludes && includeTypes.length ? { includeTypes: includeTypes.filter(t => t !== formData.licenseType) } : {}),
             // MBM-347: paid through the approved funds request — its cost is
             // already a vehicle expense, so the cost report won't add it again
             ...(renewFrom && fundsRequest && isApprovedRequest(fundsRequest) ? { fundedSourceRef: `combo-item:${fundsRequest.itemId}` } : {})
@@ -463,6 +492,30 @@ export function LicenseFormModal({ vehicleId, license, renewFrom, isOpen, onClos
               />
             </div>
           </div>
+
+          {/* MBM-354: one receipt for registration, radio licence and insurance */}
+          {showIncludes && (
+            <div className="rounded-md border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 p-3 space-y-2">
+              <p className="text-xs font-medium text-primary">On the same receipt</p>
+              <div className="flex flex-wrap gap-x-6 gap-y-2">
+                {otherCombined.map(t => (
+                  <label key={t} className="flex items-center gap-2 text-sm text-secondary cursor-pointer">
+                    <input type="checkbox" className="w-4 h-4 text-blue-600 rounded border-gray-300 dark:border-gray-600"
+                      checked={includeTypes.includes(t)}
+                      onChange={e => setIncludeTypes(prev => e.target.checked ? [...prev, t] : prev.filter(x => x !== t))} />
+                    {COMBINED_LABEL[t]} included
+                  </label>
+                ))}
+              </div>
+              {includeTypes.some(t => t !== formData.licenseType) && (
+                <p className="text-xs text-secondary">
+                  {[COMBINED_LABEL[formData.licenseType], ...includeTypes.filter(t => t !== formData.licenseType).map(t => COMBINED_LABEL[t])].join(', ')} are
+                  {' '}all renewed with this number and these dates. Enter the whole receipt&apos;s fee above: it is recorded on the
+                  {' '}{[formData.licenseType, ...includeTypes].includes('REGISTRATION') ? 'Registration' : COMBINED_LABEL[formData.licenseType]}, the others at 0.
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Usage — Radio/TV only */}
           {formData.licenseType === 'RADIO' && (

@@ -89,6 +89,19 @@ export function DailyItemSales({ businessId, date, start, end, collapsible = fal
   const totalSales = shown.reduce((s, r) => s + r.total, 0)
   const restockCount = (rows || []).filter(r => r.restockNeeded).length
 
+  // The app header's real height: the farm camera row (MBM-331) makes it
+  // taller than h-14 / h-16, and it can be switched on or off at any time
+  const [stickTop, setStickTop] = useState<number | null>(null)
+  useEffect(() => {
+    const header = document.querySelector('header')
+    if (!header) return
+    const measure = () => setStickTop(Math.round(header.getBoundingClientRect().height))
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(header)
+    return () => ro.disconnect()
+  }, [])
+
   const hasRows = open && !!rows && rows.length > 0
   const openRow = (r: ItemSalesRow) => { const h = viewHref(r); if (h) router.push(h) }
 
@@ -98,7 +111,7 @@ export function DailyItemSales({ businessId, date, start, end, collapsible = fal
           pinned under the app header (h-14 / sm:h-16) until the section has
           scrolled past. Closed, nothing is pinned. Solid background: rows
           scroll underneath it. */}
-      <div className={hasRows
+      <div style={hasRows && stickTop !== null ? { top: stickTop } : undefined} className={hasRows
         ? 'sticky top-14 sm:top-16 z-30 -mx-4 -mt-4 px-4 pt-4 pb-3 sm:-mx-6 sm:-mt-6 sm:px-6 sm:pt-6 rounded-t-xl bg-white dark:bg-neutral-800 border-b border-gray-200 dark:border-gray-700 print:static print:border-0'
         : ''}>
       <div className="flex flex-wrap items-center justify-between gap-2">
