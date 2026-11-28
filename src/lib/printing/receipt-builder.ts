@@ -77,6 +77,7 @@ interface OrderData {
     unitPrice: number
     discountAmount?: number
     totalPrice: number
+    imageUrl?: string | null
     attributes?: Record<string, any>
     productVariant?: {
       product?: {
@@ -212,6 +213,9 @@ export function buildReceiptData(
         isCombo: !!(attrs.isCombo) || !!(attrs.isAYLICombo),
         notes: noteParts.length > 0 ? noteParts.join(' · ') : undefined,
         ayliBreakdown,
+        // MBM-358: the thumbnail the receipt details window shows (the
+        // builder dropped it, so the window never had one)
+        imageUrl: item.imageUrl ?? null,
       }
     }),
     subtotal: order.subtotal,

@@ -290,6 +290,7 @@ export interface ReceiptItem {
   notes?: string;
   isCombo?: boolean;
   menuNumber?: string | null; // restaurant only — the printed-menu number, if assigned (MBM-291)
+  imageUrl?: string | null; // MBM-358: the item's thumbnail, for on-screen receipt details (never printed)
   barcode?: {
     type: string; // UPC_A, EAN_13, CODE128, etc.
     code: string; // The actual barcode value
