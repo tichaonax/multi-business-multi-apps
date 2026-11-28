@@ -1373,6 +1373,10 @@ export async function createCleanBackup(
   businessData.farmCameraUserPreferences = await prisma.farmCameraUserPreferences.findMany({
     where: { userId: { in: userIds } }
   })
+  // MBM-360 — per-user "My shortcuts" (pages opened, pinned, hidden)
+  businessData.userPageVisits = await prisma.userPageVisits.findMany({
+    where: { userId: { in: userIds } }
+  })
   // MBM-307/MBM-308+: chat message attachments (PDF/JPEG/PNG/audio/video) —
   // bytea like `images`, but capped per-type and comparatively low-volume,
   // so a plain findMany is fine here rather than the images table's own
@@ -1993,7 +1997,8 @@ export async function createCleanBackup(
     // farmControlUserLinks, farmCameraUserPreferences (farmControlIntegrations
     // is server-specific and not backed up).
     // 6.52.0 (2026-11-15): MBM-333 comboPaymentRequestReturns.
-    schemaVersion: '6.52.0',
+    // 6.53.0 (2026-11-28): MBM-360 userPageVisits.
+    schemaVersion: '6.53.0',
     checksums: {
       businessData: businessDataChecksum,
       deviceData: deviceDataChecksum

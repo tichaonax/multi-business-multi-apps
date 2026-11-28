@@ -377,6 +377,7 @@ const SKIP_BUSINESS_SCOPING = new Set([
   'sampleOfferSubstitutions',    // MBM-329: offerId FK, no businessId column
   'farmControlUserLinks',        // MBM-331: userId FK, no businessId column
   'farmCameraUserPreferences',   // MBM-331: userId FK, no businessId column
+  'userPageVisits',              // MBM-360: userId FK, no businessId column
   'chatAttachments',             // messageId (nullable) + uploadedBy FK, no businessId column
   // AYLI Combo child tables — no businessId (linked via comboId)
   'asYouLikeItComboSizes',       // comboId FK, no businessId field

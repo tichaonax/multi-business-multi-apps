@@ -10,7 +10,7 @@ All detailed project plans live in `ai-contexts/project-plans/`.
 
 | ID | Title | File | Status |
 |----|-------|------|--------|
-| MBM-360 | POS quick links (Receipts, Item Sales, End of Day) on every POS; "My shortcuts" learned per user (proposed) | [view](ai-contexts/project-plans/review/projectplan-MBM-360-pos-quick-links-and-my-shortcuts-2026-11-28.md) | 🧪 A built · 📝 B awaiting approval |
+| MBM-360 | POS quick links (Receipts, Item Sales, End of Day) on every POS; "My shortcuts" learned per user (⭐ in the header) | [view](ai-contexts/project-plans/review/projectplan-MBM-360-pos-quick-links-and-my-shortcuts-2026-11-28.md) | 🧪 built, to test |
 | MBM-359 | Receipt History: Group by day / week / month / year / salesperson / payment method, totals per group, one open at a time | [view](ai-contexts/project-plans/review/projectplan-MBM-359-receipt-history-group-by-2026-11-28.md) | 🧪 built, to test |
 | MBM-358 | Receipt Details window: item thumbnails (the receipt builder dropped them) | [view](ai-contexts/project-plans/review/projectplan-MBM-358-receipt-details-thumbnails-2026-11-28.md) | 🧪 built, to test |
 | MBM-357 | Expense account history: a Source filter shows only deposits from that source (no payments mixed in) | [view](ai-contexts/project-plans/review/projectplan-MBM-357-transaction-source-filter-2026-11-28.md) | 🧪 built, to test |

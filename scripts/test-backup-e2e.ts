@@ -82,6 +82,8 @@ const NEW_TABLE_KEYS = [
   'sampleOffers', 'sampleOfferPromoItems', 'sampleOfferSubstitutions',
   // Farm Control camera integration (MBM-331)
   'farmControlCameraBusinesses', 'farmControlUserLinks', 'farmCameraUserPreferences',
+  // My shortcuts (MBM-360)
+  'userPageVisits',
   // Supplier / Contractor / Payee Category System (MBM-220)
   'supplierCategoryGroups', 'supplierCategories',
   'contractorCategoryGroups', 'contractorCategories',

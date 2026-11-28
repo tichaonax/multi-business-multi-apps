@@ -3,6 +3,7 @@
 import { createContext, useContext, useState, ReactNode, useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { recordVisit } from '@/lib/nav-trail'
+import { countShortcutVisit } from '@/lib/shortcuts/record-visit'
 
 interface NavigationContextType {
   isNavigating: boolean
@@ -19,6 +20,8 @@ export function NavigationProvider({ children }: { children: ReactNode }) {
   // MBM-345: remember the pages visited in this tab, for BackLink
   useEffect(() => {
     if (pathname) recordVisit(pathname + window.location.search)
+    // MBM-360: and count it for the user's "My shortcuts"
+    if (pathname) countShortcutVisit(pathname)
   }, [pathname])
 
   // Listen for route changes to properly hide spinner

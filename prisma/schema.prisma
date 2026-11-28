@@ -4001,6 +4001,7 @@ model Users {
   restaurant_expense_transactions_voided                          RestaurantExpenseTransactions[]   @relation("RestaurantExpenseTxnVoider")
   farm_control_user_link                                          FarmControlUserLinks?
   farm_camera_user_preferences                                    FarmCameraUserPreferences?
+  user_page_visits                                                UserPageVisits[]
   farm_control_alert_deliveries                                   FarmControlAlertDeliveries[]
   farm_camera_alerts                                              FarmCameraAlerts[]
   farm_camera_alert_pauses                                        FarmCameraAlertPauses[]
@@ -9452,4 +9453,24 @@ model UserSessions {
   @@index([userId, endedAt])
   @@index([endedAt, lastSeenAt])
   @@map("user_sessions")
+}
+
+// MBM-360: "My shortcuts" — the pages each user opens, to offer their most
+// used ones as one-tap shortcuts that follow the login to any workstation.
+model UserPageVisits {
+  id            String   @id @default(uuid())
+  userId        String
+  path          String // the page, no query string, record ids dropped
+  label         String
+  visitCount    Int      @default(0)
+  lastVisitedAt DateTime @default(now())
+  pinned        Boolean  @default(false)
+  hidden        Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  users Users @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, path])
+  @@index([userId])
+  @@map("user_page_visits")
 }

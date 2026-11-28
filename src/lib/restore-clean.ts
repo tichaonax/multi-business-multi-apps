@@ -394,6 +394,7 @@ export const RESTORE_ORDER = [
   'chatAttachments',         // Depends on chatMessages (nullable — unsent at backup time), users (MBM-307)
   'farmControlUserLinks',      // MBM-331: depends on users (@unique userId)
   'farmCameraUserPreferences', // MBM-331: depends on users (@unique userId)
+  'userPageVisits', // MBM-360: depends on users (unique userId + path)
 
   // Notifications
   'appNotifications',   // Depends on users
@@ -527,6 +528,7 @@ const UNIQUE_CONSTRAINT_FIELDS: Record<string, string | { fields: string[] }> = 
   'farmControlCameraBusinesses': { fields: ['cameraId', 'businessId'] },
   'farmControlUserLinks': 'userId',
   'farmCameraUserPreferences': 'userId',
+  'userPageVisits': { fields: ['userId', 'path'] }, // MBM-360
 
   // Coupons: unique on (businessId, code) — cross-server restores can have same code, different id
   'coupons': { fields: ['businessId', 'code'] },

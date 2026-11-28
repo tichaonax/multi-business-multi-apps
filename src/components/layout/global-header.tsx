@@ -24,6 +24,7 @@ import { getDefaultPagePath } from '@/lib/business-default-pages'
 import { subscribeChatBadge, ChatBadgeState } from '@/lib/chat-badge'
 import { FarmCameraStrip } from '@/components/farm-cameras/farm-camera-strip'
 import { FarmAlertButton } from '@/components/farm-cameras/farm-alert-button'
+import { MyShortcutsMenu } from '@/components/shortcuts/my-shortcuts'
 import { ComplianceDigestSections, parseComplianceDigest, formatAlertTimestamp } from '@/components/vehicles/license-compliance-digest'
 
 interface GlobalHeaderProps {
@@ -573,6 +574,8 @@ export function GlobalHeader({ title, showBreadcrumb = true }: GlobalHeaderProps
 
           {/* Right side - Business context, Theme toggle and User menu */}
           <div className="flex items-center space-x-1 sm:space-x-4 shrink-0 pr-1 sm:pr-0">
+            {/* MBM-360: the user's own most used pages */}
+            {session?.user && isAuthenticated && <MyShortcutsMenu />}
             {/* Business context indicator for all users */}
             {session?.user && isAuthenticated && currentBusiness && (
               <div className="relative">
