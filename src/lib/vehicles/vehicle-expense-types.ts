@@ -26,7 +26,15 @@ export function vehicleLineFields(item: any) {
     vehicleExpenseType: vehicleId ? (isVehicleExpenseType(item.vehicleExpenseType) ? item.vehicleExpenseType : 'OTHER') : null,
     vehicleLicenseType: vehicleId ? item.vehicleLicenseType || null : null,
     vehicleLicenseExpiry: vehicleId && item.vehicleLicenseExpiry ? new Date(item.vehicleLicenseExpiry) : null,
+    vehicleLicenseIncludes: vehicleId ? licenseIncludesColumn(item.vehicleLicenseIncludes) : null,
   }
+}
+
+/** MBM-354: the other licences on the same receipt, as stored ("RADIO,INSURANCE"; null: none) */
+export function licenseIncludesColumn(v: unknown): string | null {
+  const list = (Array.isArray(v) ? v : String(v || '').split(','))
+    .map(t => String(t).trim()).filter(t => ['REGISTRATION', 'RADIO', 'INSURANCE'].includes(t))
+  return list.length ? [...new Set(list)].join(',') : null
 }
 
 /** MBM-347: the expense domain whose lines are vehicle costs */

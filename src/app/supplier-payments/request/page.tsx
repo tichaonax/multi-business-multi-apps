@@ -193,6 +193,7 @@ export default function SubmitSupplierPaymentRequestPage() {
               vehicleExpenseType: item.vehicleExpenseType ?? null,
               vehicleLicenseType: item.vehicleLicenseType ?? null,
               vehicleLicenseExpiry: item.vehicleLicenseExpiry ? String(item.vehicleLicenseExpiry).slice(0, 10) : null,
+              vehicleLicenseIncludes: item.vehicleLicenseIncludes ?? null, // MBM-354
             }
             if (item.categoryId) {
               try {

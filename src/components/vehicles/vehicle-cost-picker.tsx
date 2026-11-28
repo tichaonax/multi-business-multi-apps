@@ -7,6 +7,7 @@
 import { useEffect, useState } from 'react'
 import { VEHICLE_EXPENSE_TYPES } from '@/lib/vehicles/vehicle-expense-types'
 import { SearchableSelect } from '@/components/ui/searchable-select'
+import { LicenceIncludesBoxes, toIncludes, licenceGroupLabel } from './licence-includes'
 
 export { VEHICLE_DOMAIN_ID } from '@/lib/vehicles/vehicle-expense-types'
 
@@ -32,9 +33,11 @@ export interface VehicleCost {
   vehicleLicenseType?: string | null
   /** YYYY-MM-DD — with it, the licence is renewed (its alert clears) */
   vehicleLicenseExpiry?: string | null
+  /** MBM-354: "RADIO,INSURANCE": the other licences on the same receipt */
+  vehicleLicenseIncludes?: string | null
 }
 
-export const NO_VEHICLE_COST: VehicleCost = { vehicleId: null, vehicleExpenseType: null, vehicleLicenseType: null, vehicleLicenseExpiry: null }
+export const NO_VEHICLE_COST: VehicleCost = { vehicleId: null, vehicleExpenseType: null, vehicleLicenseType: null, vehicleLicenseExpiry: null, vehicleLicenseIncludes: null }
 
 const LICENSE_TYPES = [
   { value: 'REGISTRATION', label: 'Registration' },
@@ -82,7 +85,7 @@ export function VehicleCostPicker({ value, onChange, disabled, compact, required
           <SearchableSelect
             options={VEHICLE_EXPENSE_TYPES.map(t => ({ value: t.value, label: t.label }))}
             value={expenseType || ''}
-            onChange={t => set({ vehicleExpenseType: t || null, ...(t === 'LICENSING' || t === 'INSURANCE' ? {} : { vehicleLicenseType: null, vehicleLicenseExpiry: null }) })}
+            onChange={t => set({ vehicleExpenseType: t || null, ...(t === 'LICENSING' || t === 'INSURANCE' ? {} : { vehicleLicenseType: null, vehicleLicenseExpiry: null, vehicleLicenseIncludes: null }) })}
             placeholder="Kind of cost…"
             searchPlaceholder="Search…"
             required
@@ -93,7 +96,7 @@ export function VehicleCostPicker({ value, onChange, disabled, compact, required
       )}
       {vehicleId && expenseType === 'LICENSING' && (
         <select className={cls} value={value.vehicleLicenseType || ''} disabled={disabled}
-          onChange={e => set({ vehicleLicenseType: e.target.value || null })}>
+          onChange={e => set({ vehicleLicenseType: e.target.value || null, vehicleLicenseIncludes: null })}>
           <option value="">Licence…</option>
           {LICENSE_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
         </select>
@@ -105,15 +108,25 @@ export function VehicleCostPicker({ value, onChange, disabled, compact, required
             onChange={e => set({ vehicleLicenseExpiry: e.target.value || null })} />
         </label>
       )}
+      {/* MBM-354: registration, radio licence and insurance on one receipt */}
+      {vehicleId && renews && (
+        <LicenceIncludesBoxes compact={compact} disabled={disabled}
+          licenseType={expenseType === 'INSURANCE' ? 'INSURANCE' : value.vehicleLicenseType}
+          value={toIncludes(value.vehicleLicenseIncludes)}
+          onChange={v => set({ vehicleLicenseIncludes: v.length ? v.join(',') : null })} />
+      )}
     </div>
   )
 }
 
 /** MBM-347: "🚗 ACT 8086 · Licensing (Registration)" on a request line that is a vehicle cost */
-export function VehicleCostTag({ item }: { item: { vehicleId?: string | null; vehicleExpenseType?: string | null; vehicleLicenseType?: string | null; vehicle?: { licensePlate?: string | null } | null } }) {
+export function VehicleCostTag({ item }: { item: { vehicleId?: string | null; vehicleExpenseType?: string | null; vehicleLicenseType?: string | null; vehicleLicenseIncludes?: string | null; vehicle?: { licensePlate?: string | null } | null } }) {
   if (!item?.vehicleId) return null
   const type = VEHICLE_EXPENSE_TYPES.find(t => t.value === item.vehicleExpenseType)?.label || item.vehicleExpenseType || 'Vehicle cost'
-  const licence = item.vehicleLicenseType ? LICENSE_TYPES.find(t => t.value === item.vehicleLicenseType)?.label || item.vehicleLicenseType : null
+  const mainType = item.vehicleExpenseType === 'INSURANCE' ? 'INSURANCE' : item.vehicleLicenseType
+  const licence = mainType && toIncludes(item.vehicleLicenseIncludes).length
+    ? licenceGroupLabel(mainType, item.vehicleLicenseIncludes)
+    : item.vehicleLicenseType ? LICENSE_TYPES.find(t => t.value === item.vehicleLicenseType)?.label || item.vehicleLicenseType : null
   return (
     <span className="inline-flex items-center gap-1 ml-1.5 px-1.5 py-0.5 rounded text-[11px] font-medium bg-sky-100 dark:bg-sky-900/40 text-sky-800 dark:text-sky-200 whitespace-nowrap">
       🚗 {item.vehicle?.licensePlate || 'Vehicle'} · {type}{licence ? ` (${licence})` : ''}

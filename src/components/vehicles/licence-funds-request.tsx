@@ -12,6 +12,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import fetchWithValidation from '@/lib/fetchWithValidation'
+import { LicenceIncludesBoxes, licenceGroupLabel } from './licence-includes'
 
 export interface LicenceRequestStatus {
   id: string
@@ -25,6 +26,8 @@ export interface LicenceRequestStatus {
   requestedBy: string | null
   createdAt: string
   approvedAt: string | null
+  /** MBM-354: every licence the request is for (the receipt's group) */
+  licenseTypes?: string[]
 }
 
 const PENDING = ['SUBMITTED']
@@ -104,6 +107,8 @@ export function LicenceFundsRequestForm({ vehicleId, licenseType, licenseLabel, 
   const [amount, setAmount] = useState(defaultAmount ? String(defaultAmount) : '')
   const [lateFee, setLateFee] = useState('')
   const [notes, setNotes] = useState('')
+  // MBM-354: the other licences on the same receipt
+  const [includes, setIncludes] = useState<string[]>([])
   const [error, setError] = useState('')
   const [saving, setSavingState] = useState(false)
   const setSaving = (b: boolean) => { setSavingState(b); onSaving?.(b) }
@@ -153,15 +158,17 @@ export function LicenceFundsRequestForm({ vehicleId, licenseType, licenseLabel, 
         vehicleId,
         vehicleExpenseType: isInsurance ? 'INSURANCE' : 'LICENSING',
         vehicleLicenseType: licenseType,
+        vehicleLicenseIncludes: includes.length ? includes.join(',') : null,
         // No expiry: approving records the cost; the licence is entered once bought
       })
-      const items = [line(`${licenseLabel} renewal — ${plate}`, amt)]
-      if (fee > 0) items.push(line(`${licenseLabel} late fee — ${plate}`, fee))
+      const what = includes.length ? licenceGroupLabel(licenseType, includes) : licenseLabel
+      const items = [line(`${what} renewal — ${plate}`, amt)]
+      if (fee > 0) items.push(line(`${what} late fee — ${plate}`, fee))
       await fetchWithValidation(`/api/expense-account/${accountId}/combo-requests`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          title: `Licence renewal: ${licenseLabel} — ${plate}${vehicle ? ` (${vehicle.make} ${vehicle.model})` : ''}`,
+          title: `Licence renewal: ${includes.length ? licenceGroupLabel(licenseType, includes) : licenseLabel} — ${plate}${vehicle ? ` (${vehicle.make} ${vehicle.model})` : ''}`,
           notes: notes.trim() || null,
           status: 'SUBMITTED',
           sections: [{ sectionType: 'CUSTOM', sectionName: 'Vehicle licence', items }],
@@ -199,6 +206,7 @@ export function LicenceFundsRequestForm({ vehicleId, licenseType, licenseLabel, 
           ))}
         </select>
       </div>
+      <LicenceIncludesBoxes licenseType={licenseType} value={includes} onChange={setIncludes} disabled={saving} />
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className={labelClass}>Renewal amount *</label>

@@ -37,6 +37,7 @@ export interface ComboItem {
   vehicleExpenseType?: string | null
   vehicleLicenseType?: string | null
   vehicleLicenseExpiry?: string | null
+  vehicleLicenseIncludes?: string | null // MBM-354
 }
 
 /** MBM-335: lets a payee picker open the form's "create payee" dialogs */
@@ -587,7 +588,7 @@ export function ComboRequestItemRow({
 
       {/* MBM-344: a vehicle cost (Fleet Management gets it on approval) */}
       <VehicleCostPicker compact required={item.domainId === VEHICLE_DOMAIN_ID}
-        value={{ vehicleId: item.vehicleId ?? null, vehicleExpenseType: item.vehicleExpenseType ?? null, vehicleLicenseType: item.vehicleLicenseType ?? null, vehicleLicenseExpiry: item.vehicleLicenseExpiry ?? null }}
+        value={{ vehicleId: item.vehicleId ?? null, vehicleExpenseType: item.vehicleExpenseType ?? null, vehicleLicenseType: item.vehicleLicenseType ?? null, vehicleLicenseExpiry: item.vehicleLicenseExpiry ?? null, vehicleLicenseIncludes: item.vehicleLicenseIncludes ?? null }}
         onChange={v => onChange({ ...item, ...v })} />
 
       {/* Row 4: payee + notes (expandable) */}

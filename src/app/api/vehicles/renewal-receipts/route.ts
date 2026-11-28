@@ -16,6 +16,8 @@ const LicenseEntrySchema = z.object({
   isExempt: z.boolean().optional().default(false),
   reminderDays: z.number().int().min(1).max(365).optional().default(30),
   documentUrl: z.string().optional(),
+  // MBM-354: radio licence / insurance on the same receipt, renewed with it
+  includeTypes: z.array(z.enum(['REGISTRATION', 'RADIO', 'INSURANCE'])).max(3).optional(),
 })
 
 const CreateRenewalReceiptSchema = z.object({
@@ -156,6 +158,7 @@ export async function POST(request: NextRequest) {
           licenseNumber: lic.licenseNumber,
           renewalCost: lic.renewalCost ?? null,
           renewalReceiptId: newReceipt.id,
+          includeTypes: lic.includeTypes ?? null,
           extra: {
             ...(lic.issuingAuthority ? { issuingAuthority: lic.issuingAuthority } : {}),
             usage: lic.usage ?? null,

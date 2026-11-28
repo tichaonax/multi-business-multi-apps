@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { renewFromVehicleCost } from '@/lib/vehicles/renew-vehicle-license'
 import { upsertLinkedVehicleRecord, type VehicleExpenseTypeInput } from '@/lib/vehicles/create-linked-vehicle-record'
-import { isVehicleExpenseType } from '@/lib/vehicles/vehicle-expense-types'
+import { isVehicleExpenseType, licenseIncludesColumn } from '@/lib/vehicles/vehicle-expense-types'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { isSystemAdmin } from '@/lib/permission-utils'
@@ -166,6 +166,7 @@ export async function POST(
       vehicleExpenseType,
       vehicleLicenseType,
       vehicleLicenseExpiry,
+      vehicleLicenseIncludes,
     } = body
 
     if (!amount || Number(amount) <= 0) {
@@ -265,6 +266,7 @@ export async function POST(
             vehicleExpenseType: isVehicleExpenseType(vehicleExpenseType) ? vehicleExpenseType : 'OTHER',
             vehicleLicenseType: vehicleLicenseType || null,
             vehicleLicenseExpiry: vehicleLicenseExpiry ? new Date(vehicleLicenseExpiry) : null,
+            vehicleLicenseIncludes: licenseIncludesColumn(vehicleLicenseIncludes), // MBM-354
           } : {}),
         },
         include: {

@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { X, Plus, Trash2, ShoppingCart, Car } from 'lucide-react'
 import { useToastContext } from '@/components/ui/toast'
 import { SearchableSelect, type SearchableSelectItem } from '@/components/common/searchable-select'
+import { LicenceIncludesBoxes } from '@/components/vehicles/licence-includes'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -43,6 +44,8 @@ interface ExpenseLine {
   /** MBM-347: Licensing — which licence; Licensing / Insurance — new expiry if known */
   licenseType: string
   licenseExpiry: string
+  /** MBM-354: the other licences on the same receipt */
+  licenseIncludes: string[]
 }
 
 interface Props {
@@ -72,6 +75,7 @@ function makeExpenseLine(): ExpenseLine {
     mileageAtExpense: '',
     licenseType: 'REGISTRATION',
     licenseExpiry: '',
+    licenseIncludes: [],
   }
 }
 
@@ -421,6 +425,8 @@ export default function VehicleExpenseModal({
         ...(l.expenseType === 'LICENSING' ? { licenseType: l.licenseType } : {}),
         ...(l.expenseType === 'INSURANCE' ? { licenseType: 'INSURANCE' } : {}),
         ...((l.expenseType === 'LICENSING' || l.expenseType === 'INSURANCE') && l.licenseExpiry ? { licenseExpiry: l.licenseExpiry } : {}),
+        // MBM-354: the other licences on the same receipt
+        ...((l.expenseType === 'LICENSING' || l.expenseType === 'INSURANCE') && l.licenseIncludes?.length ? { licenseIncludes: l.licenseIncludes.join(',') } : {}),
       },
     }))
 
@@ -690,7 +696,7 @@ export default function VehicleExpenseModal({
                             <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Licence</label>
                             <select
                               value={line.licenseType}
-                              onChange={e => updateLine(line.id, { licenseType: e.target.value })}
+                              onChange={e => updateLine(line.id, { licenseType: e.target.value, licenseIncludes: [] })}
                               className="w-full text-sm border border-gray-300 dark:border-gray-600 rounded-md px-2 py-1.5 bg-white dark:bg-gray-900 dark:text-gray-100"
                             >
                               <option value="REGISTRATION">Registration</option>
@@ -710,6 +716,13 @@ export default function VehicleExpenseModal({
                           />
                         </div>
                       </div>
+                    )}
+                    {/* MBM-354: registration, radio licence and insurance on one receipt */}
+                    {(line.expenseType === 'LICENSING' || line.expenseType === 'INSURANCE') && (
+                      <LicenceIncludesBoxes compact
+                        licenseType={line.expenseType === 'INSURANCE' ? 'INSURANCE' : line.licenseType}
+                        value={line.licenseIncludes || []}
+                        onChange={v => updateLine(line.id, { licenseIncludes: v })} />
                     )}
 
                     {/* Mileage + Notes */}

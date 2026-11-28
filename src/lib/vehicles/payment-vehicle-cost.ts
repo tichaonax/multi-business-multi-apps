@@ -19,7 +19,7 @@
 import { Prisma } from '@prisma/client'
 import { upsertLinkedVehicleRecord, removeLinkedVehicleRecord, type VehicleExpenseTypeInput } from './create-linked-vehicle-record'
 import { renewFromVehicleCost } from './renew-vehicle-license'
-import { isVehicleExpenseType } from './vehicle-expense-types'
+import { isVehicleExpenseType, licenseIncludesColumn } from './vehicle-expense-types'
 
 export const COMMITTED_PAYMENT_STATUSES = ['SUBMITTED', 'APPROVED', 'PAID']
 
@@ -28,6 +28,8 @@ export interface PaymentVehicleCost {
   expenseType: string
   licenseType?: string | null
   licenseExpiry?: string | null
+  /** MBM-354: "RADIO,INSURANCE": the other licences on the same receipt */
+  licenseIncludes?: string | null
   fuelQuantity?: number | null
   fuelType?: string | null
   mileageAtExpense?: number | null
@@ -48,6 +50,7 @@ export function toPaymentVehicleCost(ve: any): PaymentVehicleCost | null {
     expenseType: isVehicleExpenseType(type) ? type : 'OTHER',
     licenseType: ve.licenseType || null,
     licenseExpiry: ve.licenseExpiry || null,
+    licenseIncludes: licenseIncludesColumn(ve.licenseIncludes),
     fuelQuantity: num(ve.fuelQuantity),
     fuelType: ve.fuelType || null,
     mileageAtExpense: num(ve.mileageAtExpense),
@@ -98,6 +101,7 @@ export async function syncPaymentVehicleCosts(tx: any, paymentIds: string[]): Pr
       vehicleExpenseType: cost.expenseType,
       vehicleLicenseType: cost.licenseType ?? null,
       vehicleLicenseExpiry: cost.licenseExpiry ?? null,
+      vehicleLicenseIncludes: cost.licenseIncludes ?? null,
       amount,
       date: p.paymentDate,
       sourceRef,
@@ -115,7 +119,7 @@ export async function syncSupplierItemVehicleCosts(tx: any, itemIds: string[], u
     where: { id: { in: ids }, NOT: { vehicleId: null } },
     select: {
       id: true, status: true, description: true, amount: true, approvedAmount: true,
-      vehicleId: true, vehicleExpenseType: true, vehicleLicenseType: true, vehicleLicenseExpiry: true,
+      vehicleId: true, vehicleExpenseType: true, vehicleLicenseType: true, vehicleLicenseExpiry: true, vehicleLicenseIncludes: true,
       request: { select: { approvedAt: true, submittedAt: true, supplier: { select: { name: true } } } },
     },
   })

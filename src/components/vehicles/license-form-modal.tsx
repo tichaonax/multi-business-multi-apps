@@ -7,6 +7,7 @@ import { X } from 'lucide-react'
 import { useToastContext } from '@/components/ui/toast'
 import fetchWithValidation from '@/lib/fetchWithValidation'
 import { DocumentUpload } from '@/components/ui/document-upload'
+import { LicenceIncludesBoxes, COMBINED_LICENCE_TYPES } from './licence-includes'
 import { LicenceFundsRequestForm, LicenceRequestBanner, isApprovedRequest, isPendingRequest, useLicenceRequest } from './licence-funds-request'
 
 interface LicenseFormModalProps {
@@ -31,9 +32,8 @@ const LICENSE_TYPES = [
   { value: 'INSPECTION', label: 'Inspection' }
 ]
 
-// MBM-354: the authorities issue these three on one receipt
-const COMBINED_TYPES = ['REGISTRATION', 'RADIO', 'INSURANCE']
-const COMBINED_LABEL: Record<string, string> = { REGISTRATION: 'Registration', RADIO: 'Radio licence', INSURANCE: 'Insurance' }
+// MBM-354: the authorities issue registration, radio licence and insurance on one receipt
+const COMBINED_TYPES = COMBINED_LICENCE_TYPES
 
 export function LicenseFormModal({ vehicleId, license, renewFrom, isOpen, onClose, onSave }: LicenseFormModalProps) {
   const [formData, setFormData] = useState({
@@ -57,7 +57,6 @@ export function LicenseFormModal({ vehicleId, license, renewFrom, isOpen, onClos
   const [error, setError] = useState('')
   // MBM-354: the other licences on the same receipt, renewed with this one
   const [includeTypes, setIncludeTypes] = useState<string[]>([])
-  const otherCombined = COMBINED_TYPES.filter(t => t !== formData.licenseType)
   const showIncludes = !license && COMBINED_TYPES.includes(formData.licenseType)
 
   // Renewing: tick the licences that came on the same receipt last time
@@ -97,6 +96,12 @@ export function LicenseFormModal({ vehicleId, license, renewFrom, isOpen, onClos
     setMode(live ? 'enter' : 'request')
   }, [renewFrom, fundsLoaded, fundsRequest, modeChosen])
   const pickMode = (m: 'request' | 'enter') => { setMode(m); setModeChosen(true) }
+  // MBM-354: the funds were asked for the whole receipt: tick the others
+  useEffect(() => {
+    const types = (fundsRequest as any)?.licenseTypes as string[] | undefined
+    if (!renewFrom || !types?.length) return
+    setIncludeTypes(prev => [...new Set([...prev, ...types.filter(t => t !== renewFrom.licenseType && COMBINED_LICENCE_TYPES.includes(t))])])
+  }, [fundsRequest, renewFrom])
   const requestBlocked = !!fundsRequest && fundsRequest.status !== 'CANCELLED' && fundsRequest.status !== 'EXPIRED'
 
   // Fetch issuing authorities on mount
@@ -495,26 +500,7 @@ export function LicenseFormModal({ vehicleId, license, renewFrom, isOpen, onClos
 
           {/* MBM-354: one receipt for registration, radio licence and insurance */}
           {showIncludes && (
-            <div className="rounded-md border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 p-3 space-y-2">
-              <p className="text-xs font-medium text-primary">On the same receipt</p>
-              <div className="flex flex-wrap gap-x-6 gap-y-2">
-                {otherCombined.map(t => (
-                  <label key={t} className="flex items-center gap-2 text-sm text-secondary cursor-pointer">
-                    <input type="checkbox" className="w-4 h-4 text-blue-600 rounded border-gray-300 dark:border-gray-600"
-                      checked={includeTypes.includes(t)}
-                      onChange={e => setIncludeTypes(prev => e.target.checked ? [...prev, t] : prev.filter(x => x !== t))} />
-                    {COMBINED_LABEL[t]} included
-                  </label>
-                ))}
-              </div>
-              {includeTypes.some(t => t !== formData.licenseType) && (
-                <p className="text-xs text-secondary">
-                  {[COMBINED_LABEL[formData.licenseType], ...includeTypes.filter(t => t !== formData.licenseType).map(t => COMBINED_LABEL[t])].join(', ')} are
-                  {' '}all renewed with this number and these dates. Enter the whole receipt&apos;s fee above: it is recorded on the
-                  {' '}{[formData.licenseType, ...includeTypes].includes('REGISTRATION') ? 'Registration' : COMBINED_LABEL[formData.licenseType]}, the others at 0.
-                </p>
-              )}
-            </div>
+            <LicenceIncludesBoxes licenseType={formData.licenseType} value={includeTypes} onChange={setIncludeTypes} />
           )}
 
           {/* Usage — Radio/TV only */}

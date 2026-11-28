@@ -6559,22 +6559,23 @@ model SupplierPaymentRequestPartials {
 }
 
 model SupplierPaymentRequestItems {
-  id                   String    @id @default(cuid())
-  requestId            String
-  description          String?
-  categoryId           String?
-  subcategoryId        String?
-  amount               Decimal   @db.Decimal(12, 2)
-  taxAmount            Decimal?  @db.Decimal(12, 2)
-  status               String    @default("PENDING")
-  approvedAmount       Decimal?  @db.Decimal(12, 2)
-  approvalNote         String?
-  managerNote          String?
+  id                     String    @id @default(cuid())
+  requestId              String
+  description            String?
+  categoryId             String?
+  subcategoryId          String?
+  amount                 Decimal   @db.Decimal(12, 2)
+  taxAmount              Decimal?  @db.Decimal(12, 2)
+  status                 String    @default("PENDING")
+  approvedAmount         Decimal?  @db.Decimal(12, 2)
+  approvalNote           String?
+  managerNote            String?
   // MBM-347: a vehicle cost — written to Vehicle Management when the line is approved
-  vehicleId            String?
-  vehicleExpenseType   String?
-  vehicleLicenseType   String?
-  vehicleLicenseExpiry DateTime?
+  vehicleId              String?
+  vehicleExpenseType     String?
+  vehicleLicenseType     String?
+  vehicleLicenseExpiry   DateTime?
+  vehicleLicenseIncludes String? // MBM-354: "RADIO,INSURANCE": the other licences on the same receipt
 
   request     SupplierPaymentRequests @relation(fields: [requestId], references: [id], onDelete: Cascade)
   category    ExpenseCategories?      @relation("SupplierPaymentItemCategory", fields: [categoryId], references: [id])
@@ -6901,26 +6902,27 @@ model PettyCashRequests {
 }
 
 model PettyCashTransaction {
-  id                   String    @id @default(cuid())
-  requestId            String
-  businessId           String
-  expenseAccountId     String
-  amount               Decimal   @db.Decimal(12, 2)
-  description          String // what it was spent on
-  categoryId           String?
-  payeeType            String    @default("NONE") // mirrors ExpenseAccountPayments.payeeType
-  payeeSupplierId      String?
-  payeeEmployeeId      String?
-  payeeUserId          String?
-  transactionDate      DateTime  @default(now())
-  paymentId            String?   @unique // FK ExpenseAccountPayments created alongside
+  id                     String    @id @default(cuid())
+  requestId              String
+  businessId             String
+  expenseAccountId       String
+  amount                 Decimal   @db.Decimal(12, 2)
+  description            String // what it was spent on
+  categoryId             String?
+  payeeType              String    @default("NONE") // mirrors ExpenseAccountPayments.payeeType
+  payeeSupplierId        String?
+  payeeEmployeeId        String?
+  payeeUserId            String?
+  transactionDate        DateTime  @default(now())
+  paymentId              String?   @unique // FK ExpenseAccountPayments created alongside
   // MBM-344: a vehicle cost — synced to Fleet Management when recorded
-  vehicleId            String?
-  vehicleExpenseType   String?
-  vehicleLicenseType   String? // MBM-344: LICENSING/INSURANCE — the licence it renews
-  vehicleLicenseExpiry DateTime? // and its new expiry date
-  createdBy            String
-  createdAt            DateTime  @default(now())
+  vehicleId              String?
+  vehicleExpenseType     String?
+  vehicleLicenseType     String? // MBM-344: LICENSING/INSURANCE — the licence it renews
+  vehicleLicenseExpiry   DateTime? // and its new expiry date
+  vehicleLicenseIncludes String? // MBM-354: "RADIO,INSURANCE": the other licences on the same receipt
+  createdBy              String
+  createdAt              DateTime  @default(now())
 
   request        PettyCashRequests       @relation("PettyCashTransactions", fields: [requestId], references: [id])
   business       Businesses              @relation("PettyCashTransactionBusiness", fields: [businessId], references: [id])
@@ -8449,6 +8451,7 @@ model ComboPaymentRequestItems {
   vehicleExpenseType      String?
   vehicleLicenseType      String? // MBM-344: LICENSING/INSURANCE — the licence it renews
   vehicleLicenseExpiry    DateTime? // and its new expiry date
+  vehicleLicenseIncludes  String? // MBM-354: "RADIO,INSURANCE": the other licences on the same receipt
   sortOrder               Int       @default(0)
   createdAt               DateTime  @default(now())
   updatedAt               DateTime  @default(now()) @updatedAt

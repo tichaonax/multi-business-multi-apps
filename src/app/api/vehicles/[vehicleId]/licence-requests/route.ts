@@ -28,9 +28,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const line = await prisma.comboPaymentRequestItems.findFirst({
       where: {
         vehicleId,
-        ...(licenseType === 'INSURANCE'
-          ? { vehicleExpenseType: 'INSURANCE' }
-          : { vehicleExpenseType: 'LICENSING', vehicleLicenseType: licenseType }),
+        OR: [
+          licenseType === 'INSURANCE'
+            ? { vehicleExpenseType: 'INSURANCE' }
+            : { vehicleExpenseType: 'LICENSING', vehicleLicenseType: licenseType },
+          // MBM-354: a request for the registration with this licence on the same receipt
+          { vehicleExpenseType: { in: ['LICENSING', 'INSURANCE'] }, vehicleLicenseIncludes: { contains: licenseType } },
+        ],
         request: {
           status: { not: 'DRAFT' },
           ...(current ? { createdAt: { gt: current.createdAt } } : {}),
@@ -40,6 +44,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       select: {
         id: true,
         estimatedAmount: true,
+        vehicleExpenseType: true,
+        vehicleLicenseType: true,
+        vehicleLicenseIncludes: true,
         request: {
           select: {
             id: true, title: true, status: true, accountId: true,
@@ -69,6 +76,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         createdAt: r.createdAt.toISOString(),
         submittedAt: r.submittedAt?.toISOString() ?? null,
         approvedAt: r.approvedAt?.toISOString() ?? null,
+        // MBM-354: every licence the request is for (the receipt's group)
+        licenseTypes: [...new Set([
+          line.vehicleExpenseType === 'INSURANCE' ? 'INSURANCE' : line.vehicleLicenseType,
+          ...(line.vehicleLicenseIncludes || '').split(','),
+        ].filter(Boolean))],
       },
     })
   } catch (error) {

@@ -1,6 +1,6 @@
 import { vehicleLinesMissingDetails } from '@/lib/vehicles/vehicle-expense-types'
 import { NextRequest, NextResponse } from 'next/server'
-import { isVehicleExpenseType } from '@/lib/vehicles/vehicle-expense-types'
+import { isVehicleExpenseType, licenseIncludesColumn } from '@/lib/vehicles/vehicle-expense-types'
 import { prisma } from '@/lib/prisma'
 import { getServerUser } from '@/lib/get-server-user'
 import { getEffectivePermissions } from '@/lib/permission-utils'
@@ -190,6 +190,7 @@ export async function POST(
               vehicleExpenseType: item.vehicleId ? (isVehicleExpenseType(item.vehicleExpenseType) ? item.vehicleExpenseType : 'OTHER') : null,
               vehicleLicenseType: item.vehicleId ? item.vehicleLicenseType || null : null,
               vehicleLicenseExpiry: item.vehicleId && item.vehicleLicenseExpiry ? new Date(item.vehicleLicenseExpiry) : null,
+              vehicleLicenseIncludes: item.vehicleId ? licenseIncludesColumn(item.vehicleLicenseIncludes) : null, // MBM-354
               notes: item.notes || null,
               sortOrder: item.sortOrder ?? iIdx,
             },

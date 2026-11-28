@@ -7,6 +7,7 @@ import { DocumentUpload } from '@/components/ui/document-upload'
 import { useToastContext } from '@/components/ui/toast'
 import fetchWithValidation from '@/lib/fetchWithValidation'
 import { Vehicle } from '@/types/vehicle'
+import { LicenceIncludesBoxes } from './licence-includes'
 
 interface RenewalReceiptFormProps {
   vehicle: Vehicle
@@ -151,6 +152,8 @@ export function RenewalReceiptForm({ vehicle, isOpen, onClose, onSave }: Renewal
     ...emptyLicense(),
     licenseNumber: vehicle.licensePlate,
   })
+  // MBM-354: radio licence / insurance that came on the registration's receipt
+  const [regIncludes, setRegIncludes] = useState<string[]>([])
   const [radioLic, setRadioLic] = useState(emptyLicense())
   const [insuranceLic, setInsuranceLic] = useState(emptyLicense())
 
@@ -209,9 +212,11 @@ export function RenewalReceiptForm({ vehicle, isOpen, onClose, onSave }: Renewal
         lateFee: parseNum(registrationLic.lateFee),
         isExempt: registrationLic.isExempt,
         reminderDays: parseInt(registrationLic.reminderDays) || 30,
+        ...(regIncludes.length ? { includeTypes: regIncludes } : {}),
       })
     }
-    if (radioLic.include) {
+    // MBM-354: renewed with the registration, not on their own
+    if (radioLic.include && !(registrationLic.include && regIncludes.includes('RADIO'))) {
       entries.push({
         licenseType: 'RADIO',
         licenseNumber: radioLic.licenseNumber,
@@ -225,7 +230,7 @@ export function RenewalReceiptForm({ vehicle, isOpen, onClose, onSave }: Renewal
         reminderDays: parseInt(radioLic.reminderDays) || 30,
       })
     }
-    if (insuranceLic.include) {
+    if (insuranceLic.include && !(registrationLic.include && regIncludes.includes('INSURANCE'))) {
       entries.push({
         licenseType: 'INSURANCE',
         licenseNumber: insuranceLic.licenseNumber,
@@ -256,6 +261,7 @@ export function RenewalReceiptForm({ vehicle, isOpen, onClose, onSave }: Renewal
     ]
     for (const { tab, label, lic } of tabbedLicenses) {
       if (!lic.include) continue
+      if (tab !== 'REGISTRATION' && registrationLic.include && regIncludes.includes(tab)) continue // MBM-354
       if (!lic.licenseNumber.trim() || !lic.issueDate || !lic.expiryDate) {
         setActiveTab(tab)
         toast.error(`${label} is marked as included but is missing its new licence number, issue date, or expiry date`)
@@ -431,6 +437,17 @@ export function RenewalReceiptForm({ vehicle, isOpen, onClose, onSave }: Renewal
               ))}
             </div>
             {activeTab === 'REGISTRATION' && <LicenseFields lic={registrationLic} setter={setRegistrationLic} licId="reg" onLicChange={handleLicChange} />}
+            {/* MBM-354: one receipt for registration, radio licence and insurance */}
+            {activeTab === 'REGISTRATION' && registrationLic.include && (
+              <div className="mt-3">
+                <LicenceIncludesBoxes licenseType="REGISTRATION" value={regIncludes} onChange={setRegIncludes} />
+              </div>
+            )}
+            {activeTab !== 'REGISTRATION' && registrationLic.include && regIncludes.includes(activeTab) && (
+              <p className="mt-3 text-xs text-blue-700 dark:text-blue-300">
+                Renewed with the Registration (ticked as included there), with its number and dates: nothing to enter here.
+              </p>
+            )}
             {activeTab === 'RADIO' && <LicenseFields lic={radioLic} setter={setRadioLic} showUsage licId="radio" onLicChange={handleLicChange} />}
             {activeTab === 'INSURANCE' && <LicenseFields lic={insuranceLic} setter={setInsuranceLic} licId="insurance" onLicChange={handleLicChange} />}
           </div>

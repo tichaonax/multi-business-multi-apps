@@ -117,6 +117,7 @@ function serializeSections(sections: ComboSection[]) {
         vehicleExpenseType: item.vehicleId ? item.vehicleExpenseType || null : null,
         vehicleLicenseType: item.vehicleId ? item.vehicleLicenseType || null : null,
         vehicleLicenseExpiry: item.vehicleId ? item.vehicleLicenseExpiry || null : null,
+        vehicleLicenseIncludes: item.vehicleId ? item.vehicleLicenseIncludes || null : null, // MBM-354
         expenseLineId: item.expenseLineId || null,
         // MBM-335: keeps the cashier's flag; the requester only answers it
         id: item.id || null,
@@ -261,6 +262,7 @@ export function ComboRequestForm({ accountId, requestId }: ComboRequestFormProps
                 vehicleExpenseType: i.vehicleExpenseType || null,
                 vehicleLicenseType: i.vehicleLicenseType || null,
                 vehicleLicenseExpiry: i.vehicleLicenseExpiry ? String(i.vehicleLicenseExpiry).slice(0, 10) : null,
+                vehicleLicenseIncludes: i.vehicleLicenseIncludes || null, // MBM-354
                 // MBM-335
                 id: i.id,
                 classificationLabel: i.category

@@ -5,6 +5,7 @@ import { randomBytes } from 'crypto'
 import { getServerUser } from '@/lib/get-server-user'
 import { createAuditLog } from '@/lib/audit'
 import { resweepVehicleLicenseReminders } from '@/lib/vehicles/license-reminder-notify'
+import { renewVehicleLicense, COMBINED_LICENSE_TYPES } from '@/lib/vehicles/renew-vehicle-license'
 
 const CreateLicenseSchema = z.object({
   vehicleId: z.string().min(1, 'Vehicle ID is required'),
@@ -32,79 +33,6 @@ const CreateLicenseSchema = z.object({
   includeTypes: z.array(z.enum(['REGISTRATION', 'RADIO', 'INSURANCE'])).max(3).optional(),
 })
 
-// MBM-354: registration, radio licence and insurance come on one receipt
-const COMBINED_TYPES = ['REGISTRATION', 'RADIO', 'INSURANCE'] as const
-
-/** Renews every licence on the receipt in one go. The registration (or, without
- *  it, the type being entered) is the main one: it carries the fee, the late fee
- *  and the funding link. The others cost 0 and point to it. Each one supersedes
- *  the vehicle's current licence of its type, so its alerts resolve. */
-async function saveCombinedRenewal(userId: string, vehicle: { id: string; licensePlate: string | null; make: string | null; model: string | null },
-  data: Omit<z.infer<typeof CreateLicenseSchema>, 'supersedesLicenseId' | 'includeTypes'>, supersedesLicenseId: string | undefined, types: string[]) {
-  const main = types.includes('REGISTRATION') ? 'REGISTRATION' : data.licenseType
-  const ordered = [main, ...types.filter(t => t !== main)]
-  const now = new Date()
-  const created = await prisma.$transaction(async (tx) => {
-    const out: any[] = []
-    let mainId: string | null = null
-    for (const type of ordered) {
-      const active = await tx.vehicleLicenses.findMany({
-        where: { vehicleId: vehicle.id, licenseType: type as any, isActive: true },
-        orderBy: { expiryDate: 'desc' },
-      })
-      const replaced = (type === data.licenseType && supersedesLicenseId && active.find(a => a.id === supersedesLicenseId)) || active[0] || null
-      for (const old of active) {
-        await tx.vehicleLicenses.update({ where: { id: old.id }, data: { isActive: false } })
-      }
-      const isMain = type === main
-      const row: any = await tx.vehicleLicenses.create({
-        data: {
-          id: crypto.randomUUID(),
-          vehicleId: vehicle.id,
-          licenseType: type as any,
-          licenseNumber: data.licenseNumber,
-          issuingAuthority: data.issuingAuthority,
-          issueDate: new Date(data.issueDate),
-          expiryDate: new Date(data.expiryDate),
-          renewalCost: isMain ? data.renewalCost : 0,
-          lateFee: isMain ? data.lateFee : 0,
-          usage: type === 'RADIO' ? (data.licenseType === 'RADIO' ? data.usage : replaced?.usage ?? data.usage) : (type === data.licenseType ? data.usage : null),
-          isExempt: data.isExempt,
-          documentUrl: data.documentUrl,
-          reminderDays: replaced?.reminderDays ?? data.reminderDays,
-          fundedSourceRef: isMain ? data.fundedSourceRef : undefined,
-          supersedesLicenseId: replaced?.id ?? null,
-          includedInLicenseId: isMain ? null : mainId,
-          updatedAt: now,
-        },
-      })
-      if (isMain) mainId = row.id
-      out.push({ row, replaced })
-    }
-    return out
-  })
-  for (const { row, replaced } of created) {
-    createAuditLog({
-      userId,
-      action: 'VEHICLE_LICENSE_CREATED',
-      entityType: 'VehicleLicense',
-      entityId: row.id,
-      newValues: { licenseType: row.licenseType, licenseNumber: row.licenseNumber, issueDate: row.issueDate, expiryDate: row.expiryDate, renewalCost: row.renewalCost, includedInLicenseId: row.includedInLicenseId },
-      metadata: {
-        vehicleId: vehicle.id, licensePlate: vehicle.licensePlate, make: vehicle.make, model: vehicle.model,
-        reason: `Renewed on one receipt with ${created.map(c => c.row.licenseType).filter(t => t !== row.licenseType).join(', ').toLowerCase()}${replaced ? ` (replaces #${replaced.licenseNumber})` : ''}`,
-      },
-    }).catch((e) => console.error('Failed to write audit log for combined licence renewal', e))
-  }
-  resweepVehicleLicenseReminders().catch(() => {})
-  const entered = created.find(c => c.row.licenseType === data.licenseType)?.row || created[0].row
-  return NextResponse.json({
-    success: true,
-    data: entered,
-    message: `Renewed ${created.map(c => c.row.licenseType.toLowerCase()).join(', ')} on one receipt`,
-  }, { status: 201 })
-}
-
 const UpdateLicenseSchema = z.object({
   id: z.string().min(1),
   licenseType: z.enum(['REGISTRATION', 'RADIO', 'ROAD_USE', 'INSURANCE', 'INSPECTION']).optional(),
@@ -120,6 +48,53 @@ const UpdateLicenseSchema = z.object({
   reminderDays: z.number().int().min(1).max(365).optional(),
   isActive: z.boolean().optional()
 })
+
+// MBM-354: registration, radio licence and insurance come on one receipt.
+// The shared renew step does it (the same as renewal receipts and Licensing
+// costs): the registration carries the fee, the others cost 0 and point to it.
+async function saveCombinedRenewal(userId: string, vehicle: { id: string; licensePlate: string | null; make: string | null; model: string | null },
+  data: Omit<z.infer<typeof CreateLicenseSchema>, 'supersedesLicenseId' | 'includeTypes'>, supersedesLicenseId: string | undefined, types: string[]) {
+  const result = await prisma.$transaction((tx) => renewVehicleLicense(tx, {
+    vehicleId: vehicle.id,
+    licenseType: data.licenseType,
+    includeTypes: types,
+    supersedesLicenseId: supersedesLicenseId ?? null,
+    expiryDate: new Date(data.expiryDate),
+    issueDate: new Date(data.issueDate),
+    licenseNumber: data.licenseNumber,
+    renewalCost: data.renewalCost ?? null,
+    fundedSourceRef: data.fundedSourceRef ?? null,
+    extra: {
+      ...(data.issuingAuthority ? { issuingAuthority: data.issuingAuthority } : {}),
+      usage: data.usage ?? null,
+      lateFee: data.lateFee ?? null,
+      isExempt: data.isExempt ?? false,
+      reminderDays: data.reminderDays ?? 30,
+      documentUrl: data.documentUrl ?? null,
+    },
+  }))
+  const group = result.group || [{ licenseType: data.licenseType, ...result }]
+  for (const g of group) {
+    createAuditLog({
+      userId,
+      action: 'VEHICLE_LICENSE_CREATED',
+      entityType: 'VehicleLicense',
+      entityId: g.id,
+      newValues: { licenseType: g.licenseType, licenseNumber: data.licenseNumber, issueDate: data.issueDate, expiryDate: data.expiryDate },
+      metadata: {
+        vehicleId: vehicle.id, licensePlate: vehicle.licensePlate, make: vehicle.make, model: vehicle.model,
+        reason: `${g.status === 'renewed' ? 'Renewed' : 'Already renewed; linked'} on one receipt with ${group.filter(o => o.licenseType !== g.licenseType).map(o => o.licenseType.toLowerCase()).join(', ')}`,
+      },
+    }).catch((e) => console.error('Failed to write audit log for combined licence renewal', e))
+  }
+  resweepVehicleLicenseReminders().catch(() => {})
+  const entered = await prisma.vehicleLicenses.findUnique({ where: { id: result.id } })
+  return NextResponse.json({
+    success: true,
+    data: entered,
+    message: `Renewed ${group.map(g => g.licenseType.toLowerCase()).join(', ')} on one receipt`,
+  }, { status: 201 })
+}
 
 // GET - Fetch vehicle licenses
 export async function GET(request: NextRequest) {
@@ -266,7 +241,7 @@ export async function POST(request: NextRequest) {
     // MBM-354: registration + radio + insurance on one receipt
     const combined = [...new Set([validatedData.licenseType, ...(includeTypes || [])])]
     if (combined.length > 1) {
-      if (!(COMBINED_TYPES as readonly string[]).includes(validatedData.licenseType)) {
+      if (!(COMBINED_LICENSE_TYPES as readonly string[]).includes(validatedData.licenseType)) {
         return NextResponse.json({ error: 'Only registration, radio licence and insurance can share a receipt' }, { status: 400 })
       }
       return saveCombinedRenewal(user.id, vehicle, validatedData, supersedesLicenseId, combined)
