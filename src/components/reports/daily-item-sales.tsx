@@ -89,8 +89,18 @@ export function DailyItemSales({ businessId, date, start, end, collapsible = fal
   const totalSales = shown.reduce((s, r) => s + r.total, 0)
   const restockCount = (rows || []).filter(r => r.restockNeeded).length
 
+  const hasRows = open && !!rows && rows.length > 0
+  const openRow = (r: ItemSalesRow) => { const h = viewHref(r); if (h) router.push(h) }
+
   return (
     <section className={`card p-4 sm:p-6 mb-6 ${open ? '' : 'print:hidden'}`}>
+      {/* MBM-353: while open, the heading, the total sold and the search stay
+          pinned under the app header (h-14 / sm:h-16) until the section has
+          scrolled past. Closed, nothing is pinned. Solid background: rows
+          scroll underneath it. */}
+      <div className={hasRows
+        ? 'sticky top-14 sm:top-16 z-30 -mx-4 -mt-4 px-4 pt-4 pb-3 sm:-mx-6 sm:-mt-6 sm:px-6 sm:pt-6 rounded-t-xl bg-white dark:bg-neutral-800 border-b border-gray-200 dark:border-gray-700 print:static print:border-0'
+        : ''}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         {collapsible ? (
           <button type="button" onClick={() => setOpen(o => !o)} aria-expanded={open}
@@ -101,11 +111,11 @@ export function DailyItemSales({ businessId, date, start, end, collapsible = fal
         ) : (
           <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100">🧾 Items Sold</h3>
         )}
-        {open && rows && rows.length > 0 && (
-          <div className="flex flex-wrap items-center gap-3 print:hidden">
+        {hasRows && (
+          <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto print:hidden">
             <input type="search" value={search} onChange={e => { setSearch(e.target.value); setPage(1) }}
               placeholder="Search item or SKU…"
-              className="w-56 border border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400" />
+              className="w-full sm:w-56 border border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400" />
             <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
               <input type="checkbox" checked={restockOnly} onChange={e => { setRestockOnly(e.target.checked); setPage(1) }} />
               Restock needed only
@@ -113,14 +123,49 @@ export function DailyItemSales({ businessId, date, start, end, collapsible = fal
           </div>
         )}
       </div>
+      {/* Total of the rows shown (search / restock filter), always in view */}
+      {hasRows && (
+        <div className="mt-2 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 print:hidden">
+          <span className="text-sm text-gray-600 dark:text-gray-300">
+            {shown.length} item{shown.length === 1 ? '' : 's'} · {totalQty} sold
+          </span>
+          <span className="text-lg font-bold text-gray-900 dark:text-gray-100">
+            Total sold <span className="text-green-700 dark:text-green-400">{formatCurrency(totalSales)}</span>
+          </span>
+        </div>
+      )}
+      </div>
 
       {open && (
         <div className="mt-4">
           {loading && <p className="text-sm text-gray-500 dark:text-gray-400">Loading…</p>}
           {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
           {rows && rows.length === 0 && <p className="text-sm text-gray-500 dark:text-gray-400">No items sold {isRange ? 'in this period' : 'on this day'}.</p>}
-          {rows && rows.length > 0 && (
-            <div className="overflow-x-auto">
+          {rows && rows.length > 0 && (<>
+            {/* MBM-353: phones get a list, not a table wider than the screen */}
+            <ul className="sm:hidden print:hidden divide-y divide-gray-100 dark:divide-gray-700">
+              {shown.length === 0 && <li className="py-4 text-center text-sm text-gray-500 dark:text-gray-400">No items match.</li>}
+              {shown.map((r, i) => onPage(i) && (
+                <li key={r.key} onClick={() => openRow(r)}
+                  className={`py-2 flex items-start gap-3 ${viewHref(r) ? 'cursor-pointer active:bg-blue-50 dark:active:bg-gray-700/50' : ''}`}>
+                  {r.imageUrl && <img src={r.imageUrl} alt="" loading="lazy" className="w-10 h-10 rounded object-cover shrink-0 border border-gray-200 dark:border-gray-600" />}
+                  <div className="min-w-0 flex-1 text-sm">
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="text-gray-900 dark:text-gray-100 break-words min-w-0">{r.name}</span>
+                      <span className="font-semibold text-gray-900 dark:text-gray-100 whitespace-nowrap">{formatCurrency(r.total)}</span>
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                      {r.quantity} × {formatCurrency(r.unitPrice)}{r.sku ? ` · ${r.sku}` : ''}
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                      Stock: <span className={r.remainingStock !== null && r.remainingStock < 0 ? 'text-red-600 dark:text-red-400' : ''}>{r.remainingStock ?? '—'}</span>
+                      {r.restockNeeded && <span className="ml-2 font-semibold text-red-600 dark:text-red-400" title={`At or below the reorder level (${r.reorderLevel})`}>⚠ Restock</span>}
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+            <div className="hidden sm:block print:block overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-300 dark:border-gray-600 text-left text-gray-600 dark:text-gray-300">
@@ -148,7 +193,7 @@ export function DailyItemSales({ businessId, date, start, end, collapsible = fal
                     <tr key={r.key}
                       className={`border-b border-gray-100 dark:border-gray-700 ${onPage(i) ? '' : 'hidden print:table-row'} ${viewHref(r) ? 'cursor-pointer hover:bg-blue-50 dark:hover:bg-gray-700/50' : ''}`}
                       title={viewHref(r) ? 'View details' : undefined}
-                      onClick={() => { const h = viewHref(r); if (h) router.push(h) }}>
+                      onClick={() => openRow(r)}>
                       <td className="py-1.5 pr-3 text-gray-900 dark:text-gray-100">
                         {/* MBM-345: thumbnail where the item has an image */}
                         <div className="flex items-center gap-2">
@@ -177,14 +222,14 @@ export function DailyItemSales({ businessId, date, start, end, collapsible = fal
                   ))}
                 </tbody>
               </table>
-              {totalPages > 1 && (
-                <div className="print:hidden">
-                  <Pagination currentPage={currentPage} totalPages={totalPages} totalItems={shown.length}
-                    pageSize={PAGE_SIZE} onPageChange={setPage} />
-                </div>
-              )}
             </div>
-          )}
+            {totalPages > 1 && (
+              <div className="print:hidden">
+                <Pagination currentPage={currentPage} totalPages={totalPages} totalItems={shown.length}
+                  pageSize={PAGE_SIZE} onPageChange={setPage} />
+              </div>
+            )}
+          </>)}
         </div>
       )}
     </section>
