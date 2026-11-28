@@ -288,6 +288,11 @@
     - [Continue for Now (Admin PIN)](#continue-for-now-admin-pin)
     - [Shortcuts](#shortcuts)
     - [Troubleshooting Updates](#troubleshooting-updates)
+79. [Receipt History — Group by Day, Week, Month, Year, Salesperson or Payment](#79-receipt-history--group-by-day-week-month-year-salesperson-or-payment)
+80. [POS Quick Links & ⭐ My Shortcuts](#80-pos-quick-links---my-shortcuts)
+    - [Quick Links on Every POS](#quick-links-on-every-pos)
+    - [⭐ My Shortcuts — Your Own Most Used Pages](#-my-shortcuts--your-own-most-used-pages)
+81. [Vehicle Licences — One Receipt for Registration, Radio Licence & Insurance](#81-vehicle-licences--one-receipt-for-registration-radio-licence--insurance)
 
 ---
 
@@ -8443,6 +8448,11 @@ After a deposit is saved, the **Source** column in the transaction history shows
 - Or a friendly label based on the deposit type (e.g. "Manual Entry", "Bank Transfer") if no sender was specified
 - The **Category** column now shows the income category and subcategory for deposits that were classified (e.g. "💵 Employment Income / Salary & Wages")
 
+**Filtering by source:** the **Deposit source** filter (Cash, Bank Transfer, Loan Received …) applies to deposits only, since payments have no source.
+
+- Picking a source switches **Type** to **Deposits** and lists only the deposits from that source.
+- Switching Type back to **Payments** or **All Transactions** clears the source.
+
 ---
 
 ## 24. Payment Vouchers — Creating, Viewing & Locking
@@ -15533,6 +15543,8 @@ The old licence is kept as history, the alert clears, and the banner and tag go 
 
 > **Bought it without a request?** Just use **📄 Enter licence**. A request is never required.
 
+> **Registration, radio licence and insurance on one receipt?** Tick the **"… included"** boxes, both when requesting the funds and when entering the licence. See [§81](#81-vehicle-licences--one-receipt-for-registration-radio-licence--insurance).
+
 ---
 
 ## 75. Reports — Date Range Popup, Item Sales, Thumbnails & Going Back
@@ -15578,6 +15590,9 @@ Inventory lists and the **clothing POS** product cards show how many of an item 
 
 - Use the **📅** popup to pick **one day** or **any range**, e.g. This week, Last month, From / To. The heading and the printout show the range.
 - The same list appears, collapsed, as **Items Sold** in the End of Day report, and also in **saved (locked) End of Day reports**, above the signature. Click to open it.
+- **The heading stays in view.** While you scroll the list, its heading, the **search** box and the **Total sold** stay pinned under the top bar, until you scroll past the list. Closed, nothing is pinned.
+- **On a phone** the items show as a list (name, amount, quantity × price, stock), not a wide table, so there's no sideways scrolling.
+- **Click an item** to open its **View Details** on the inventory page. When you're done, whether you **Close**, save or cancel an **Edit**, or close **Insights** or **Activity**, you're taken back to the report. This works for the End of Day report and saved reports too. Items Sold opens again at the same search, filter and page, scrolled to the item you opened.
 
 ---
 
@@ -15798,3 +15813,136 @@ The POS app installs a **desktop shortcut** and a **Start menu** entry for all u
 - `updater.log`: every check, download and install, and every setup.
 - `update-status.json`: the last result.
 - `updater.json`: the server it updates from, and its pinned certificate.
+
+---
+
+## 79. Receipt History — Group by Day, Week, Month, Year, Salesperson or Payment
+
+> **Who reads this:** Anyone who uses Receipt History: cashiers, managers and owners.
+
+**Receipt History** has a **Group by** choice next to **Date Range**. It shows what the business is doing at a glance, without opening receipts one by one.
+
+> **Who sees it:** only people with **financial data access** for that business, and system admins, because it shows sales totals. Everyone else sees the plain receipt list, without Group by, and can still look up and reprint past receipts.
+
+| Group by | One row for each … | Order |
+|---|---|---|
+| **Day** *(the default)* | day | newest first |
+| **Week** | week, Monday to Sunday | newest first |
+| **Month** | month | newest first |
+| **Year** | year | newest first |
+| **Salesperson** | person who made the sales | biggest total first |
+| **Payment method** | Cash, EcoCash, Card … | biggest total first |
+| **No grouping** | the normal receipt list | |
+
+The page remembers your choice on that device.
+
+**What each group row shows:**
+
+- its **total** (in green), the **number of receipts** and the **average receipt**;
+- **⭐ highest**: that group's biggest receipt, e.g. *⭐ highest CLO-20261126-1405 $93.00*. Click it to open that receipt straight away, without opening the group;
+- a thin **bar**: the group's total against the biggest group, so busy and quiet days stand out;
+- how many were **cancelled**, if any. Cancelled receipts are **not** in the totals.
+
+Above the groups, a bar shows the **total for the whole date range**, the number of receipts and the average.
+
+**Opening a group:**
+
+1. Click a group's row. Its receipts show underneath, as the normal list with pictures, actions (Reassign, Cancel …) and pages.
+2. Click another group to open it instead; the first one closes. Only one group is open at a time.
+3. Click the open group's row to close it.
+
+In the open group, its highest receipt is outlined in amber with a **⭐ HIGHEST** tag.
+
+**Search works with grouping.** For example, search an item name with **Group by Week** to see how that item sells week by week. Changing the search or the date range regroups and closes the open group.
+
+> **Bulk reassign while grouped:** "Select all N matching" is hidden, since it would ignore the group. Tick receipts one by one, or choose **No grouping**.
+
+> The totals are worked out by the server for the **whole** date range, not just the receipts on screen. Days and weeks follow the device's local time.
+
+---
+
+## 80. POS Quick Links & ⭐ My Shortcuts
+
+> **Who reads this:** Everyone. Cashiers, payment requesters and managers all repeat the same few pages every day.
+
+### Quick Links on Every POS
+
+Every POS (clothing, grocery, hardware, restaurant and the general POS) has buttons next to its tools, always visible without opening anything:
+
+| Button | Opens | Who sees it |
+|---|---|---|
+| 🧾 **Receipts** | Receipt History for this business | Everyone using the till |
+| 📦 **Item Sales** | Today's items sold | People who can see reports |
+| 🌙 **End of Day** | The End of Day report | People who can see reports |
+| ⭐ *your pages* | Up to 4 of your own most used pages (see below) | You (computer screens) |
+
+On a phone only the icons show.
+
+---
+
+### ⭐ My Shortcuts — Your Own Most Used Pages
+
+The **⭐ My shortcuts** button in the top bar, on every page, lists up to **6 pages you use most**. The system learns them from what you open.
+
+- **They follow you.** They're kept with your login, so they're the same on any workstation or phone you sign in on.
+- **Only you see yours.**
+- **How a page gets on the list:** open it at least twice. Pages you've used recently count more than ones you used a lot long ago. A page you haven't opened for 60 days drops off.
+- **Opening one receipt, item or account** counts as its page (Receipts, Inventory, Expense Accounts …), not as a separate shortcut.
+
+**Starting set:** until you have history, the list starts with pages for your role:
+
+- your **POS** and **Receipts**;
+- **End of Day**, if you can see reports;
+- **Supplier payment request**, if you can submit them;
+- **Expense accounts**, if you can view expense reports.
+
+Your own pages go first; the starting set fills the rest.
+
+**Arranging the list:**
+
+| Action | How |
+|---|---|
+| Keep a page at the top | Click **📌** next to it. **Unpin** puts it back in usage order. |
+| Add the page you're on | **📌 Pin this page** at the bottom of the list. |
+| Remove a page | Click **✕**. It moves to **Hidden**. |
+| Bring a hidden page back | Open **Hidden (n)** and click **Show**. |
+
+The list closes when you pick a page, click outside it, or press **ESC**.
+
+---
+
+## 81. Vehicle Licences — One Receipt for Registration, Radio Licence & Insurance
+
+> **Who reads this:** Anyone who renews vehicle licences or pays for them: fleet managers, payment requesters and approvers.
+
+The authorities now issue **one receipt and one amount** for a vehicle's **registration**, **radio licence** and **insurance**. The system still keeps them as three licences, so nothing changes if they're split again later. You enter the receipt **once** and tick what came on it.
+
+**The "On the same receipt" boxes**
+
+When you renew, or pay for, a **Registration**, **Radio licence** or **Insurance**, the window shows the other two as boxes:
+
+- ☐ **Radio licence included**
+- ☐ **Insurance included**
+
+*(On an insurance renewal, the boxes are Registration and Radio licence, and so on.)*
+
+**Tick what came on the receipt.** When you save:
+
+- all the ticked licences are renewed together, with the **same number and dates**;
+- **all their alerts clear**, including renewing from an alert for any one of them;
+- **the whole fee, and any late fee, is recorded on the Registration.** The others are recorded at **0** and show *"Included in the registration's receipt"* in the vehicle's licence list, so costs aren't counted twice;
+- a licence already renewed to those dates is linked, not entered a second time.
+
+**Where the boxes appear:**
+
+| Where | Notes |
+|---|---|
+| **Enter licence** (licence form, also from an alert) | On a renewal the boxes come pre-ticked if those licences were on the same receipt last time. |
+| **Request funds** (from the alert) | The request is titled e.g. *"Licence renewal: Registration (incl. radio licence, insurance)"*. It shows on all three licences' alerts, and **Enter licence** then comes pre-ticked. |
+| **Combo requests, supplier payment requests, petty cash spends** | In the vehicle cost box, when the cost is **Licensing** or **Insurance**. When approved / recorded with a new expiry date, all the ticked licences are renewed. |
+| **Expense payments** (vehicle expense window) | Same boxes. |
+| **Renewal receipts** | On the **Registration** tab. A ticked licence's own tab is skipped and says it's renewed with the Registration. |
+
+**One alert, not three:** while the radio licence and insurance are included in an active registration, they don't alert on their own; the registration's alert covers them.
+
+**If the authorities separate them again:** leave the boxes unticked. Each licence is then renewed on its own, with its own fee and alert, as before.

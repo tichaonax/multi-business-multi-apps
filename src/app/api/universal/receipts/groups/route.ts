@@ -5,7 +5,7 @@
 // receipts through /receipts/search?groupBy=&groupKey= (the same grouping).
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { isSystemAdmin } from '@/lib/permission-utils'
+import { isSystemAdmin, hasPermission } from '@/lib/permission-utils'
 import { getServerUser } from '@/lib/get-server-user'
 import { buildReceiptWhere, groupOf, isReceiptGroupBy, safeTimeZone, RECEIPT_GROUP_SELECT } from '@/lib/receipts/receipt-groups'
 
@@ -23,6 +23,11 @@ export async function GET(request: NextRequest) {
     if (!isSystemAdmin(user)) {
       const membership = await prisma.businessMemberships.findFirst({ where: { userId: user.id, businessId } })
       if (!membership) return NextResponse.json({ error: 'Access denied to this business' }, { status: 403 })
+      // the totals are financial information (the Receipt History page hides
+      // Group by from everyone else; they keep the plain receipt list)
+      if (!hasPermission(user, 'canAccessFinancialData', businessId)) {
+        return NextResponse.json({ error: 'Grouping shows sales totals and needs financial access' }, { status: 403 })
+      }
     }
 
     const where = await buildReceiptWhere(businessId, searchParams.get('query') || '', searchParams.get('startDate'), searchParams.get('endDate'))

@@ -121,8 +121,9 @@ function ReceiptHistoryPageContent() {
   // MBM-359: Group by — the receipts folded into one row per period /
   // salesperson / payment method (totals from the server, for the whole
   // range); one group open at a time, listing its receipts as usual
-  // Day by default; a choice made on this device (No grouping too) is kept
-  const [groupBy, setGroupByState] = useState('day')
+  // Day by default (set below, once we know the user may group); a choice
+  // made on this device (No grouping too) is kept
+  const [groupBy, setGroupByState] = useState('')
   const [groups, setGroups] = useState<ReceiptGroup[] | null>(null)
   const [groupSummary, setGroupSummary] = useState<ReceiptGroupSummary | null>(null)
   const [groupsLoading, setGroupsLoading] = useState(false)
@@ -343,13 +344,17 @@ function ReceiptHistoryPageContent() {
     fetchReceipts(searchQuery, (page - 1) * pageSize, dateFrom, dateTo)
   }
 
-  // MBM-359: the remembered Group by choice
+  // MBM-359: grouping shows totals, so only for users who can see the
+  // business's financials (the API checks the same); everyone else gets the
+  // plain receipt list
+  const canGroup = !!businessId && (isSystemAdmin || hasPermissionInBusiness('canAccessFinancialData', businessId))
   useEffect(() => {
-    try {
-      const v = localStorage.getItem(GROUP_BY_STORAGE)
-      if (v !== null && GROUP_BY_OPTIONS.some(([k]) => k === v)) setGroupByState(v)
-    } catch { /* no storage */ }
-  }, [])
+    groupRef.current = null
+    if (!canGroup) { setGroupByState(''); return }
+    let v: string | null = null
+    try { v = localStorage.getItem(GROUP_BY_STORAGE) } catch { /* no storage */ }
+    setGroupByState(v !== null && GROUP_BY_OPTIONS.some(([k]) => k === v) ? v : 'day')
+  }, [canGroup])
 
   // MBM-359: the groups for the current search + date range (any change
   // closes the open group)
@@ -591,14 +596,14 @@ function ReceiptHistoryPageContent() {
               onAllTimeChange={handleAllTimeChange}
             />
           </div>
-          {/* MBM-359: Group by */}
-          <label className="w-full sm:w-auto flex items-center gap-2 px-3 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-gray-700 dark:text-gray-300 whitespace-nowrap">
+          {/* MBM-359: Group by (financial users only) */}
+          {canGroup && <label className="w-full sm:w-auto flex items-center gap-2 px-3 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-gray-700 dark:text-gray-300 whitespace-nowrap">
             Group by
             <select value={groupBy} onChange={e => changeGroupBy(e.target.value)}
               className="flex-1 sm:flex-none border border-gray-300 dark:border-gray-600 rounded-md px-2 py-1 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
               {GROUP_BY_OPTIONS.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
             </select>
-          </label>
+          </label>}
         </div>
         </div>
 
