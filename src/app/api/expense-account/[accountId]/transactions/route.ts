@@ -4,6 +4,46 @@ import { getEffectivePermissions } from '@/lib/permission-utils'
 import { formatPayeeDisplayName } from '@/types/payee'
 import { getServerUser } from '@/lib/get-server-user'
 import { getUserGrantLevel } from '@/lib/expense-account-access'
+import { periodGroupOf, safeTimeZone } from '@/lib/receipts/receipt-groups'
+
+// MBM-361: Group by on the history
+const TXN_GROUP_BYS = ['request', 'day', 'week', 'month', 'category', 'payee'] as const
+type TxnGroupBy = typeof TXN_GROUP_BYS[number]
+const SOURCE_LABEL: Record<string, string> = {
+  CASH: 'Cash', BANK_TRANSFER: 'Bank transfer', BUSINESS_TRANSFER: 'Business transfer', BUSINESS: 'From business',
+  LOAN_RECEIVED: 'Loan received', LOAN_REPAYMENT: 'Loan repayment', PAYROLL_FUNDING: 'Payroll funding',
+  TRANSFER_RETURN: 'Transfer return', WIFI_TOKEN_SALE: 'WiFi portal sale', R710_TOKEN_SALE: 'R710 WiFi sale',
+  PETTY_CASH: 'Petty cash', ACCOUNT_TRANSFER: 'Account transfer', COMBO_SETTLE: 'Combo settlement', PAYMENT_ADJUSTMENT: 'Payment adjustment',
+}
+const titleCase = (v: string) => v.replace(/_/g, ' ').toLowerCase().replace(/^./, c => c.toUpperCase())
+
+/** A transaction's group: key + label, and the request / loan it belongs to */
+function txnGroupOf(t: any, by: TxnGroupBy, tz: string): { key: string; label: string; sort: string } {
+  const isDeposit = t.type === 'DEPOSIT'
+  if (by === 'day' || by === 'week' || by === 'month') {
+    const g = periodGroupOf(new Date(t.date), by, tz)
+    return { ...g, sort: g.key }
+  }
+  if (by === 'request') {
+    const lr = t.loanRequest
+    if (lr) return { key: `req:${lr.id}`, label: lr.loanNumber ? `${lr.title} (loan ${lr.loanNumber})` : lr.title, sort: '' }
+    if (!isDeposit && t.comboRequestId) return { key: `req:${t.comboRequestId}`, label: t.comboRequestTitle || 'Combo request', sort: '' }
+    if (!isDeposit && t.pettyCashRequestId) return { key: `pc:${t.pettyCashRequestId}`, label: `Petty cash: ${t.pettyCashPurpose || 'request'}`, sort: '' }
+    return isDeposit ? { key: 'other-in', label: 'Other deposits', sort: '' } : { key: 'other-out', label: 'Other payments', sort: '' }
+  }
+  if (by === 'category') {
+    if (isDeposit) {
+      const label = t.incomeCategory?.name || SOURCE_LABEL[t.sourceType] || (t.sourceType ? titleCase(t.sourceType) : 'Deposits')
+      return { key: `in:${t.incomeCategory?.id || t.sourceType || '-'}`, label: `Money in: ${label}`, sort: '' }
+    }
+    const c = t.category
+    return c ? { key: `c:${c.id}`, label: `${c.emoji ? c.emoji + ' ' : ''}${c.name}`, sort: '' } : { key: 'c:-', label: 'No category', sort: '' }
+  }
+  // payee
+  if (isDeposit) return { key: 'in', label: 'Money in (deposits)', sort: '' }
+  const name = t.payeeUser?.name || t.payeeEmployee?.fullName || t.payeePerson?.fullName || t.payeeBusiness?.name || t.payeeSupplier?.name || ''
+  return name ? { key: `p:${name.toLowerCase()}`, label: name, sort: '' } : { key: 'p:-', label: 'No payee', sort: '' }
+}
 
 /**
  * GET /api/expense-account/[accountId]/transactions
@@ -188,6 +228,7 @@ export async function GET(
                   principalAmount: true, remainingBalance: true,
                   expenseAccount: { select: { accountName: true } },
                   recipientBusiness: { select: { name: true } },
+                  combo_request: { select: { id: true, title: true } }, // MBM-361
                 },
               },
             },
@@ -312,14 +353,29 @@ export async function GET(
     // Look up combo request IDs for COMBO-type payments (paymentId → comboRequestId)
     const comboRequestMap = new Map<string, string>()
     const comboRequesterMap = new Map<string, { id: string; name: string }>() // paymentId → requester
+    const comboTitleMap = new Map<string, string>() // MBM-361: comboRequestId → title
+
+    // MBM-361: payments made from a business-loan request (one per item) →
+    // that request, so the row links to it and groups with the loan's deposit
+    const loanRequestMap = new Map<string, { id: string; title: string; loanNumber: string | null }>()
+    if (paymentIds.length > 0) {
+      const generated = await prisma.comboPaymentRequestItems.findMany({
+        where: { generatedPaymentId: { in: paymentIds } },
+        select: { generatedPaymentId: true, request: { select: { id: true, title: true, outgoingLoan: { select: { loanNumber: true } } } } },
+      })
+      generated.forEach(g => {
+        if (g.generatedPaymentId) loanRequestMap.set(g.generatedPaymentId, { id: g.request.id, title: g.request.title, loanNumber: g.request.outgoingLoan?.loanNumber ?? null })
+      })
+    }
     if (paymentIds.length > 0) {
       const comboLinks = await prisma.comboPaymentRequests.findMany({
         where: { linkedPaymentId: { in: paymentIds }, accountId },
-        select: { id: true, linkedPaymentId: true, creator: { select: { id: true, name: true } } },
+        select: { id: true, title: true, linkedPaymentId: true, creator: { select: { id: true, name: true } } },
       })
       comboLinks.forEach((r) => {
         if (r.linkedPaymentId) {
           comboRequestMap.set(r.linkedPaymentId, r.id)
+          comboTitleMap.set(r.id, r.title)
           if (r.creator) comboRequesterMap.set(r.linkedPaymentId, r.creator)
         }
       })
@@ -519,6 +575,12 @@ export async function GET(
         createdBy: deposit.creator,
         createdAt: deposit.createdAt,
         batchSubmissionId: batchMap.get(deposit.id) ?? null,
+        // MBM-361: the request a loan came from (read-only view, grouping)
+        loanRequest: (deposit as any).source_outgoing_loan?.combo_request ? {
+          id: (deposit as any).source_outgoing_loan.combo_request.id,
+          title: (deposit as any).source_outgoing_loan.combo_request.title,
+          loanNumber: (deposit as any).source_outgoing_loan.loanNumber,
+        } : null,
         loan: (deposit as any).source_outgoing_loan ? {
           id: (deposit as any).source_outgoing_loan.id,
           loanNumber: (deposit as any).source_outgoing_loan.loanNumber,
@@ -595,6 +657,8 @@ export async function GET(
         pettyCashRequestId: paymentToPettyCashMap.get(payment.id)?.id ?? null,
         pettyCashPurpose: paymentToPettyCashMap.get(payment.id)?.purpose ?? null,
         comboRequestId: comboRequestMap.get(payment.id) ?? null,
+        comboRequestTitle: (() => { const rid = comboRequestMap.get(payment.id); return rid ? (comboTitleMap.get(rid) ?? null) : null })(),
+        loanRequest: loanRequestMap.get(payment.id) ?? null, // MBM-361
         comboPayees: (() => { const rid = comboRequestMap.get(payment.id); return rid ? (comboPayeesMap.get(rid) ?? []) : [] })(),
         comboRequester: comboRequesterMap.get(payment.id) ?? null,
         projectId: payment.projectId ?? null,
@@ -624,6 +688,49 @@ export async function GET(
       const dateB = new Date(b.date).getTime()
       return sortOrder === 'desc' ? dateB - dateA : dateA - dateB
     })
+
+    // MBM-361: Group by — ?groupBy= returns the groups (whole range, same
+    // filters); ?groupBy=&groupKey= lists one group's transactions
+    let groupByParam = searchParams.get('groupBy')
+    const groupKey = searchParams.get('groupKey')
+    if (groupByParam === 'auto') {
+      // a request / loan view where the account has request money, else days
+      groupByParam = transactions.some(t => t.loanRequest || t.comboRequestId) ? 'request' : 'day'
+    }
+    if (groupByParam && (TXN_GROUP_BYS as readonly string[]).includes(groupByParam)) {
+      const by = groupByParam as TxnGroupBy
+      const tz = safeTimeZone(searchParams.get('timezone'))
+      if (groupKey === null) {
+        const groups = new Map<string, { key: string; label: string; sort: string; count: number; moneyIn: number; moneyOut: number; latest: number; loan: any }>()
+        for (const t of transactions) {
+          const g = txnGroupOf(t, by, tz)
+          const row = groups.get(g.key) || { ...g, count: 0, moneyIn: 0, moneyOut: 0, latest: 0, loan: null }
+          row.count++
+          if (t.amount >= 0) row.moneyIn += t.amount; else row.moneyOut += -t.amount
+          row.latest = Math.max(row.latest, new Date(t.date).getTime())
+          if (!row.loan && t.loanRequest && t.loan) row.loan = { loanNumber: t.loan.loanNumber, status: t.loan.status, principalAmount: t.loan.principalAmount, remainingBalance: t.loan.remainingBalance }
+          groups.set(g.key, row)
+        }
+        const r2 = (n: number) => Math.round(n * 100) / 100
+        const byDate = by === 'day' || by === 'week' || by === 'month'
+        const list = [...groups.values()]
+          .map(g => ({ key: g.key, label: g.label, count: g.count, moneyIn: r2(g.moneyIn), moneyOut: r2(g.moneyOut), net: r2(g.moneyIn - g.moneyOut), loan: g.loan, requestId: g.key.startsWith('req:') ? g.key.slice(4) : null, latest: g.latest }))
+          .sort((a, b) => byDate ? b.key.localeCompare(a.key)
+            : by === 'request'
+              // requests newest first; "Other …" last
+              ? (Number(a.key.startsWith('other')) - Number(b.key.startsWith('other'))) || b.latest - a.latest
+              : (b.moneyOut + b.moneyIn) - (a.moneyOut + a.moneyIn))
+        const moneyIn = r2(list.reduce((x, g) => x + g.moneyIn, 0))
+        const moneyOut = r2(list.reduce((x, g) => x + g.moneyOut, 0))
+        return NextResponse.json({
+          success: true,
+          data: { groupBy: by, groups: list, summary: { count: transactions.length, moneyIn, moneyOut, net: r2(moneyIn - moneyOut) } },
+        })
+      }
+      const inGroup = transactions.filter(t => txnGroupOf(t, by, tz).key === groupKey)
+      transactions.length = 0
+      transactions.push(...inGroup)
+    }
 
     // Apply pagination
     const totalCount = transactions.length

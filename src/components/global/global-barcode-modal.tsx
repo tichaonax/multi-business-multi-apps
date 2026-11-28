@@ -12,6 +12,7 @@ import { ClockInModal } from '@/components/clock-in/clock-in-modal'
 import { AddStockPanel } from '@/components/clothing/add-stock-panel'
 import { formatPhoneNumberForDisplay } from '@/lib/country-codes'
 import { ModalPortal } from '@/components/ui/modal-portal'
+import { goHomeAfterSignIn } from '@/lib/auth/after-sign-in'
 
 interface BusinessInventory {
   businessId: string
@@ -569,7 +570,7 @@ export function GlobalBarcodeModal({ isOpen, onClose, barcode, confidence, curre
             body: JSON.stringify({ employeeId: scanner.id, action: 'login', method: 'card', photoUrl: photoUrl ?? null, note: 'Switch user' }),
           }).catch(() => {})
           try { sessionStorage.setItem('kioskLogin', 'true') } catch { /* ignore */ }
-          window.location.href = '/auth/redirect'
+          goHomeAfterSignIn() // MBM-363
         } else {
           // Card sign-in not possible (e.g. no active account) — fall back to
           // the sign-in page with their login name filled in

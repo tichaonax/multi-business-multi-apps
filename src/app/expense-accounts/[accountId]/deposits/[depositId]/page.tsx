@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { useBusinessPermissionsContext } from '@/contexts/business-permissions-context'
 import { ContentLayout } from '@/components/layout/content-layout'
 import { formatCurrency } from '@/lib/format-currency'
+import { LoanRequestViewModal } from '@/components/expense-account/loan-request-view-modal'
 
 export default function ExpenseDepositDetailPage() {
   const params = useParams() as { accountId: string; depositId: string }
@@ -22,6 +23,7 @@ export default function ExpenseDepositDetailPage() {
   const [editFormData, setEditFormData] = useState<any>({})
   const [editErrors, setEditErrors] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
+  const [showLoanRequest, setShowLoanRequest] = useState(false) // MBM-361
 
   useEffect(() => {
     if (!accountId || !depositId) return
@@ -206,7 +208,7 @@ export default function ExpenseDepositDetailPage() {
             )}
 
             <div className="mt-4 flex gap-2">
-              {hasPermission('canEditExpenseTransactions') && deposit.sourceType !== 'ACCOUNT_TRANSFER' && deposit.sourceType !== 'PAYMENT_ADJUSTMENT' && (deposit.sourceType !== 'COMBO_SETTLE' || isSystemAdmin) && (
+              {hasPermission('canEditExpenseTransactions') && deposit.sourceType !== 'ACCOUNT_TRANSFER' && deposit.sourceType !== 'PAYMENT_ADJUSTMENT' && (deposit.sourceType !== 'COMBO_SETTLE' || isSystemAdmin) && !(deposit.sourceType === 'LOAN_RECEIVED' && deposit.loan) && (
                 <button
                   onClick={handleEdit}
                   className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
@@ -223,6 +225,20 @@ export default function ExpenseDepositDetailPage() {
                 <div className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 rounded text-sm">
                   🔒 Auto-generated — not editable
                 </div>
+              )}
+              {/* MBM-361: a loan's deposit is paid out on approval — locked */}
+              {deposit.sourceType === 'LOAN_RECEIVED' && deposit.loan && (
+                <div className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded text-sm max-w-md">
+                  🔒 Loan deposits can&apos;t be edited: the loan was paid out on approval. Corrections will need a reconciliation.
+                </div>
+              )}
+              {deposit.loan?.requestId && (
+                <button
+                  onClick={() => setShowLoanRequest(true)}
+                  className="px-4 py-2 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700 rounded hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
+                >
+                  📄 View original request
+                </button>
               )}
               {deposit.sourceType === 'COMBO_SETTLE' && !isSystemAdmin && (
                 <div className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 rounded text-sm">
@@ -408,6 +424,9 @@ export default function ExpenseDepositDetailPage() {
           </div>
         )}
       </div>
+      {showLoanRequest && deposit?.loan?.requestId && (
+        <LoanRequestViewModal accountId={accountId} requestId={deposit.loan.requestId} onClose={() => setShowLoanRequest(false)} />
+      )}
     </ContentLayout>
   )
 }

@@ -13,6 +13,7 @@ const POS_ROUTES: Record<string, string> = {
   restaurant: '/restaurant/pos',
   grocery: '/grocery/pos',
   clothing: '/clothing/pos',
+  hardware: '/hardware/pos', // MBM-363
 }
 
 export default function PostLoginRedirect() {

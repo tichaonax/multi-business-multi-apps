@@ -10,6 +10,9 @@ All detailed project plans live in `ai-contexts/project-plans/`.
 
 | ID | Title | File | Status |
 |----|-------|------|--------|
+| MBM-363 | After a user switch, sign-in shows the previous user's page: full page load on sign-in, clear the tab's nav trail | [view](ai-contexts/project-plans/review/projectplan-MBM-363-login-lands-on-previous-users-page-2026-11-28.md) | 🧪 built, on workstation for testing |
+| MBM-362 | Item Sales: Date column, Group by (Day default for a range) | [view](ai-contexts/project-plans/review/projectplan-MBM-362-item-sales-group-by-date-2026-11-28.md) | 🧪 built, on workstation for testing |
+| MBM-361 | Expense account history: Group by (incl. per request / loan), read-only original request from a loan deposit, loan deposits can't be edited | [view](ai-contexts/project-plans/review/projectplan-MBM-361-expense-account-grouping-loan-request-view-2026-11-28.md) | 🧪 built, on workstation for testing |
 | MBM-360 | POS quick links (Receipts, Item Sales, End of Day) on every POS; "My shortcuts" learned per user (⭐ in the header) | [view](ai-contexts/project-plans/review/projectplan-MBM-360-pos-quick-links-and-my-shortcuts-2026-11-28.md) | 🧪 built, to test |
 | MBM-359 | Receipt History: Group by day / week / month / year / salesperson / payment method, totals per group, one open at a time | [view](ai-contexts/project-plans/review/projectplan-MBM-359-receipt-history-group-by-2026-11-28.md) | 🧪 built, to test |
 | MBM-358 | Receipt Details window: item thumbnails (the receipt builder dropped them) | [view](ai-contexts/project-plans/review/projectplan-MBM-358-receipt-details-thumbnails-2026-11-28.md) | 🧪 built, to test |

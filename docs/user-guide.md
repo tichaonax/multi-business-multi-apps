@@ -293,6 +293,8 @@
     - [Quick Links on Every POS](#quick-links-on-every-pos)
     - [⭐ My Shortcuts — Your Own Most Used Pages](#-my-shortcuts--your-own-most-used-pages)
 81. [Vehicle Licences — One Receipt for Registration, Radio Licence & Insurance](#81-vehicle-licences--one-receipt-for-registration-radio-licence--insurance)
+82. [Expense Account History — Group by, Loan Requests & Locked Loan Deposits](#82-expense-account-history--group-by-loan-requests--locked-loan-deposits)
+83. [Signing In After Someone Else](#83-signing-in-after-someone-else)
 
 ---
 
@@ -15593,6 +15595,14 @@ Inventory lists and the **clothing POS** product cards show how many of an item 
 - **The heading stays in view.** While you scroll the list, its heading, the **search** box and the **Total sold** stay pinned under the top bar, until you scroll past the list. Closed, nothing is pinned.
 - **On a phone** the items show as a list (name, amount, quantity × price, stock), not a wide table, so there's no sideways scrolling.
 - **Click an item** to open its **View Details** on the inventory page. When you're done, whether you **Close**, save or cancel an **Edit**, or close **Insights** or **Activity**, you're taken back to the report. This works for the End of Day report and saved reports too. Items Sold opens again at the same search, filter and page, scrolled to the item you opened.
+- **Over a date range: a Date column and Group by.** The list is grouped by **Day** unless you choose otherwise.
+  - Each day's row shows the date, how many were sold and the day's total (in green).
+  - Click a day to see its items, with the date on each row. Click it again, or another day, to close it.
+  - **Group:** choose **Day**, **Week** (weeks start on Monday), **Month**, or **No grouping**. Your choice is remembered on this device.
+  - **No grouping** adds each item up over the whole range, as before. The **Last sold** column shows the last day it sold.
+  - Search and *Restock needed only* work inside the groups, and the totals at the top follow them.
+  - **Print** prints every group with its items.
+  - A single day (Today, the End of Day report) has no Date column or grouping.
 
 ---
 
@@ -15946,3 +15956,62 @@ When you renew, or pay for, a **Registration**, **Radio licence** or **Insurance
 **One alert, not three:** while the radio licence and insurance are included in an active registration, they don't alert on their own; the registration's alert covers them.
 
 **If the authorities separate them again:** leave the boxes unticked. Each licence is then renewed on its own, with its own fee and alert, as before.
+
+---
+
+## 82. Expense Account History — Group by, Loan Requests & Locked Loan Deposits
+
+### Group by
+
+The transaction history of an expense account can be grouped, so a busy account is easy to read. Use the **Group** list next to the 📅 date filter:
+
+| Group by | What it does |
+|---|---|
+| **Request / loan** | A request and everything it paid form one row. For a business loan that's the loan's deposit **and** every payment made from it, e.g. *"Trip To Harare (loan OL-2026-248562)"*. Petty cash requests are grouped the same way. Everything else is under **Other deposits** / **Other payments**. |
+| **Day / Week / Month** | One row per day, week (starting Monday) or month, newest first. |
+| **Category** | One row per expense category. Deposits are grouped by their income category or source. |
+| **Payee** | One row per payee. |
+| **No grouping** | The plain list, as before. |
+
+- **Request / loan** is the default on accounts that have request or loan money; otherwise **Day**. Your choice is remembered on this device.
+- Each row shows the number of transactions, **money in** (green), **money out** (red) and the **net**.
+  - A loan's row also shows its status and **what's left to repay**.
+- A line above the groups shows the totals for the whole period.
+- **Click a row** to see its transactions in the normal list, with all their actions (receipts, edit, vouchers). One group is open at a time.
+- The filters (dates, type, source, search, amount) apply to the groups too.
+- The **running balance** column is hidden while grouped, because it can't be right inside a group.
+
+### 📄 The original request behind a loan
+
+When a business-loan request is approved, the loan is deposited into the borrowing account and paid out there, one payment per item. To see what was asked for, use **📄 View original request**. It's in:
+
+- the **LOAN IN** deposit's row menu, its **Deposit Details** window and its deposit page;
+- the row menu of every payment made from the loan;
+- the request's group row (**📄 Request**).
+
+It opens the request **read-only**:
+
+- who asked and when, who approved it and the approval note, and any cashier corrections;
+- the lending and borrowing accounts, the loan number and status, and what's left to repay;
+- every item, with its payee, category, amount, what was paid and the receipts.
+
+There are no edit, approve, cancel or settle buttons. Anyone who can view the borrowing account can open it, even if they can't open the lending account.
+
+### Loan deposits can't be edited
+
+A loan's deposit is paid out in full as soon as the request is approved, so it **can't be edited**:
+
+- **Edit** isn't in its row menu;
+- its deposit page shows *"🔒 Loan deposits can't be edited: the loan was paid out on approval. Corrections will need a reconciliation."*
+
+This applies to everyone, admins included. The payments made from the loan keep their usual rules, so receipts can still be attached.
+
+---
+
+## 83. Signing In After Someone Else
+
+When someone signs in on a till or PC that another person was using (with a password, with their card, or with a **switch user** card scan), the app now **starts fresh**:
+
+- it goes straight to the new person's **home page**, e.g. the **Grocery POS** for a grocery associate. Nothing is left over from the previous person's pages, e.g. their Receipt History;
+- the **← Back** links start over, so they can't lead back to the previous person's pages;
+- the browser's **Back** button doesn't go back into the previous person's session.

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { RequestRepaymentModal } from './request-repayment-modal'
+import { LoanRequestViewModal } from './loan-request-view-modal'
 
 interface DepositDetail {
   id: string
@@ -33,6 +34,8 @@ interface DepositDetail {
     recipientBusinessId: string | null
     pendingRepaymentAmount: number
     pendingRepaymentCount: number
+    requestId?: string | null // MBM-361
+    requestTitle?: string | null
   } | null
 }
 
@@ -78,6 +81,7 @@ export function DepositDetailModal({
   const [deposit, setDeposit] = useState<DepositDetail | null>(null)
   const [loading, setLoading] = useState(false)
   const [showRepaymentRequest, setShowRepaymentRequest] = useState(false)
+  const [showLoanRequest, setShowLoanRequest] = useState(false) // MBM-361
 
   const loadDeposit = () => {
     if (!accountId || !depositId) return
@@ -218,6 +222,16 @@ export function DepositDetailModal({
               View full details →
             </a>
           ) : null}
+          {/* MBM-361: the request this loan came from, read-only */}
+          {deposit?.loan?.requestId && (
+            <button
+              onClick={() => setShowLoanRequest(true)}
+              className="px-3 py-1.5 text-xs font-medium text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-md hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
+              title={deposit.loan.requestTitle ?? undefined}
+            >
+              📄 View original request
+            </button>
+          )}
           {/* MBM-312: initiate a repayment request directly from here —
               same cashier-approval flow as the Loans Owed tab, just
               reachable without navigating away first. */}
@@ -246,6 +260,10 @@ export function DepositDetailModal({
           </button>
         </div>
       </div>
+
+      {showLoanRequest && deposit?.loan?.requestId && (
+        <LoanRequestViewModal accountId={accountId} requestId={deposit.loan.requestId} onClose={() => setShowLoanRequest(false)} />
+      )}
 
       {showRepaymentRequest && deposit?.loan && (
         /* Stop clicks from bubbling to the DepositDetailModal backdrop's

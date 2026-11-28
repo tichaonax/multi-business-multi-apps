@@ -9,6 +9,7 @@ import { hasPermission, isSystemAdmin } from '@/lib/permission-utils'
 import { getServerUser } from '@/lib/get-server-user'
 import { getTimezoneOffsetMs, getTodayInTimezone } from '@/lib/timezone-utils'
 import { buildItemSales } from '@/lib/reports/item-sales'
+import { safeTimeZone } from '@/lib/receipts/receipt-groups'
 
 export async function GET(request: NextRequest) {
   try {
@@ -348,7 +349,10 @@ export async function GET(request: NextRequest) {
     })
 
     // MBM-344: one row per item sold, from these same orders (opt-in)
-    const itemSales = includeItems ? await buildItemSales(regularOrders, businessId) : undefined
+    // MBM-362: byDay=1 → one row per item per day (the Item Sales report over a range)
+    const itemSales = includeItems
+      ? await buildItemSales(regularOrders, businessId, searchParams.get('byDay') === '1' ? { byDayTimeZone: safeTimeZone(timezone) } : undefined)
+      : undefined
 
     return NextResponse.json({
       success: true,

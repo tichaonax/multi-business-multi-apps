@@ -3,8 +3,8 @@
 // Force dynamic rendering for session-based pages
 export const dynamic = 'force-dynamic'
 import { signIn } from 'next-auth/react'
+import { goHomeAfterSignIn } from '@/lib/auth/after-sign-in'
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
 import { CardScanOverlay } from '@/components/clock-in/card-scan-overlay'
 import { useIsMobileDevice } from '@/hooks/use-is-mobile-device'
 
@@ -31,7 +31,6 @@ export default function SignIn() {
   const [loading, setLoading] = useState(false)
   const [logoImageId, setLogoImageId] = useState<string | null>(null)
   const [isElectron, setIsElectron] = useState(false)
-  const router = useRouter()
   const isMobile = useIsMobileDevice()
 
   useEffect(() => {
@@ -65,7 +64,7 @@ export default function SignIn() {
       } else if (result?.error) {
         setError('Invalid credentials')
       } else {
-        router.push('/auth/redirect')
+        goHomeAfterSignIn() // MBM-363
       }
     } catch {
       setError('An error occurred')

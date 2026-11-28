@@ -136,7 +136,12 @@ export function groupOf(o: ReceiptGroupRow, groupBy: ReceiptGroupBy, tz: string)
     const name = (a.employeeName || a.soldByName || '').trim()
     return name ? { key: `n:${name}`, label: name } : { key: '-', label: 'Not recorded' }
   }
-  const { y, m, day } = ymdIn(new Date(o.createdAt), tz)
+  return periodGroupOf(new Date(o.createdAt), groupBy, tz)
+}
+
+/** A date's day / week (Monday) / month / year in a time zone (MBM-361: also the expense account history) */
+export function periodGroupOf(date: Date, groupBy: 'day' | 'week' | 'month' | 'year', tz: string): { key: string; label: string } {
+  const { y, m, day } = ymdIn(date, tz)
   if (groupBy === 'year') return { key: `${y}`, label: `${y}` }
   if (groupBy === 'month') return { key: `${y}-${pad(m)}`, label: fmt(y, m, 1, { month: 'long', year: 'numeric' }) }
   if (groupBy === 'week') {

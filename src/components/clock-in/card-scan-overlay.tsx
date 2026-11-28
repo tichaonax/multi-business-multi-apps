@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { signIn } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
 import { useAlert } from '@/components/ui/confirm-modal'
+import { goHomeAfterSignIn } from '@/lib/auth/after-sign-in'
 
 interface ScanResult {
   found: boolean
@@ -20,7 +20,6 @@ interface ScanResult {
 }
 
 export function CardScanOverlay() {
-  const router = useRouter()
   const customAlert = useAlert()
 
   // ── Scan state ────────────────────────────────────────────────────────────
@@ -141,7 +140,7 @@ export function CardScanOverlay() {
         }).catch(() => {})
       }
       sessionStorage.setItem('kioskLogin', 'true')
-      router.push('/auth/redirect')
+      goHomeAfterSignIn() // MBM-363
     } else {
       setIsLoggingIn(false)
       // MBM-351

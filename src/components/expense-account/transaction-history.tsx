@@ -9,6 +9,7 @@ import { EditDepositModal } from './edit-deposit-modal'
 import { PaymentDetailModal } from './payment-detail-modal'
 import { DepositDetailModal } from './deposit-detail-modal'
 import { ComboRequestDetailModal } from './combo-request-detail-modal'
+import { LoanRequestViewModal } from './loan-request-view-modal'
 import { ExpensePaymentVoucherModal, PaymentSummary } from './expense-payment-voucher-modal'
 import { generatePaymentVoucherPdf } from './payment-voucher-pdf'
 import { AddReceiptModal } from './add-receipt-modal'
@@ -21,6 +22,29 @@ import { usePageSize, PAGE_SIZE_OPTIONS } from '@/hooks/use-page-size-preference
 import { TableFillerRows } from '@/components/ui/table-filler-rows'
 import { useElementHeight } from '@/hooks/use-element-height'
 import { WifiCodeHover } from '@/components/wifi/wifi-code'
+
+// MBM-361: Group by on the history
+const TXN_GROUP_BY_OPTIONS: { value: string; label: string }[] = [
+  { value: '', label: 'No grouping' },
+  { value: 'request', label: 'Request / loan' },
+  { value: 'day', label: 'Day' },
+  { value: 'week', label: 'Week' },
+  { value: 'month', label: 'Month' },
+  { value: 'category', label: 'Category' },
+  { value: 'payee', label: 'Payee' },
+]
+const TXN_GROUP_STORAGE = 'expenseHistory.groupBy'
+interface TxnGroup {
+  key: string
+  label: string
+  count: number
+  moneyIn: number
+  moneyOut: number
+  net: number
+  requestId: string | null
+  loan: { loanNumber: string; status: string; principalAmount: number; remainingBalance: number } | null
+}
+const browserTimeZone = () => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone } catch { return '' } }
 
 interface Transaction {
   id: string
@@ -67,6 +91,9 @@ interface Transaction {
   pettyCashRequestId?: string | null
   pettyCashPurpose?: string | null
   comboRequestId?: string | null
+  comboRequestTitle?: string | null
+  // MBM-361: the business-loan request a loan deposit / payment came from
+  loanRequest?: { id: string; title: string; loanNumber: string | null } | null
   comboPayees?: { name: string; phone?: string | null }[]
   comboRequester?: { id: string; name: string } | null
   notes?: string | null
@@ -254,6 +281,25 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
   const [detailPaymentId, setDetailPaymentId] = useState<string | null>(null)
   const [detailDepositId, setDetailDepositId] = useState<string | null>(null)
   const [detailComboRequestId, setDetailComboRequestId] = useState<string | null>(null)
+  const [loanRequestViewId, setLoanRequestViewId] = useState<string | null>(null) // MBM-361
+
+  // MBM-361: Group by. null = not read from this device yet; '' = no grouping;
+  // 'auto' = Request / loan when the account has request money, else Day
+  const [groupBy, setGroupBy] = useState<string | null>(null)
+  const [resolvedGroupBy, setResolvedGroupBy] = useState('')
+  const [groups, setGroups] = useState<TxnGroup[]>([])
+  const [groupSummary, setGroupSummary] = useState<{ count: number; moneyIn: number; moneyOut: number; net: number } | null>(null)
+  const [openGroup, setOpenGroup] = useState<string | null>(null)
+  useEffect(() => {
+    let v: string | null = null
+    try { v = localStorage.getItem(TXN_GROUP_STORAGE) } catch {}
+    setGroupBy(v !== null && TXN_GROUP_BY_OPTIONS.some(o => o.value === v) ? v : 'auto')
+  }, [])
+  const changeGroupBy = (v: string) => {
+    try { localStorage.setItem(TXN_GROUP_STORAGE, v) } catch {}
+    setGroupBy(v); setOpenGroup(null); setPage(0)
+  }
+  const toggleGroup = (key: string) => { setOpenGroup(g => (g === key ? null : key)); setPage(0) }
 
   // Deep-link open — e.g. returning from a contractor/supplier edit page via
   // its own ?returnTo= link. Only fires once per distinct id so it doesn't
@@ -437,7 +483,28 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
 
   useEffect(() => {
     loadTransactions()
-  }, [accountId, startDate, endDate, typeFilter, sourceTypeFilter, page, debouncedSearch, refreshKey, editVersion, debouncedMinAmount, debouncedMaxAmount, limit])
+  }, [accountId, startDate, endDate, typeFilter, sourceTypeFilter, page, debouncedSearch, refreshKey, editVersion, debouncedMinAmount, debouncedMaxAmount, limit, groupBy, openGroup])
+
+  // MBM-361: the groups (whole range, same filters as the list)
+  useEffect(() => {
+    if (groupBy === null) return
+    if (!groupBy) { setGroups([]); setGroupSummary(null); setResolvedGroupBy(''); return }
+    let live = true
+    const params = filterParams()
+    params.append('groupBy', groupBy)
+    params.append('timezone', browserTimeZone())
+    fetch(`/api/expense-account/${accountId}/transactions?${params.toString()}`, { credentials: 'include' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(json => {
+        if (!live || !json?.data?.groups) return
+        setGroups(json.data.groups)
+        setGroupSummary(json.data.summary)
+        setResolvedGroupBy(json.data.groupBy)
+        setOpenGroup(g => (g && json.data.groups.some((x: TxnGroup) => x.key === g) ? g : null))
+      })
+      .catch(() => {})
+    return () => { live = false }
+  }, [accountId, startDate, endDate, typeFilter, sourceTypeFilter, debouncedSearch, refreshKey, editVersion, debouncedMinAmount, debouncedMaxAmount, groupBy])
   // also refetch when sortOrder changes
   useEffect(() => {
     setPage(0)
@@ -450,17 +517,31 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
     setPage(0)
   }, [limit])
 
+  // The list's filters (shared with the groups fetch, MBM-361)
+  const filterParams = () => {
+    const params = new URLSearchParams()
+    if (startDate) params.append('startDate', startDate)
+    if (endDate) params.append('endDate', endDate)
+    if (typeFilter) params.append('transactionType', typeFilter)
+    if (sourceTypeFilter) params.append('sourceType', sourceTypeFilter)
+    if (debouncedSearch) params.append('search', debouncedSearch)
+    if (debouncedMinAmount !== '') params.append('minAmount', debouncedMinAmount)
+    if (debouncedMaxAmount !== '') params.append('maxAmount', debouncedMaxAmount)
+    return params
+  }
+
   const loadTransactions = async () => {
+    // MBM-361: grouped — only the open group's transactions are listed
+    if (groupBy === null) return
+    if (groupBy && !openGroup) { setTransactions([]); setTotalTransactions(0); setLoading(false); return }
     try {
       setLoading(true)
-      const params = new URLSearchParams()
-      if (startDate) params.append('startDate', startDate)
-      if (endDate) params.append('endDate', endDate)
-      if (typeFilter) params.append('transactionType', typeFilter)
-      if (sourceTypeFilter) params.append('sourceType', sourceTypeFilter)
-      if (debouncedSearch) params.append('search', debouncedSearch)
-      if (debouncedMinAmount !== '') params.append('minAmount', debouncedMinAmount)
-      if (debouncedMaxAmount !== '') params.append('maxAmount', debouncedMaxAmount)
+      const params = filterParams()
+      if (groupBy && openGroup) {
+        params.append('groupBy', resolvedGroupBy || groupBy)
+        params.append('groupKey', openGroup)
+        params.append('timezone', browserTimeZone())
+      }
       params.append('limit', limit.toString())
       params.append('offset', (page * limit).toString())
       params.append('sortOrder', sortOrder)
@@ -643,7 +724,7 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
   // amount range) or being past page 1 skips real transactions in between,
   // so the number would be fabricated — don't show it rather than mislead.
   const balanceColumnReliable = !search.trim() && typeFilter === defaultType &&
-    sourceTypeFilter === '' && minAmount === '' && maxAmount === '' && page === 0
+    sourceTypeFilter === '' && minAmount === '' && maxAmount === '' && page === 0 && !groupBy
 
   // When a free-text search matches a real registered payee by name, surface
   // a shortcut to that payee's full cross-account history (Payee Payment
@@ -715,7 +796,18 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
         onClick: () => handleReversePayment(transaction.id),
       })
     }
-    if (canEditPayments && isDeposit && !transaction.isAutoTransfer && transaction.sourceType !== 'ACCOUNT_TRANSFER' && transaction.sourceType !== 'PAYMENT_ADJUSTMENT' && (transaction.sourceType !== 'COMBO_SETTLE' || isAdmin) && (isAdmin || isWithin7Days(transaction.createdAt))) {
+    // MBM-361: the request a loan came from, read-only
+    if (transaction.loanRequest) {
+      rowActions.push({
+        key: 'loan-request',
+        label: 'View original request',
+        icon: '📄',
+        title: `Request: ${transaction.loanRequest.title}`,
+        onClick: () => setLoanRequestViewId(transaction.loanRequest!.id),
+      })
+    }
+    // MBM-361: a loan's deposit (paid out on approval) can't be edited
+    if (canEditPayments && isDeposit && !(transaction.sourceType === 'LOAN_RECEIVED' && transaction.loan) && !transaction.isAutoTransfer && transaction.sourceType !== 'ACCOUNT_TRANSFER' && transaction.sourceType !== 'PAYMENT_ADJUSTMENT' && (transaction.sourceType !== 'COMBO_SETTLE' || isAdmin) && (isAdmin || isWithin7Days(transaction.createdAt))) {
       rowActions.push({
         key: 'edit-deposit',
         label: 'Edit',
@@ -921,6 +1013,17 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
               </button>
             )}
           </div>
+          {/* MBM-361: Group by */}
+          <select
+            value={groupBy === 'auto' ? resolvedGroupBy : (groupBy ?? '')}
+            onChange={e => changeGroupBy(e.target.value)}
+            title="Group the transactions"
+            className={`px-2 py-1.5 text-xs font-medium rounded-md border whitespace-nowrap ${groupBy
+              ? 'text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 border-blue-300 dark:border-blue-700'
+              : 'text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600'}`}
+          >
+            {TXN_GROUP_BY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.value ? `Group: ${o.label}` : o.label}</option>)}
+          </select>
           <button
             type="button"
             onClick={() => setFiltersOpen(v => !v)}
@@ -1111,6 +1214,62 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
         </div>
       )}
 
+      {/* MBM-361: groups — the open group's list sits right under its header (CSS order) */}
+      <div className="flex flex-col">
+      {groupBy && groupSummary && (
+        <div style={{ order: -1 }} className="px-3 py-2 text-xs text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex flex-wrap gap-x-4 gap-y-1">
+          <span>{groupSummary.count} transactions in {groups.length} groups</span>
+          <span>In <strong className="text-green-700 dark:text-green-400">{formatCurrency(groupSummary.moneyIn)}</strong></span>
+          <span>Out <strong className="text-red-600 dark:text-red-400">{formatCurrency(groupSummary.moneyOut)}</strong></span>
+          <span>Net <strong className={groupSummary.net < 0 ? 'text-red-600 dark:text-red-400' : 'text-green-700 dark:text-green-400'}>{formatCurrency(groupSummary.net)}</strong></span>
+        </div>
+      )}
+      {groupBy && groupSummary && groups.length === 0 && (
+        <p style={{ order: 0 }} className="text-center py-12 text-gray-500 dark:text-gray-400">No transactions found</p>
+      )}
+      {groupBy && groups.map((g, i) => {
+        const open = openGroup === g.key
+        return (
+          <div
+            key={g.key}
+            role="button"
+            tabIndex={0}
+            style={{ order: i * 2 }}
+            onClick={() => toggleGroup(g.key)}
+            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleGroup(g.key) } }}
+            className={`px-3 py-2 border-b border-gray-200 dark:border-gray-700 cursor-pointer flex flex-wrap items-center gap-x-4 gap-y-1 ${open ? 'bg-blue-50 dark:bg-blue-900/30' : 'bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800'}`}
+          >
+            <span className="flex items-center gap-2 min-w-0 flex-1">
+              <span className="text-gray-400 text-xs">{open ? '▼' : '▶'}</span>
+              <span className="font-medium text-sm text-gray-900 dark:text-gray-100 truncate">{g.label}</span>
+              <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">{g.count} txn{g.count === 1 ? '' : 's'}</span>
+            </span>
+            {g.loan && (
+              <span className="text-xs text-gray-600 dark:text-gray-300 whitespace-nowrap">
+                🤝 {g.loan.status.replace(/_/g, ' ').toLowerCase()} · {formatCurrency(g.loan.remainingBalance)} left to repay
+              </span>
+            )}
+            <span className="text-xs whitespace-nowrap flex gap-3">
+              {g.moneyIn > 0 && <span className="text-green-700 dark:text-green-400">+{formatCurrency(g.moneyIn)}</span>}
+              {g.moneyOut > 0 && <span className="text-red-600 dark:text-red-400">−{formatCurrency(g.moneyOut)}</span>}
+              {g.moneyIn > 0 && g.moneyOut > 0 && (
+                <span className={`font-semibold ${g.net < 0 ? 'text-red-600 dark:text-red-400' : 'text-green-700 dark:text-green-400'}`}>= {formatCurrency(g.net)}</span>
+              )}
+            </span>
+            {g.requestId && (
+              <button
+                type="button"
+                onClick={e => { e.stopPropagation(); setLoanRequestViewId(g.requestId) }}
+                className="text-xs text-blue-600 dark:text-blue-400 hover:underline whitespace-nowrap"
+              >
+                📄 Request
+              </button>
+            )}
+          </div>
+        )
+      })}
+      {(!groupBy || openGroup) && (
+      <div style={{ order: groupBy ? Math.max(0, groups.findIndex(g => g.key === openGroup)) * 2 + 1 : 0 }} className={groupBy ? 'border-b-2 border-blue-200 dark:border-blue-800' : ''}>
       {/* Transactions Table */}
       <div className="relative">
         {/* Subtle in-place loading overlay — does not replace the UI */}
@@ -1457,6 +1616,9 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
           />
         </div>
       </div>
+      )}
+      </div>
+      </div>
     </div>
 
       {/* Edit Payment Modal */}
@@ -1612,6 +1774,11 @@ export function TransactionHistory({ accountId, defaultType = '', defaultSortOrd
           accountId={accountId}
           depositId={detailDepositId}
         />
+      )}
+
+      {/* MBM-361: the original request, read-only */}
+      {loanRequestViewId && (
+        <LoanRequestViewModal accountId={accountId} requestId={loanRequestViewId} onClose={() => setLoanRequestViewId(null)} />
       )}
 
       {/* Combo Request Detail Modal */}

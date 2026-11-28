@@ -64,6 +64,7 @@ export async function GET(
             expenseAccountId: true,
             expenseAccount: { select: { accountName: true } },
             recipientBusinessId: true,
+            combo_request: { select: { id: true, title: true } }, // MBM-361
             repayments: { where: { status: 'PENDING' }, select: { amount: true } },
           },
         },
@@ -217,6 +218,9 @@ export async function GET(
             pendingRepaymentAmount: ((deposit as any).source_outgoing_loan.repayments ?? [])
               .reduce((s: number, r: any) => s + Number(r.amount), 0),
             pendingRepaymentCount: ((deposit as any).source_outgoing_loan.repayments ?? []).length,
+            // MBM-361: the request this loan came from (read-only view)
+            requestId: (deposit as any).source_outgoing_loan.combo_request?.id ?? null,
+            requestTitle: (deposit as any).source_outgoing_loan.combo_request?.title ?? null,
           } : null,
         },
         pettyCashRequest,
@@ -268,6 +272,7 @@ export async function PATCH(
         expenseAccountId: true,
         sourceType: true,
         sourceBusinessId: true,
+        sourceOutgoingLoanId: true,
         createdAt: true,
       },
     })
@@ -288,6 +293,15 @@ export async function PATCH(
     if (existingDeposit.sourceType === 'ACCOUNT_TRANSFER') {
       return NextResponse.json(
         { error: 'Auto-transfer deposits cannot be edited. They are system-generated records.' },
+        { status: 403 }
+      )
+    }
+
+    // MBM-361: a loan's deposit is paid out item by item on approval, so it
+    // can't be edited by anyone; corrections need a reconciliation
+    if (existingDeposit.sourceType === 'LOAN_RECEIVED' && existingDeposit.sourceOutgoingLoanId) {
+      return NextResponse.json(
+        { error: "Loan deposits can't be edited: the loan was paid out on approval. Corrections will need a reconciliation." },
         { status: 403 }
       )
     }

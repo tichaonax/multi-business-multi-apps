@@ -10,6 +10,7 @@
 // set (src/app/api/universal/reports/reorder/route.ts).
 import { prisma } from '@/lib/prisma'
 import { saleLineThumbnails } from '@/lib/reports/item-thumbnails'
+import { periodGroupOf } from '@/lib/receipts/receipt-groups'
 
 export interface ItemSalesRow {
   key: string
@@ -28,15 +29,23 @@ export interface ItemSalesRow {
   /** The id the inventory page knows it by (a product id, or "inv_<id>") — opens
    *  its View Details; null for bales, bulk products and unlinked lines */
   inventoryId: string | null
+  /** MBM-362: with byDay — the day sold (YYYY-MM-DD, business time zone) */
+  date?: string
+  /** MBM-362: the item, the same on every day's row (key = itemKey + day) */
+  itemKey: string
 }
 
 const DEFAULT_REORDER_LEVEL = 10
 
-export async function buildItemSales(orders: any[], businessId: string): Promise<ItemSalesRow[]> {
-  type Acc = { key: string; name: string; sku: string | null; quantity: number; total: number; kind: string; ref: string | null }
+export async function buildItemSales(orders: any[], businessId: string, opts?: { byDayTimeZone?: string }): Promise<ItemSalesRow[]> {
+  type Acc = { key: string; itemKey: string; date?: string; name: string; sku: string | null; quantity: number; total: number; kind: string; ref: string | null }
   const rows = new Map<string, Acc>()
 
   for (const order of orders) {
+    // MBM-362: one row per item per day when asked
+    const day = opts?.byDayTimeZone
+      ? periodGroupOf(new Date(order.transactionDate || order.createdAt), 'day', opts.byDayTimeZone).key
+      : undefined
     for (const item of order.business_order_items || []) {
       const a = (item.attributes as any) || {}
       let kind = 'name', ref: string | null = null
@@ -46,8 +55,9 @@ export async function buildItemSales(orders: any[], businessId: string): Promise
       else if (a.baleId) { kind = 'bale'; ref = a.baleId }
       else if (a.customBulkId) { kind = 'bulk'; ref = a.customBulkId }
       const name = [a.productName || item.product_variants?.name || 'Item', a.variantName].filter(Boolean).join(' – ')
-      const key = `${kind}:${ref ?? name}`
-      const row = rows.get(key) || { key, name, sku: a.sku || item.product_variants?.sku || null, quantity: 0, total: 0, kind, ref }
+      const itemKey = `${kind}:${ref ?? name}`
+      const key = day ? `${itemKey}@${day}` : itemKey
+      const row = rows.get(key) || { key, itemKey, date: day, name, sku: a.sku || item.product_variants?.sku || null, quantity: 0, total: 0, kind, ref }
       row.quantity += Number(item.quantity || 0)
       row.total += Number(item.totalPrice || 0)
       rows.set(key, row)
@@ -105,6 +115,8 @@ export async function buildItemSales(orders: any[], businessId: string): Promise
       const level = s && s.level !== null ? (s.level || DEFAULT_REORDER_LEVEL) : null
       return {
         key: r.key,
+        itemKey: r.itemKey,
+        ...(r.date ? { date: r.date } : {}),
         name: r.name,
         sku: r.sku,
         unitPrice: r.quantity ? Math.round((r.total / r.quantity) * 100) / 100 : 0,
