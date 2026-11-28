@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { isSystemAdmin } from '@/lib/permission-utils'
 import { getServerUser } from '@/lib/get-server-user'
+import { buildReceiptWhere, groupOf, isReceiptGroupBy, safeTimeZone, RECEIPT_GROUP_SELECT } from '@/lib/receipts/receipt-groups'
 
 export async function GET(request: NextRequest) {
   try {
@@ -37,80 +38,17 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Build where clause for search
-    const whereClause: any = {
-      businessId: businessId,
-    }
+    // MBM-359: the filter is shared with the Group by totals (/receipts/groups)
+    const whereClause: any = await buildReceiptWhere(businessId, query, startDate, endDate)
 
-    // Add query filter if provided — searches receipt #, customer name,
-    // salesperson name, order notes, and purchased item names.
-    //
-    // Customer/salesperson names are NOT reliably on the linked relations:
-    // orders made by an admin/owner with no Employees record fall back to
-    // attributes.employeeName/soldByName (see /api/universal/orders — it
-    // always persists one of these when employeeId can't be resolved), and
-    // meal-program orders with no real customer store attributes.participantName
-    // instead. Searching only the relations misses most real-world rows, so
-    // both the relation AND its JSON-attribute fallback are matched here.
-    // Item "description" search walks business_order_items -> the product's
-    // name (via its variant), with the same attributes.productName fallback
-    // used when an item isn't linked to a real product/variant.
-    if (query) {
-      const asNumber = parseFloat(query)
-      // MBM-338: names kept in JSON attributes (item names, WiFi package names
-      // and codes, salesperson fallbacks) were matched case-sensitively by
-      // Prisma's string_contains, so e.g. "pass" missed "8 Hour Pass" and
-      // "wifi" matched nothing (WiFi items are named "📶 8 Hour Pass"). Match
-      // them case-insensitively in SQL; "wifi"/"wi-fi" finds every WiFi sale.
-      const like = `%${query.replace(/[\\%_]/g, m => '\\' + m)}%`
-      const wantsWifi = /wi-?fi/i.test(query)
-      const jsonMatches = await prisma.$queryRaw<Array<{ id: string }>>`
-        SELECT DISTINCT o.id FROM business_orders o
-        LEFT JOIN business_order_items i ON i."orderId" = o.id
-        WHERE o."businessId" = ${businessId}
-          AND (
-            o.attributes->>'employeeName' ILIKE ${like}
-            OR o.attributes->>'soldByName' ILIKE ${like}
-            OR o.attributes->>'participantName' ILIKE ${like}
-            OR i.attributes->>'productName' ILIKE ${like}
-            OR i.attributes->>'packageName' ILIKE ${like}
-            OR (i.attributes->'tokenCodes')::text ILIKE ${like}
-            OR (${wantsWifi} AND (i.attributes->>'r710Token' = 'true' OR i.attributes->>'wifiToken' = 'true'))
-          )
-        LIMIT 5000`
-      whereClause.OR = [
-        ...(jsonMatches.length > 0 ? [{ id: { in: jsonMatches.map(r => r.id) } }] : []),
-        { orderNumber: { contains: query, mode: 'insensitive' } },
-        { notes: { contains: query, mode: 'insensitive' } },
-        { business_customers: { name: { contains: query, mode: 'insensitive' } } },
-        { employees: { fullName: { contains: query, mode: 'insensitive' } } },
-        { attributes: { path: ['employeeName'], string_contains: query } },
-        { attributes: { path: ['soldByName'], string_contains: query } },
-        { attributes: { path: ['participantName'], string_contains: query } },
-        {
-          business_order_items: {
-            some: {
-              OR: [
-                { product_variants: { name: { contains: query, mode: 'insensitive' } } },
-                { product_variants: { business_products: { name: { contains: query, mode: 'insensitive' } } } },
-                { attributes: { path: ['productName'], string_contains: query } },
-              ],
-            },
-          },
-        },
-        ...(isNaN(asNumber) ? [] : [{ totalAmount: { equals: asNumber } }]),
-      ]
-    }
-
-    // Add date range filter if provided
-    if (startDate || endDate) {
-      whereClause.createdAt = {}
-      if (startDate) {
-        whereClause.createdAt.gte = new Date(startDate)
-      }
-      if (endDate) {
-        whereClause.createdAt.lte = new Date(endDate)
-      }
+    // MBM-359: an opened group (Group by): only that day / week / month / year,
+    // salesperson or payment method, worked out exactly as the totals were
+    const groupBy = searchParams.get('groupBy')
+    const groupKey = searchParams.get('groupKey')
+    if (isReceiptGroupBy(groupBy) && groupKey !== null) {
+      const tz = safeTimeZone(searchParams.get('timezone'))
+      const all = await prisma.businessOrders.findMany({ where: whereClause, select: RECEIPT_GROUP_SELECT })
+      whereClause.id = { in: all.filter(o => groupOf(o as any, groupBy, tz).key === groupKey).map(o => o.id) }
     }
 
     // Fetch orders

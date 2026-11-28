@@ -10,6 +10,7 @@ All detailed project plans live in `ai-contexts/project-plans/`.
 
 | ID | Title | File | Status |
 |----|-------|------|--------|
+| MBM-359 | Receipt History: Group by day / week / month / year / salesperson / payment method, totals per group, one open at a time | [view](ai-contexts/project-plans/review/projectplan-MBM-359-receipt-history-group-by-2026-11-28.md) | 🧪 built, to test |
 | MBM-358 | Receipt Details window: item thumbnails (the receipt builder dropped them) | [view](ai-contexts/project-plans/review/projectplan-MBM-358-receipt-details-thumbnails-2026-11-28.md) | 🧪 built, to test |
 | MBM-357 | Expense account history: a Source filter shows only deposits from that source (no payments mixed in) | [view](ai-contexts/project-plans/review/projectplan-MBM-357-transaction-source-filter-2026-11-28.md) | 🧪 built, to test |
 | MBM-356 | ESC closes any modal window (like its Close / Cancel button) | [view](ai-contexts/project-plans/review/projectplan-MBM-356-esc-closes-modals-2026-11-28.md) | ❌ dropped (user, 2026-11-28) |

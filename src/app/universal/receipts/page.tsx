@@ -55,6 +55,17 @@ interface PaginationInfo {
   hasMore: boolean
 }
 
+// MBM-359: Group by
+interface ReceiptGroup { key: string; label: string; count: number; cancelled: number; total: number; average: number; top: { id: string; orderNumber: string; amount: number } | null }
+interface ReceiptGroupSummary { count: number; cancelled: number; total: number; average: number }
+const GROUP_BY_OPTIONS: Array<[string, string]> = [
+  ['', 'No grouping'], ['day', 'Day'], ['week', 'Week'], ['month', 'Month'], ['year', 'Year'],
+  ['salesperson', 'Salesperson'], ['payment', 'Payment method'],
+]
+const GROUP_BY_STORAGE = 'receiptHistory.groupBy'
+const browserTimeZone = () => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC' } catch { return 'UTC' } }
+const money = (n: number) => '$' + n.toFixed(2)
+
 function toISODate(d: Date) {
   return d.toISOString().split('T')[0]
 }
@@ -107,6 +118,16 @@ function ReceiptHistoryPageContent() {
   const [allTime, setAllTime] = useState(false)
   const [dateRange, setDateRange] = useState<DateRange>(defaultDateRange())
   const [filterResetKey, setFilterResetKey] = useState(0)
+  // MBM-359: Group by — the receipts folded into one row per period /
+  // salesperson / payment method (totals from the server, for the whole
+  // range); one group open at a time, listing its receipts as usual
+  const [groupBy, setGroupByState] = useState('')
+  const [groups, setGroups] = useState<ReceiptGroup[] | null>(null)
+  const [groupSummary, setGroupSummary] = useState<ReceiptGroupSummary | null>(null)
+  const [groupsLoading, setGroupsLoading] = useState(false)
+  const [groupsError, setGroupsError] = useState<string | null>(null)
+  const [openGroup, setOpenGroup] = useState<string | null>(null)
+  const groupRef = useRef<{ by: string; key: string } | null>(null)
   const { useServerTime } = useTimeDisplay()
   const { hasPermissionInBusiness, isSystemAdmin } = useBusinessPermissionsContext()
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -228,6 +249,11 @@ function ReceiptHistoryPageContent() {
         // set to end of day
         params.append('endDate', `${to}T23:59:59`)
       }
+      if (groupRef.current) {
+        params.append('groupBy', groupRef.current.by)
+        params.append('groupKey', groupRef.current.key)
+        params.append('timezone', browserTimeZone())
+      }
 
       const response = await fetch(`/api/universal/receipts/search?${params}`)
       const data = await response.json()
@@ -315,6 +341,71 @@ function ReceiptHistoryPageContent() {
     setCurrentPage(page)
     fetchReceipts(searchQuery, (page - 1) * pageSize, dateFrom, dateTo)
   }
+
+  // MBM-359: the remembered Group by choice
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem(GROUP_BY_STORAGE) || ''
+      if (GROUP_BY_OPTIONS.some(([k]) => k === v)) setGroupByState(v)
+    } catch { /* no storage */ }
+  }, [])
+
+  // MBM-359: the groups for the current search + date range (any change
+  // closes the open group)
+  useEffect(() => {
+    groupRef.current = null
+    setOpenGroup(null)
+    if (!businessId || !groupBy) { setGroups(null); setGroupSummary(null); return }
+    let live = true
+    setGroupsLoading(true)
+    setGroupsError(null)
+    const p = new URLSearchParams({ businessId, groupBy, timezone: browserTimeZone() })
+    if (searchQuery) p.append('query', searchQuery)
+    if (dateFrom) p.append('startDate', dateFrom)
+    if (dateTo) p.append('endDate', `${dateTo}T23:59:59`)
+    fetch(`/api/universal/receipts/groups?${p}`)
+      .then(r => r.json().then(j => ({ ok: r.ok, j })))
+      .then(({ ok, j }) => {
+        if (!live) return
+        if (!ok) throw new Error(j?.error || 'Could not group the receipts')
+        setGroups(j.groups || [])
+        setGroupSummary(j.summary || null)
+      })
+      .catch(e => { if (live) setGroupsError(e.message) })
+      .finally(() => { if (live) setGroupsLoading(false) })
+    return () => { live = false }
+  }, [businessId, groupBy, searchQuery, dateFrom, dateTo])
+
+  function changeGroupBy(v: string) {
+    try { localStorage.setItem(GROUP_BY_STORAGE, v) } catch { /* no storage */ }
+    groupRef.current = null
+    setOpenGroup(null)
+    setGroupByState(v)
+    clearSelection()
+    if (!v) {
+      // back to the normal list
+      setCurrentPage(1)
+      fetchReceipts(searchQuery, 0)
+    }
+  }
+
+  // Opens a group (closing the open one), or closes the open one
+  function toggleGroup(key: string) {
+    clearSelection()
+    if (openGroup === key) {
+      groupRef.current = null
+      setOpenGroup(null)
+      return
+    }
+    groupRef.current = { by: groupBy, key }
+    setOpenGroup(key)
+    setCurrentPage(1)
+    fetchReceipts(searchQuery, 0)
+  }
+  const openGroupIndex = groups ? groups.findIndex(g => g.key === openGroup) : -1
+  const maxGroupTotal = groups && groups.length ? Math.max(...groups.map(g => g.total)) : 0
+  // the open group's highest receipt, highlighted in its list
+  const topReceiptId = openGroupIndex >= 0 ? groups![openGroupIndex].top?.id ?? null : null
 
   // Handle receipt click
   const handleReceiptClick = (receiptId: string) => {
@@ -489,14 +580,85 @@ function ReceiptHistoryPageContent() {
         />
         {/* Date range — the standard collapsed-by-default selector used
             throughout the app, replacing this page's old bespoke preset row. */}
-        <DateRangeSelector
-          value={dateRange}
-          onChange={handleDateRangeChange}
-          showAllTime
-          allTime={allTime}
-          onAllTimeChange={handleAllTimeChange}
-        />
+        <div className="flex flex-wrap sm:flex-nowrap items-start gap-2">
+          <div className="flex-1 min-w-0">
+            <DateRangeSelector
+              value={dateRange}
+              onChange={handleDateRangeChange}
+              showAllTime
+              allTime={allTime}
+              onAllTimeChange={handleAllTimeChange}
+            />
+          </div>
+          {/* MBM-359: Group by */}
+          <label className="w-full sm:w-auto flex items-center gap-2 px-3 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-gray-700 dark:text-gray-300 whitespace-nowrap">
+            Group by
+            <select value={groupBy} onChange={e => changeGroupBy(e.target.value)}
+              className="flex-1 sm:flex-none border border-gray-300 dark:border-gray-600 rounded-md px-2 py-1 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
+              {GROUP_BY_OPTIONS.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+            </select>
+          </label>
         </div>
+        </div>
+
+        {/* MBM-359: grouped — one row per group; the open group's receipts
+            (the normal list below) are placed right under its row with CSS
+            order, so the list code is shared with the ungrouped view */}
+        <div className="flex flex-col">
+        {groupBy && (
+          <div style={{ order: -1 }} className="mb-2">
+            {groupsLoading && <p className="py-4 text-sm text-gray-500 dark:text-gray-400">Grouping…</p>}
+            {groupsError && <p className="py-4 text-sm text-red-600 dark:text-red-400">{groupsError}</p>}
+            {!groupsLoading && groups && groups.length === 0 && (
+              <p className="py-6 text-center text-sm text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-800 rounded-lg shadow">No receipts found</p>
+            )}
+            {!groupsLoading && groupSummary && groups && groups.length > 0 && (
+              <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-4 py-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+                <span className="text-sm text-gray-700 dark:text-gray-300">
+                  {groupSummary.count} receipt{groupSummary.count === 1 ? '' : 's'} in {groups.length} group{groups.length === 1 ? '' : 's'} · avg {money(groupSummary.average)}
+                  {groupSummary.cancelled > 0 && <span className="text-red-600 dark:text-red-400"> · {groupSummary.cancelled} cancelled (not in totals)</span>}
+                </span>
+                <span className="text-lg font-bold text-gray-900 dark:text-white">Total <span className="text-green-700 dark:text-green-400">{money(groupSummary.total)}</span></span>
+              </div>
+            )}
+          </div>
+        )}
+        {groupBy && !groupsLoading && groups?.map((g, i) => (
+          <div key={g.key} role="button" tabIndex={0} onClick={() => toggleGroup(g.key)} aria-expanded={openGroup === g.key}
+            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleGroup(g.key) } }}
+            style={{ order: i * 2 }}
+            className={`w-full text-left mb-2 px-4 py-3 rounded-lg shadow transition-colors ${openGroup === g.key
+              ? 'bg-blue-600 text-white'
+              : 'bg-white dark:bg-gray-800 hover:bg-blue-50 dark:hover:bg-gray-700'}`}>
+            <div className="flex items-center justify-between gap-3">
+              <span className="flex items-center gap-2 min-w-0">
+                <span className="shrink-0">{openGroup === g.key ? '▾' : '▸'}</span>
+                <span className={`font-semibold truncate ${openGroup === g.key ? '' : 'text-gray-900 dark:text-white'}`}>{g.label}</span>
+              </span>
+              <span className={`font-bold whitespace-nowrap ${openGroup === g.key ? '' : 'text-gray-900 dark:text-white'}`}>{money(g.total)}</span>
+            </div>
+            <div className={`mt-0.5 flex flex-wrap gap-x-2 text-xs ${openGroup === g.key ? 'text-blue-100' : 'text-gray-500 dark:text-gray-400'}`}>
+              <span>{g.count} receipt{g.count === 1 ? '' : 's'}</span>
+              <span>· avg {money(g.average)}</span>
+              {g.cancelled > 0 && <span className={openGroup === g.key ? '' : 'text-red-600 dark:text-red-400'}>· {g.cancelled} cancelled</span>}
+              {/* the highest receipt: opens it without opening the group */}
+              {g.top && (
+                <button type="button" title="Open the highest receipt"
+                  onClick={e => { e.stopPropagation(); handleReceiptClick(g.top!.id) }}
+                  className={`underline decoration-dotted underline-offset-2 ${openGroup === g.key ? 'text-white hover:text-blue-100' : 'text-amber-700 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-300'}`}>
+                  · ⭐ highest {g.top.orderNumber} {money(g.top.amount)}
+                </button>
+              )}
+            </div>
+            {/* this group's total against the biggest one */}
+            <div className={`mt-1.5 h-1.5 rounded-full ${openGroup === g.key ? 'bg-blue-400' : 'bg-gray-100 dark:bg-gray-700'}`}>
+              <div className={`h-1.5 rounded-full ${openGroup === g.key ? 'bg-white' : 'bg-blue-500'}`}
+                style={{ width: `${maxGroupTotal > 0 ? Math.max(2, (g.total / maxGroupTotal) * 100) : 0}%` }} />
+            </div>
+          </div>
+        ))}
+        <div style={groupBy ? { order: openGroupIndex * 2 + 1 } : undefined}
+          className={groupBy ? (openGroupIndex < 0 ? 'hidden' : 'mb-3 ml-2 sm:ml-4 pl-2 border-l-2 border-blue-500') : ''}>
 
         {/* Error Message */}
         {error && (
@@ -517,7 +679,7 @@ function ReceiptHistoryPageContent() {
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
             <div className="text-sm text-blue-800 dark:text-blue-300">
               <span className="font-semibold">{selectionCount}</span> sale{selectionCount === 1 ? '' : 's'} selected
-              {!selectAllFilterActive && pagination && pagination.total > receipts.length && selectedIds.size === receipts.length && (
+              {!selectAllFilterActive && !groupBy && pagination && pagination.total > receipts.length && selectedIds.size === receipts.length && (
                 <button
                   onClick={() => setSelectAllFilterActive(true)}
                   className="ml-2 text-blue-600 dark:text-blue-400 hover:underline font-medium"
@@ -565,7 +727,7 @@ function ReceiptHistoryPageContent() {
                 <div
                   key={receipt.id}
                   onClick={() => handleReceiptClick(receipt.id)}
-                  className={`p-3 space-y-2 cursor-pointer transition-colors ${
+                  className={`p-3 space-y-2 cursor-pointer transition-colors ${receipt.id === topReceiptId ? 'ring-2 ring-inset ring-amber-400 ' : ''}${
                     receipt.cancellationOutcome === 'CANCELLED'
                       ? 'bg-red-50 dark:bg-red-900/10'
                       : receipt.cancellationOutcome === 'DENIED'
@@ -797,7 +959,7 @@ function ReceiptHistoryPageContent() {
                     onClick={() => handleReceiptClick(receipt.id)}
                     onMouseEnter={(e) => onRowEnter(receipt.id, e)}
                     onMouseLeave={onRowLeave}
-                    className={`cursor-pointer transition-colors ${
+                    className={`cursor-pointer transition-colors ${receipt.id === topReceiptId ? 'bg-amber-50 dark:bg-amber-900/20 outline outline-2 -outline-offset-2 outline-amber-400 ' : ''}${
                       receipt.cancellationOutcome === 'CANCELLED'
                         ? 'bg-red-50 dark:bg-red-900/10 hover:bg-red-100 dark:hover:bg-red-900/20'
                         : receipt.cancellationOutcome === 'DENIED'
@@ -817,6 +979,7 @@ function ReceiptHistoryPageContent() {
                     )}
                     <td data-receipt-no className="px-3 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
                       {receipt.orderNumber}
+                      {receipt.id === topReceiptId && <span className="ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-400 text-gray-900" title="The highest receipt in this group">⭐ HIGHEST</span>}
                     </td>
                     <td className="px-3 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
                       <div>{receipt.customerName}</div>
@@ -957,6 +1120,8 @@ function ReceiptHistoryPageContent() {
             </p>
           </div>
         )}
+        </div>
+        </div>
       </div>
 
       {/* Cancel error toast */}
